@@ -47,38 +47,74 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Soft UI Design System - Colores base */
+  --radius: 1rem; /* 16px - Soft UI usa bordes más redondeados */
+
+  /* Backgrounds */
+  --background: #f8f9fa; /* Soft UI bg-default */
+  --foreground: #67748e; /* Soft UI text-main */
+
+  /* Cards */
+  --card: #ffffff;
+  --card-foreground: #67748e;
+
+  /* Popover */
+  --popover: #ffffff;
+  --popover-foreground: #67748e;
+
+  /* Primary - Azul Liga 1 personalizado */
+  --primary: #0047BB;
+  --primary-foreground: #ffffff;
+
+  /* Secondary - Soft UI */
+  --secondary: #8392ab;
+  --secondary-foreground: #ffffff;
+
+  /* Muted */
+  --muted: #e9ecef;
+  --muted-foreground: #67748e;
+
+  /* Accent */
+  --accent: #e9ecef;
+  --accent-foreground: #344767;
+
+  /* Destructive - Soft UI error */
+  --destructive: #ea0606;
+  --destructive-foreground: #ffffff;
+
+  /* Success - Soft UI */
+  --success: #82d616;
+  --success-foreground: #ffffff;
+
+  /* Warning - Soft UI */
+  --warning: #fbcf33;
+  --warning-foreground: #344767;
+
+  /* Info - Soft UI */
+  --info: #17c1e8;
+  --info-foreground: #ffffff;
+
+  /* Borders */
+  --border: #dee2e6;
+  --input: #d2d6da;
+  --ring: #17c1e8;
+
+  /* Charts */
+  --chart-1: #17c1e8; /* Info */
+  --chart-2: #82d616; /* Success */
+  --chart-3: #fbcf33; /* Warning */
+  --chart-4: #ea0606; /* Error */
+  --chart-5: #8392ab; /* Secondary */
+
+  /* Sidebar - Soft UI */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #67748e;
+  --sidebar-primary: #0047BB;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f8f9fa;
+  --sidebar-accent-foreground: #344767;
+  --sidebar-border: #e9ecef;
+  --sidebar-ring: #17c1e8;
 }
 
 .dark {
@@ -121,5 +157,50 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Soft UI - Sombras personalizadas */
+@layer utilities {
+  .shadow-soft {
+    box-shadow: 0 20px 27px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  .shadow-soft-lg {
+    box-shadow: 0 8px 26px -4px rgba(20, 20, 20, 0.15);
+  }
+
+  .shadow-soft-xl {
+    box-shadow: 0 20px 27px 0 rgba(0, 0, 0, 0.1);
+  }
+
+  /* Gradientes Soft UI */
+  .bg-gradient-primary {
+    background: linear-gradient(195deg, #cb0c9f, #ad0a87);
+  }
+
+  .bg-gradient-info {
+    background: linear-gradient(195deg, #17c1e8, #3acaeb);
+  }
+
+  .bg-gradient-success {
+    background: linear-gradient(195deg, #82d616, #95dc39);
+  }
+
+  .bg-gradient-warning {
+    background: linear-gradient(195deg, #fbcf33, #fcd652);
+  }
+
+  .bg-gradient-error {
+    background: linear-gradient(195deg, #ea0606, #ff3d59);
+  }
+
+  .bg-gradient-dark {
+    background: linear-gradient(195deg, #344767, #3a416f);
+  }
+
+  /* Liga 1 - Gradiente personalizado */
+  .bg-gradient-liga1 {
+    background: linear-gradient(195deg, #0047BB, #003D9E);
   }
 }
