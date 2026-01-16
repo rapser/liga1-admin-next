@@ -38,7 +38,7 @@ export class MatchRepository implements IMatchRepository {
     const snapshot = await getDocs(matchesRef);
 
     const matches = snapshot.docs.map((doc) =>
-      MatchMapper.toDomain(doc.id, doc.data() as MatchDTO)
+      MatchMapper.toDomain(doc.id, doc.data() as Partial<MatchDTO>)
     );
 
     return matches;
@@ -65,7 +65,7 @@ export class MatchRepository implements IMatchRepository {
       return null;
     }
 
-    return MatchMapper.toDomain(matchDoc.id, matchDoc.data() as MatchDTO);
+    return MatchMapper.toDomain(matchDoc.id, matchDoc.data() as Partial<MatchDTO>);
   }
 
   /**
@@ -84,7 +84,7 @@ export class MatchRepository implements IMatchRepository {
 
     const unsubscribe = onSnapshot(matchesRef, (snapshot) => {
       const matches = snapshot.docs.map((doc) =>
-        MatchMapper.toDomain(doc.id, doc.data() as MatchDTO)
+        MatchMapper.toDomain(doc.id, doc.data() as Partial<MatchDTO>)
       );
       callback(matches);
     });

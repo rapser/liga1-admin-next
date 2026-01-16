@@ -36,7 +36,7 @@ export class TeamRepository implements ITeamRepository {
     const snapshot = await getDocs(teamsRef);
 
     const teams = snapshot.docs.map((doc) =>
-      TeamMapper.toDomain(doc.id, doc.data() as TeamDTO)
+      TeamMapper.toDomain(doc.id, doc.data() as Partial<TeamDTO>)
     );
 
     return teams;
@@ -60,7 +60,7 @@ export class TeamRepository implements ITeamRepository {
 
     const unsubscribe = onSnapshot(teamsRef, (snapshot) => {
       const teams = snapshot.docs.map((doc) =>
-        TeamMapper.toDomain(doc.id, doc.data() as TeamDTO)
+        TeamMapper.toDomain(doc.id, doc.data() as Partial<TeamDTO>)
       );
       callback(teams);
     });

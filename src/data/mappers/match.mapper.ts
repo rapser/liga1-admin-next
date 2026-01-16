@@ -11,16 +11,16 @@ export class MatchMapper {
   /**
    * Convierte un MatchDTO de Firestore a una entidad Match del dominio
    */
-  static toDomain(id: string, dto: MatchDTO): Match {
+  static toDomain(id: string, dto: Partial<MatchDTO>): Match {
     return {
       id,
-      equipoLocalId: dto.equipoLocalId,
-      equipoVisitanteId: dto.equipoVisitanteId,
-      fecha: dto.fecha.toDate(), // Timestamp → Date
-      golesEquipoLocal: dto.golesEquipoLocal,
-      golesEquipoVisitante: dto.golesEquipoVisitante,
-      estado: dto.estado,
-      suspendido: dto.suspendido,
+      equipoLocalId: dto.equipoLocalId || '',
+      equipoVisitanteId: dto.equipoVisitanteId || '',
+      fecha: dto.fecha?.toDate() || new Date(),
+      golesEquipoLocal: dto.golesEquipoLocal ?? 0,
+      golesEquipoVisitante: dto.golesEquipoVisitante ?? 0,
+      estado: dto.estado || 'pendiente',
+      suspendido: dto.suspendido ?? false,
       estadio: dto.estadio,
       jornadaNumero: dto.jornadaNumero,
     };

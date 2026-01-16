@@ -11,15 +11,24 @@ export class JornadaMapper {
   /**
    * Convierte un JornadaDTO de Firestore a una entidad Jornada del dominio
    */
-  static toDomain(id: string, dto: JornadaDTO): Jornada {
+  static toDomain(id: string, dto: Partial<JornadaDTO>): Jornada {
+    // Inferir el torneo desde el ID si no está presente
+    // Formato del ID: "apertura_01" o "clausura_15"
+    let torneo: 'apertura' | 'clausura' = 'apertura';
+    if (dto.torneo) {
+      torneo = dto.torneo;
+    } else if (id.includes('clausura')) {
+      torneo = 'clausura';
+    }
+
     return {
       id,
-      torneo: dto.torneo,
-      numero: dto.numero,
-      mostrar: dto.mostrar,
-      fechaInicio: dto.fechaInicio.toDate(), // Timestamp → Date
-      fechaFin: dto.fechaFin?.toDate(), // Timestamp → Date (opcional)
-      esActiva: dto.esActiva,
+      torneo,
+      numero: dto.numero || 1,
+      mostrar: dto.mostrar ?? true,
+      fechaInicio: dto.fechaInicio?.toDate() || new Date(),
+      fechaFin: dto.fechaFin?.toDate(),
+      esActiva: dto.esActiva ?? false,
     };
   }
 

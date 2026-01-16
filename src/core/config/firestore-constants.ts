@@ -10,7 +10,7 @@ export const FIRESTORE_COLLECTIONS = {
   CLAUSURA: 'clausura',
   ACUMULADO: 'acumulado',
   NEWS: 'news',
-  USERS: 'users',
+  USERS: 'admins', // Cambiar a 'admins' para coincidir con la app iOS
 } as const;
 
 export const TEAM_CODES = {

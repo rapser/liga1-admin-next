@@ -39,7 +39,7 @@ export class JornadaRepository implements IJornadaRepository {
     const snapshot = await getDocs(q);
 
     const jornadas = snapshot.docs.map((doc) =>
-      JornadaMapper.toDomain(doc.id, doc.data() as JornadaDTO)
+      JornadaMapper.toDomain(doc.id, doc.data() as Partial<JornadaDTO>)
     );
 
     return jornadas;
@@ -72,7 +72,7 @@ export class JornadaRepository implements IJornadaRepository {
     const snapshot = await getDocs(q);
 
     const jornadas = snapshot.docs.map((doc) =>
-      JornadaMapper.toDomain(doc.id, doc.data() as JornadaDTO)
+      JornadaMapper.toDomain(doc.id, doc.data() as Partial<JornadaDTO>)
     );
 
     return jornadas;
@@ -94,7 +94,7 @@ export class JornadaRepository implements IJornadaRepository {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const jornadas = snapshot.docs.map((doc) =>
-        JornadaMapper.toDomain(doc.id, doc.data() as JornadaDTO)
+        JornadaMapper.toDomain(doc.id, doc.data() as Partial<JornadaDTO>)
       );
       callback(jornadas);
     });
@@ -175,7 +175,7 @@ export class JornadaRepository implements IJornadaRepository {
     const doc = snapshot.docs[0];
     if (!doc) return null;
 
-    return JornadaMapper.toDomain(doc.id, doc.data() as JornadaDTO);
+    return JornadaMapper.toDomain(doc.id, doc.data() as Partial<JornadaDTO>);
   }
 
   /**

@@ -11,14 +11,14 @@ export class AdminMapper {
   /**
    * Convierte un AdminUserDTO de Firestore a una entidad AdminUser del dominio
    */
-  static toDomain(uid: string, dto: AdminUserDTO): AdminUser {
+  static toDomain(uid: string, dto: Partial<AdminUserDTO>): AdminUser {
     return {
       uid,
-      email: dto.email,
+      email: dto.email || '',
       displayName: dto.displayName,
       photoURL: dto.photoURL,
-      role: dto.role,
-      createdAt: dto.createdAt.toDate(), // Timestamp → Date
+      role: dto.role || 'admin', // Por defecto 'admin' si no existe el campo
+      createdAt: dto.createdAt?.toDate() || new Date(), // Timestamp → Date
       lastLoginAt: dto.lastLoginAt?.toDate(), // Timestamp → Date (opcional)
     };
   }

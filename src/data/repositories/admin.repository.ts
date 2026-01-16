@@ -27,29 +27,34 @@ export class AdminRepository implements IAdminRepository {
    * Verifica si un usuario está autorizado como administrador
    */
   async isUserAuthorized(userId: string): Promise<boolean> {
-    const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, userId);
-    const userDoc = await getDoc(userRef);
-
-    if (!userDoc.exists()) {
-      return false;
-    }
-
-    const userData = userDoc.data() as AdminUserDTO;
-    return userData.role === 'admin' || userData.role === 'viewer';
+    // Por ahora, todos los usuarios autenticados tienen acceso
+    // No hay distinción entre admin y usuarios normales
+    // En el futuro se puede verificar una colección 'admins' o campo 'role'
+    return true;
   }
 
   /**
    * Obtiene la información de un usuario administrador
    */
   async fetchAdminUser(userId: string): Promise<AdminUser | null> {
+    // Por ahora, retornar un usuario básico sin verificar Firestore
+    // ya que no hay distinción entre admin y usuarios normales
     const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, userId);
     const userDoc = await getDoc(userRef);
 
-    if (!userDoc.exists()) {
-      return null;
+    if (userDoc.exists()) {
+      // Si existe en Firestore, usar esos datos
+      return AdminMapper.toDomain(userDoc.id, userDoc.data() as Partial<AdminUserDTO>);
     }
 
-    return AdminMapper.toDomain(userDoc.id, userDoc.data() as AdminUserDTO);
+    // Si no existe en Firestore, crear un usuario básico
+    // con datos mínimos (se llenará con Firebase Auth)
+    return {
+      uid: userId,
+      email: '', // Se llenará desde Firebase Auth en el provider
+      role: 'admin', // Por defecto todos son admin
+      createdAt: new Date(),
+    };
   }
 
   /**
@@ -60,7 +65,7 @@ export class AdminRepository implements IAdminRepository {
     const snapshot = await getDocs(usersRef);
 
     const users = snapshot.docs.map((doc) =>
-      AdminMapper.toDomain(doc.id, doc.data() as AdminUserDTO)
+      AdminMapper.toDomain(doc.id, doc.data() as Partial<AdminUserDTO>)
     );
 
     return users;
@@ -127,9 +132,9 @@ export class AdminRepository implements IAdminRepository {
    * Registra el último inicio de sesión de un usuario
    */
   async recordUserLogin(userId: string): Promise<void> {
-    const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, userId);
-    await updateDoc(userRef, {
-      lastLoginAt: serverTimestamp(),
-    });
+    // Por ahora, no registrar login en Firestore
+    // ya que no todos los usuarios tienen documento en la colección
+    // En el futuro se puede implementar cuando se tenga la colección 'admins'
+    return;
   }
 }

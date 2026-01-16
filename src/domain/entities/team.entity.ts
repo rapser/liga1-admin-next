@@ -136,7 +136,9 @@ export const compareTeams = (a: Team, b: Team): number => {
   }
 
   // 4. Si todo es igual, mantener orden alfabético
-  return a.nombre.localeCompare(b.nombre);
+  const nombreA = a.nombre || '';
+  const nombreB = b.nombre || '';
+  return nombreA.localeCompare(nombreB);
 };
 
 /**

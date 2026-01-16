@@ -11,21 +11,21 @@ export class TeamMapper {
   /**
    * Convierte un TeamDTO de Firestore a una entidad Team del dominio
    */
-  static toDomain(id: string, dto: TeamDTO): Team {
+  static toDomain(id: string, dto: Partial<TeamDTO>): Team {
     return {
       id: id as TeamCode,
-      nombre: dto.nombre,
-      ciudad: dto.ciudad,
-      estadio: dto.estadio,
-      logo: dto.logo,
-      partidosJugados: dto.partidosJugados,
-      partidosGanados: dto.partidosGanados,
-      partidosEmpatados: dto.partidosEmpatados,
-      partidosPerdidos: dto.partidosPerdidos,
-      golesFavor: dto.golesFavor,
-      golesContra: dto.golesContra,
-      diferenciaGoles: dto.diferenciaGoles,
-      puntos: dto.puntos,
+      nombre: dto.nombre || '',
+      ciudad: dto.ciudad || '',
+      estadio: dto.estadio || '',
+      logo: dto.logo || `/teams/${id}.png`,
+      partidosJugados: dto.partidosJugados ?? 0,
+      partidosGanados: dto.partidosGanados ?? 0,
+      partidosEmpatados: dto.partidosEmpatados ?? 0,
+      partidosPerdidos: dto.partidosPerdidos ?? 0,
+      golesFavor: dto.golesFavor ?? 0,
+      golesContra: dto.golesContra ?? 0,
+      diferenciaGoles: dto.diferenciaGoles ?? 0,
+      puntos: dto.puntos ?? 0,
     };
   }
 

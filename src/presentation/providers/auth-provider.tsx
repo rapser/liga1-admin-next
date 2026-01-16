@@ -10,6 +10,7 @@ import {
   User,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithEmailAndPassword,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
@@ -36,6 +37,9 @@ interface AuthContextType {
   /** Función para iniciar sesión con Google */
   signInWithGoogle: () => Promise<void>;
 
+  /** Función para iniciar sesión con Email y Password */
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+
   /** Función para cerrar sesión */
   logout: () => Promise<void>;
 }
@@ -60,17 +64,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (firebaseUser) {
         try {
-          // Verificar si el usuario está autorizado en Firestore
+          // Verificar si el usuario está autorizado
           const isAuthorized = await adminRepository.isUserAuthorized(
             firebaseUser.uid
           );
 
           if (isAuthorized) {
-            // Obtener información completa del admin
-            const admin = await adminRepository.fetchAdminUser(firebaseUser.uid);
+            // Crear AdminUser con datos de Firebase Authentication
+            const admin: AdminUser = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName || undefined,
+              photoURL: firebaseUser.photoURL || undefined,
+              role: 'admin', // Por ahora todos son admin
+              createdAt: new Date(),
+            };
             setAdminUser(admin);
 
-            // Registrar el login
+            // Registrar el login (por ahora no hace nada)
             await adminRepository.recordUserLogin(firebaseUser.uid);
           } else {
             // Usuario no autorizado, cerrar sesión
@@ -120,6 +131,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+
+      // Iniciar sesión con email y password
+      const result = await signInWithEmailAndPassword(auth, email, password);
+
+      // Verificar si el usuario está autorizado
+      const isAuthorized = await adminRepository.isUserAuthorized(result.user.uid);
+
+      if (!isAuthorized) {
+        // Si no está autorizado, cerrar sesión inmediatamente
+        await firebaseSignOut(auth);
+        throw new Error(
+          'No tienes permisos para acceder a este panel. Contacta al administrador.'
+        );
+      }
+    } catch (error) {
+      console.error('Error al iniciar sesión:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await firebaseSignOut(auth);
@@ -138,6 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isViewer: adminUser?.role === 'viewer',
     loading,
     signInWithGoogle,
+    signInWithEmail,
     logout,
   };
 
