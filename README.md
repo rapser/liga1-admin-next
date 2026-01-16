@@ -121,16 +121,23 @@ liga1-739fc/
 - ✅ Estructura de carpetas (Arquitectura Limpia)
 - ✅ Archivos de configuración base
 - ✅ TypeScript en modo estricto
+- ✅ Firebase configurado
 
-### 🔜 FASE 1 - Capa de Dominio
-- Crear entidades (Match, Team, Jornada, NewsItem)
-- Definir interfaces de repositorios
-- Configurar tipos y enums compartidos
+### ✅ FASE 1 - Capa de Dominio (Completada)
+- ✅ Entidades creadas (Match, Team, Jornada, NewsItem)
+- ✅ Interfaces de repositorios definidas
+- ✅ Funciones auxiliares de lógica de negocio
+- ✅ Tipos y enums compartidos
 
-### 🔜 FASE 2 - Capa de Datos
-- Crear DTOs para Firestore
-- Implementar Mappers (DTO ↔ Domain)
-- Implementar repositorios con listeners en tiempo real
+### ✅ FASE 2 - Capa de Datos (Completada)
+- ✅ DTOs creados para todos los modelos (Match, Team, Jornada, News, Admin)
+- ✅ Mappers implementados (DTO ↔ Domain) con conversión de Timestamp
+- ✅ 5 Repositorios implementados con listeners en tiempo real:
+  - MatchRepository - CRUD + observables
+  - TeamRepository - Tabla de posiciones (apertura/clausura/acumulado)
+  - JornadaRepository - Gestión de jornadas
+  - NewsRepository - Gestión de noticias
+  - AdminRepository - Usuarios autorizados
 
 ### 🔜 FASE 3 - Autenticación
 - Configurar Firebase Auth Provider
@@ -138,8 +145,12 @@ liga1-739fc/
 - Middleware de protección de rutas
 - Verificación de usuarios autorizados
 
-### 🔜 FASE 4 - UI Components
-- Layout (Navbar, Sidebar)
+### 🔜 FASE 4 - UI Components (Adaptando diseño de Soft UI Dashboard)
+- Configurar Tailwind con paleta Soft UI
+- Layout (Navbar, Sidebar) adaptado de la plantilla
+- Cards con estilos Soft UI (sombras suaves, bordes redondeados)
+- Botones con gradientes
+- Badges personalizados para estados de partidos
 - Componentes de Features (MatchCard, StandingsTable, etc.)
 - Configurar providers (Query, Auth, Toast)
 
