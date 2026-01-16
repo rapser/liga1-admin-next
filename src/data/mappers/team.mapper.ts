@@ -5,7 +5,7 @@
 
 import { Team } from '@/domain/entities/team.entity';
 import { TeamDTO } from '../dtos/team.dto';
-import { TeamCode } from '@/core/config/firestore-constants';
+import { TeamCode, getTeamFullName } from '@/core/config/firestore-constants';
 
 export class TeamMapper {
   /**
@@ -14,7 +14,7 @@ export class TeamMapper {
   static toDomain(id: string, dto: Partial<TeamDTO>): Team {
     return {
       id: id as TeamCode,
-      nombre: dto.nombre || '',
+      nombre: dto.nombre || getTeamFullName(id), // Usar función de mapeo si no existe el nombre
       ciudad: dto.ciudad || '',
       estadio: dto.estadio || '',
       logo: dto.logo || `/teams/${id}.png`,

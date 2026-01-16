@@ -73,16 +73,12 @@ export default function PosicionesPage() {
         description="Posiciones de la Liga 1 - Temporada 2026"
       />
 
-      <Tabs defaultValue="acumulado" className="w-full">
+      <Tabs defaultValue="apertura" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3 mb-6">
-          <TabsTrigger value="acumulado">Acumulado</TabsTrigger>
           <TabsTrigger value="apertura">Apertura</TabsTrigger>
           <TabsTrigger value="clausura">Clausura</TabsTrigger>
+          <TabsTrigger value="acumulado">Acumulado</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="acumulado">
-          <StandingsTable teams={acumuladoTeams} title="Tabla Acumulada" />
-        </TabsContent>
 
         <TabsContent value="apertura">
           <StandingsTable teams={aperturaTeams} title="Torneo Apertura" />
@@ -90,6 +86,10 @@ export default function PosicionesPage() {
 
         <TabsContent value="clausura">
           <StandingsTable teams={clausuraTeams} title="Torneo Clausura" />
+        </TabsContent>
+
+        <TabsContent value="acumulado">
+          <StandingsTable teams={acumuladoTeams} title="Tabla Acumulada" />
         </TabsContent>
       </Tabs>
     </DashboardLayout>

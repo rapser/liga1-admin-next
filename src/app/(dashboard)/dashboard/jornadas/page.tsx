@@ -18,6 +18,7 @@ import { MatchRepository } from '@/data/repositories/match.repository';
 import { CalendarDays, Trophy, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getTeamFullName } from '@/core/config/firestore-constants';
 
 const jornadaRepository = new JornadaRepository();
 const matchRepository = new MatchRepository();
@@ -239,7 +240,7 @@ function MatchCard({ match }: MatchCardProps) {
         {/* Equipo Local */}
         <div className="flex items-center gap-3 flex-1 justify-end">
           <span className="font-semibold text-[#344767] text-right">
-            {match.equipoLocalId || 'Por definir'}
+            {getTeamFullName(match.equipoLocalId)}
           </span>
           <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
             {match.equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
@@ -276,7 +277,7 @@ function MatchCard({ match }: MatchCardProps) {
             {match.equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
           </div>
           <span className="font-semibold text-[#344767]">
-            {match.equipoVisitanteId || 'Por definir'}
+            {getTeamFullName(match.equipoVisitanteId)}
           </span>
         </div>
       </div>
