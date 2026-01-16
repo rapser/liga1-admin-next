@@ -160,9 +160,7 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
             <tbody>
               {teams.map((team, index) => {
                 const position = index + 1;
-                const isTop3 = position <= 3;
-                const isPlayoff = position >= 4 && position <= 8;
-                const isRelegation = position >= teams.length - 2;
+                const isChampion = position === 1;
 
                 return (
                   <tr
@@ -173,18 +171,14 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
                       <div className="flex items-center gap-2">
                         <span
                           className={`flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${
-                            isTop3
+                            isChampion
                               ? 'bg-gradient-success text-white'
-                              : isPlayoff
-                              ? 'bg-gradient-info text-white'
-                              : isRelegation
-                              ? 'bg-gradient-error text-white'
                               : 'bg-[#e9ecef] text-[#67748e]'
                           }`}
                         >
                           {position}
                         </span>
-                        {position === 1 && <Trophy className="h-4 w-4 text-warning" />}
+                        {isChampion && <Trophy className="h-4 w-4 text-[#fbc400]" />}
                       </div>
                     </td>
                     <td className="py-4 px-4">

@@ -23,6 +23,42 @@ import { getTeamFullName } from '@/core/config/firestore-constants';
 const jornadaRepository = new JornadaRepository();
 const matchRepository = new MatchRepository();
 
+/**
+ * Extrae el torneo del ID de la jornada
+ * Ejemplo: "apertura_01" -> "Apertura"
+ */
+const getTorneoFromJornadaId = (jornadaId: string): string => {
+  const parts = jornadaId.split('_');
+  if (parts[0]) {
+    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+  }
+  return 'Torneo';
+};
+
+/**
+ * Extrae el número de fecha del ID de la jornada
+ * Ejemplo: "apertura_01" -> "Fecha 01"
+ */
+const getFechaFromJornadaId = (jornadaId: string): string => {
+  const parts = jornadaId.split('_');
+  if (parts[1]) {
+    return `Fecha ${parts[1]}`;
+  }
+  return 'Fecha';
+};
+
+/**
+ * Extrae los códigos de equipos del ID del partido
+ * Ejemplo: "uni_ali" -> { local: "uni", visitante: "ali" }
+ */
+const getTeamsFromMatchId = (matchId: string): { local: string; visitante: string } => {
+  const parts = matchId.split('_');
+  return {
+    local: parts[0] || '',
+    visitante: parts[1] || '',
+  };
+};
+
 export default function JornadasPage() {
   const { loading: authLoading } = useRequireAuth();
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
@@ -94,8 +130,8 @@ export default function JornadasPage() {
   return (
     <DashboardLayout>
       <PageHeader
-        title="Jornadas"
-        description="Gestión de jornadas y partidos de la Liga 1"
+        title={selectedJornadaData ? getTorneoFromJornadaId(selectedJornadaData.id) : "Jornadas"}
+        description="Temporada 2026"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -119,11 +155,11 @@ export default function JornadasPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-semibold">Jornada {jornada.numero}</p>
+                      <p className="font-semibold">{getFechaFromJornadaId(jornada.id)}</p>
                       <p className={`text-xs ${
                         selectedJornada === jornada.id ? 'text-white/80' : 'text-[#67748e]'
                       }`}>
-                        {jornada.torneo.charAt(0).toUpperCase() + jornada.torneo.slice(1)}
+                        {getTorneoFromJornadaId(jornada.id)}
                       </p>
                     </div>
                     <CalendarDays className="h-5 w-5" />
@@ -144,9 +180,9 @@ export default function JornadasPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-[#344767] text-2xl">
-                        Jornada {selectedJornadaData.numero}
+                        {getFechaFromJornadaId(selectedJornadaData.id)}
                       </CardTitle>
-                      <CardDescription>{getJornadaDisplayName(selectedJornadaData)}</CardDescription>
+                      <CardDescription>{getTorneoFromJornadaId(selectedJornadaData.id)}</CardDescription>
                     </div>
                     <Badge
                       variant={selectedJornadaData.esActiva ? 'default' : 'secondary'}
@@ -199,6 +235,11 @@ interface MatchCardProps {
 }
 
 function MatchCard({ match }: MatchCardProps) {
+  // Extraer códigos de equipos del ID del partido si no están presentes
+  const teams = getTeamsFromMatchId(match.id);
+  const equipoLocalId = match.equipoLocalId || teams.local;
+  const equipoVisitanteId = match.equipoVisitanteId || teams.visitante;
+
   const getStatusBadge = () => {
     if (match.suspendido) {
       return (
@@ -240,10 +281,10 @@ function MatchCard({ match }: MatchCardProps) {
         {/* Equipo Local */}
         <div className="flex items-center gap-3 flex-1 justify-end">
           <span className="font-semibold text-[#344767] text-right">
-            {getTeamFullName(match.equipoLocalId)}
+            {getTeamFullName(equipoLocalId)}
           </span>
           <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
-            {match.equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
+            {equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
           </div>
         </div>
 
@@ -274,10 +315,10 @@ function MatchCard({ match }: MatchCardProps) {
         {/* Equipo Visitante */}
         <div className="flex items-center gap-3 flex-1">
           <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
-            {match.equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
+            {equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
           </div>
           <span className="font-semibold text-[#344767]">
-            {getTeamFullName(match.equipoVisitanteId)}
+            {getTeamFullName(equipoVisitanteId)}
           </span>
         </div>
       </div>

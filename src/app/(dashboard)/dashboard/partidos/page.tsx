@@ -24,6 +24,18 @@ import { getTeamFullName } from '@/core/config/firestore-constants';
 const matchRepository = new MatchRepository();
 const jornadaRepository = new JornadaRepository();
 
+/**
+ * Extrae los códigos de equipos del ID del partido
+ * Ejemplo: "uni_ali" -> { local: "uni", visitante: "ali" }
+ */
+const getTeamsFromMatchId = (matchId: string): { local: string; visitante: string } => {
+  const parts = matchId.split('_');
+  return {
+    local: parts[0] || '',
+    visitante: parts[1] || '',
+  };
+};
+
 export default function PartidosPage() {
   const { loading: authLoading } = useRequireAuth();
   const [allMatches, setAllMatches] = useState<Match[]>([]);
@@ -182,6 +194,11 @@ interface MatchCardProps {
 }
 
 function MatchCard({ match }: MatchCardProps) {
+  // Extraer códigos de equipos del ID del partido si no están presentes
+  const teams = getTeamsFromMatchId(match.id);
+  const equipoLocalId = match.equipoLocalId || teams.local;
+  const equipoVisitanteId = match.equipoVisitanteId || teams.visitante;
+
   const getStatusBadge = () => {
     if (match.suspendido) {
       return (
@@ -224,11 +241,11 @@ function MatchCard({ match }: MatchCardProps) {
           {/* Equipo Local */}
           <div className="flex items-center gap-4 flex-1">
             <div className="h-14 w-14 rounded-xl bg-gradient-liga1 flex items-center justify-center text-white font-bold shadow-soft">
-              {match.equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
+              {equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
             </div>
             <div>
               <p className="font-bold text-[#344767] text-lg">
-                {getTeamFullName(match.equipoLocalId)}
+                {getTeamFullName(equipoLocalId)}
               </p>
               <p className="text-xs text-[#67748e]">Local</p>
             </div>
@@ -259,12 +276,12 @@ function MatchCard({ match }: MatchCardProps) {
           <div className="flex items-center gap-4 flex-1 justify-end">
             <div className="text-right">
               <p className="font-bold text-[#344767] text-lg">
-                {getTeamFullName(match.equipoVisitanteId)}
+                {getTeamFullName(equipoVisitanteId)}
               </p>
               <p className="text-xs text-[#67748e]">Visitante</p>
             </div>
             <div className="h-14 w-14 rounded-xl bg-gradient-error flex items-center justify-center text-white font-bold shadow-soft">
-              {match.equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
+              {equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
             </div>
           </div>
         </div>
