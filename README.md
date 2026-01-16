@@ -139,11 +139,14 @@ liga1-739fc/
   - NewsRepository - Gestión de noticias
   - AdminRepository - Usuarios autorizados
 
-### 🔜 FASE 3 - Autenticación
-- Configurar Firebase Auth Provider
-- Página de Login con Google Sign-In
-- Middleware de protección de rutas
-- Verificación de usuarios autorizados
+### ✅ FASE 3 - Autenticación (Completada)
+- ✅ AuthProvider configurado con Firebase Auth
+- ✅ Página de Login con Google Sign-In
+- ✅ Protección de rutas con useRequireAuth hook
+- ✅ Verificación de usuarios autorizados (admin/viewer)
+- ✅ Página de Dashboard básica
+- ✅ Redirecciones automáticas según estado de auth
+- ✅ Registro de último login en Firestore
 
 ### 🔜 FASE 4 - UI Components (Adaptando diseño de Soft UI Dashboard)
 - Configurar Tailwind con paleta Soft UI
