@@ -26,7 +26,7 @@ export const TEAM_CODES = {
   GAR: "gar", // Deportivo Garcilaso
   SBA: "sba", // Sport Boys
   CHA: "cha", // Los Chankas
-  UTC: "utc", // UTC Cajamarca
+  UTC: "utc", // UTC
   HUA: "hua", // Sport Huancayo
   COU: "cou", // Comerciantes Unidos
   JPA: "jpa", // Juan Pablo II College
@@ -50,7 +50,7 @@ export const TEAM_NAMES: Record<string, string> = {
   gar: "Deportivo Garcilaso",
   sba: "Sport Boys",
   cha: "Los Chankas",
-  utc: "UTC Cajamarca",
+  utc: "UTC",
   hua: "Sport Huancayo",
   cou: "Comerciantes Unidos",
   jpa: "Juan Pablo II College",

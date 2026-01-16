@@ -71,12 +71,13 @@ export default function JornadasPage() {
     const loadJornadas = async () => {
       try {
         setLoading(true);
-        const data = await jornadaRepository.fetchJornadas();
+        // Obtener solo las jornadas con mostrar = true
+        const data = await jornadaRepository.fetchVisibleJornadas();
         // Ordenar por número de jornada
         const sorted = [...data].sort((a, b) => a.numero - b.numero);
         setJornadas(sorted);
 
-        // Seleccionar la jornada 1 por defecto
+        // Seleccionar la primera jornada visible por defecto
         if (sorted.length > 0 && sorted[0]) {
           setSelectedJornada(sorted[0].id);
         }

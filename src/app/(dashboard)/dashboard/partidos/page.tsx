@@ -45,10 +45,10 @@ export default function PartidosPage() {
     const loadMatches = async () => {
       try {
         setLoading(true);
-        // Obtener todas las jornadas
-        const jornadas = await jornadaRepository.fetchJornadas();
+        // Obtener solo las jornadas con mostrar = true
+        const jornadas = await jornadaRepository.fetchVisibleJornadas();
 
-        // Obtener partidos de todas las jornadas
+        // Obtener partidos de las jornadas visibles
         const matchesPromises = jornadas.map(j => matchRepository.fetchMatches(j.id));
         const matchesArrays = await Promise.all(matchesPromises);
 
