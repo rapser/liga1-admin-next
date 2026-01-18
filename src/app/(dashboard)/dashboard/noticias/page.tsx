@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { NewsItem } from '@/domain/entities/news.entity';
 import { NewsRepository } from '@/data/repositories/news.repository';
-import { Newspaper, Eye, Clock, CheckCircle2, Plus } from 'lucide-react';
+import { Newspaper, Eye, Clock, CheckCircle2, Plus, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -32,6 +32,9 @@ export default function NoticiasPage() {
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [editingNews, setEditingNews] = useState<NewsItem | null>(null);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const loadNews = async () => {
     try {
@@ -88,6 +91,46 @@ export default function NoticiasPage() {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleUpdateNews = async (newsId: string, formData: {
+    title: string;
+    image?: string;
+    categoria?: NewsItem['categoria'];
+    destacada: boolean;
+    periodico?: string;
+    url?: string;
+  }) => {
+    try {
+      setIsUpdating(true);
+      const updates: Partial<NewsItem> = {
+        titulo: formData.title,
+        contenido: formData.title, // Usar el título como contenido
+        imagenUrl: formData.image,
+        categoria: formData.categoria || 'general',
+        publicada: formData.destacada,
+        autor: formData.periodico,
+        urlExterna: formData.url,
+      };
+      
+      await newsRepository.updateNews(newsId, updates);
+      toast.success('Noticia actualizada exitosamente');
+      setOpenEditDialog(false);
+      setEditingNews(null);
+      
+      // Recargar noticias
+      await loadNews();
+    } catch (error: any) {
+      console.error('Error al actualizar noticia:', error);
+      toast.error('Error al actualizar la noticia: ' + (error?.message || 'Error desconocido'));
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleEditClick = (newsItem: NewsItem) => {
+    setEditingNews(newsItem);
+    setOpenEditDialog(true);
   };
 
   if (authLoading || loading) {
@@ -185,11 +228,30 @@ export default function NoticiasPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {news.map((item) => (
-            <NewsCard key={item.id} news={item} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {news.map((item) => (
+              <NewsCard key={item.id} news={item} onEdit={handleEditClick} />
+            ))}
+          </div>
+
+          {/* Dialog para editar noticia */}
+          <Dialog open={openEditDialog} onOpenChange={setOpenEditDialog}>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Editar Noticia</DialogTitle>
+              </DialogHeader>
+              {editingNews && (
+                <EditNewsForm 
+                  news={editingNews}
+                  onSubmit={(data) => handleUpdateNews(editingNews.id, data)} 
+                  isSubmitting={isUpdating}
+                  key={editingNews.id}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        </>
       )}
     </DashboardLayout>
   );
@@ -197,20 +259,21 @@ export default function NoticiasPage() {
 
 interface NewsCardProps {
   news: NewsItem;
+  onEdit: (news: NewsItem) => void;
 }
 
-function NewsCard({ news }: NewsCardProps) {
+function NewsCard({ news, onEdit }: NewsCardProps) {
   return (
-    <Card className="shadow-soft border-0 hover:shadow-soft-lg transition-shadow overflow-hidden p-0">
+    <Card className="shadow-soft border-0 hover:shadow-soft-lg transition-shadow overflow-hidden p-0 h-[350px] flex flex-col">
       {/* Image Header */}
       {news.imagenUrl && (
-        <div className="relative h-[222px] bg-gradient-liga1 rounded-t-xl overflow-hidden">
+        <div className="relative h-[222px] bg-gradient-liga1 rounded-t-xl overflow-hidden flex-shrink-0">
           <img
             src={news.imagenUrl}
             alt={news.titulo}
             className="w-full h-full object-cover rounded-t-xl"
           />
-          <div className="absolute top-4 right-4">
+          <div className="absolute top-4 left-4">
             <Badge
               variant={news.publicada ? 'default' : 'secondary'}
               className={news.publicada ? 'bg-gradient-success border-0 shadow-soft' : ''}
@@ -218,20 +281,33 @@ function NewsCard({ news }: NewsCardProps) {
               {news.publicada ? 'Publicada' : 'Borrador'}
             </Badge>
           </div>
+          <div className="absolute top-4 right-4">
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8 bg-white/90 hover:bg-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(news);
+              }}
+            >
+              <Pencil className="h-4 w-4 text-[#344767]" />
+            </Button>
+          </div>
         </div>
       )}
 
-      <CardHeader className={news.imagenUrl ? 'pt-4 pb-6' : 'pb-6'}>
-        <CardTitle className="text-[#344767] line-clamp-3 mb-3">
+      <div className="flex flex-col flex-1 px-6 pt-2 pb-4 justify-between">
+        <CardTitle className="text-[#344767] line-clamp-3">
           {news.titulo}
         </CardTitle>
         
-        {/* Meta Info */}
-        <div className="flex items-center gap-2 text-xs text-[#67748e]">
+        {/* Meta Info - Fija en la parte inferior */}
+        <div className="flex items-center gap-2 text-xs text-[#67748e] mt-auto pt-2">
           <Clock className="h-4 w-4" />
           <span>{format(news.fechaPublicacion, "dd MMM yyyy 'a las' HH:mm", { locale: es })}</span>
         </div>
-      </CardHeader>
+      </div>
     </Card>
   );
 }
@@ -364,6 +440,141 @@ function CreateNewsForm({ onSubmit, isSubmitting }: CreateNewsFormProps) {
         </Button>
         <Button type="submit" disabled={isSubmitting} className="bg-gradient-liga1">
           {isSubmitting ? 'Creando...' : 'Crear Noticia'}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+interface EditNewsFormProps {
+  news: NewsItem;
+  onSubmit: (data: {
+    title: string;
+    image?: string;
+    categoria?: NewsItem['categoria'];
+    destacada: boolean;
+    periodico?: string;
+    url?: string;
+  }) => void;
+  isSubmitting: boolean;
+}
+
+function EditNewsForm({ news, onSubmit, isSubmitting }: EditNewsFormProps) {
+  const [formData, setFormData] = useState({
+    title: news.titulo || '',
+    image: news.imagenUrl || '',
+    categoria: news.categoria || 'general' as NewsItem['categoria'],
+    destacada: news.publicada || false,
+    periodico: news.autor || '',
+    url: news.urlExterna || '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.title.trim()) {
+      toast.error('El título es requerido');
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="edit-title">Título *</Label>
+        <Input
+          id="edit-title"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="Título de la noticia"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="edit-image">URL de Imagen</Label>
+        <Input
+          id="edit-image"
+          type="url"
+          value={formData.image}
+          onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+          placeholder="https://ejemplo.com/imagen.jpg"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="edit-categoria">Categoría</Label>
+        <Select
+          value={formData.categoria}
+          onValueChange={(value) => setFormData({ ...formData, categoria: value as NewsItem['categoria'] })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="general">General</SelectItem>
+            <SelectItem value="resultado">Resultado</SelectItem>
+            <SelectItem value="fixture">Fixture</SelectItem>
+            <SelectItem value="tabla">Tabla de Posiciones</SelectItem>
+            <SelectItem value="comunicado">Comunicado Oficial</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="edit-periodico">Periódico/Fuente</Label>
+        <Input
+          id="edit-periodico"
+          value={formData.periodico}
+          onChange={(e) => setFormData({ ...formData, periodico: e.target.value })}
+          placeholder="Nombre del periódico o fuente"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="edit-url">URL Externa</Label>
+        <Input
+          id="edit-url"
+          type="url"
+          value={formData.url}
+          onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+          placeholder="https://ejemplo.com/noticia"
+        />
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="edit-destacada"
+          checked={formData.destacada}
+          onChange={(e) => setFormData({ ...formData, destacada: e.target.checked })}
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <Label htmlFor="edit-destacada" className="cursor-pointer">
+          Noticia destacada (publicada)
+        </Label>
+      </div>
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setFormData({
+              title: news.titulo || '',
+              image: news.imagenUrl || '',
+              categoria: news.categoria || 'general',
+              destacada: news.publicada || false,
+              periodico: news.autor || '',
+              url: news.urlExterna || '',
+            });
+          }}
+          disabled={isSubmitting}
+        >
+          Restaurar
+        </Button>
+        <Button type="submit" disabled={isSubmitting} className="bg-gradient-liga1">
+          {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </DialogFooter>
     </form>

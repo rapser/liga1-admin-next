@@ -35,6 +35,18 @@ export interface Match {
 
   /** Número de jornada a la que pertenece */
   jornadaNumero?: number;
+
+  /** Fecha/hora cuando el partido cambió a estado "envivo" */
+  horaInicio?: Date;
+
+  /** Minuto actual del partido (0-90+) calculado desde horaInicio */
+  minutoActual?: number;
+
+  /** Tiempo agregado al final de cada tiempo (en minutos) */
+  tiempoAgregado?: number;
+
+  /** Indica si está en primera parte (true) o segunda parte (false) */
+  primeraParte?: boolean;
 }
 
 /**
@@ -86,4 +98,68 @@ export const getMatchWinner = (
   if (match.golesEquipoLocal > match.golesEquipoVisitante) return 'local';
   if (match.golesEquipoLocal < match.golesEquipoVisitante) return 'visitante';
   return 'empate';
+};
+
+/**
+ * Calcula los minutos transcurridos desde que inició el partido
+ * Retorna 0 si no hay horaInicio o si el partido no está en vivo
+ */
+export const getMatchElapsedMinutes = (match: Match): number => {
+  if (!match.horaInicio || match.estado !== 'envivo') {
+    return 0;
+  }
+
+  const now = new Date();
+  const inicio = match.horaInicio instanceof Date 
+    ? match.horaInicio 
+    : new Date(match.horaInicio);
+
+  const diffMs = now.getTime() - inicio.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  
+  return Math.max(0, diffMinutes);
+};
+
+/**
+ * Verifica si un partido puede ser finalizado
+ * Debe estar en vivo y haber completado 90 minutos + tiempo agregado configurado
+ */
+export const canFinishMatch = (match: Match): boolean => {
+  if (match.estado !== 'envivo') {
+    return false;
+  }
+
+  const minutosTranscurridos = getMatchElapsedMinutes(match);
+  const tiempoAgregado = match.tiempoAgregado || 0;
+  
+  // El partido puede finalizarse cuando han pasado 90 minutos reglamentarios + minutos adicionales configurados
+  return minutosTranscurridos >= (90 + tiempoAgregado);
+};
+
+/**
+ * Obtiene el minuto actual formateado con tiempo agregado
+ * Ejemplo: "45' +2" o "90' +5"
+ */
+export const getFormattedMatchMinute = (match: Match): string => {
+  const minutosTranscurridos = getMatchElapsedMinutes(match);
+  const tiempoAgregado = match.tiempoAgregado || 0;
+  const minutoActual = Math.min(minutosTranscurridos, 90);
+  
+  if (minutoActual === 0 && tiempoAgregado === 0) {
+    return "0'";
+  }
+
+  if (tiempoAgregado > 0 && minutoActual >= 45) {
+    return `${minutoActual}' +${tiempoAgregado}`;
+  }
+
+  return `${minutoActual}'`;
+};
+
+/**
+ * Determina si el partido está en primera o segunda parte
+ */
+export const isFirstHalf = (match: Match): boolean => {
+  const minutosTranscurridos = getMatchElapsedMinutes(match);
+  return minutosTranscurridos < 45;
 };

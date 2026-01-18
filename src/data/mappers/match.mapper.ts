@@ -10,12 +10,28 @@ import { MatchDTO } from '../dtos/match.dto';
 export class MatchMapper {
   /**
    * Convierte un MatchDTO de Firestore a una entidad Match del dominio
+   * IMPORTANTE: Si equipoLocalId o equipoVisitanteId no están en el DTO,
+   * los extrae del ID del documento (ej: "hua_ali" -> local: "hua", visitante: "ali")
    */
   static toDomain(id: string, dto: Partial<MatchDTO>): Match {
+    // Extraer IDs de equipos del ID del documento si no están en el DTO
+    // El ID del partido es "local_visitante" (ej: "hua_ali")
+    let equipoLocalId = dto.equipoLocalId || '';
+    let equipoVisitanteId = dto.equipoVisitanteId || '';
+
+    // Si los campos están vacíos, extraer del ID del documento
+    if (!equipoLocalId || !equipoVisitanteId) {
+      const parts = id.split('_');
+      if (parts.length >= 2) {
+        equipoLocalId = parts[0] || equipoLocalId || '';
+        equipoVisitanteId = parts[1] || equipoVisitanteId || '';
+      }
+    }
+
     return {
       id,
-      equipoLocalId: dto.equipoLocalId || '',
-      equipoVisitanteId: dto.equipoVisitanteId || '',
+      equipoLocalId,
+      equipoVisitanteId,
       fecha: dto.fecha?.toDate() || new Date(),
       golesEquipoLocal: dto.golesEquipoLocal ?? 0,
       golesEquipoVisitante: dto.golesEquipoVisitante ?? 0,
@@ -23,6 +39,10 @@ export class MatchMapper {
       suspendido: dto.suspendido ?? false,
       estadio: dto.estadio,
       jornadaNumero: dto.jornadaNumero,
+      horaInicio: dto.horaInicio?.toDate(),
+      minutoActual: dto.minutoActual,
+      tiempoAgregado: dto.tiempoAgregado,
+      primeraParte: dto.primeraParte,
     };
   }
 
@@ -40,6 +60,10 @@ export class MatchMapper {
       suspendido: match.suspendido,
       estadio: match.estadio,
       jornadaNumero: match.jornadaNumero,
+      horaInicio: match.horaInicio ? Timestamp.fromDate(match.horaInicio) : undefined,
+      minutoActual: match.minutoActual,
+      tiempoAgregado: match.tiempoAgregado,
+      primeraParte: match.primeraParte,
     };
   }
 

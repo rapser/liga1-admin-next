@@ -117,25 +117,31 @@ export const updateTeamStats = (
 
 /**
  * Compara dos equipos para ordenar la tabla de posiciones
- * Criterios: 1) Puntos, 2) Diferencia de goles, 3) Goles a favor
+ * Criterios: 1) Partidos jugados, 2) Puntos, 3) Diferencia de goles, 4) Goles a favor
  */
 export const compareTeams = (a: Team, b: Team): number => {
-  // 1. Ordenar por puntos (descendente)
+  // 1. Ordenar por partidos jugados (descendente) - PRIMER CRITERIO
+  // Equipos que ya jugaron partidos van antes que equipos con 0 partidos
+  if (a.partidosJugados !== b.partidosJugados) {
+    return b.partidosJugados - a.partidosJugados;
+  }
+
+  // 2. Si tienen los mismos partidos jugados, ordenar por puntos (descendente)
   if (a.puntos !== b.puntos) {
     return b.puntos - a.puntos;
   }
 
-  // 2. Si tienen los mismos puntos, ordenar por diferencia de goles (descendente)
+  // 3. Si tienen los mismos puntos, ordenar por diferencia de goles (descendente)
   if (a.diferenciaGoles !== b.diferenciaGoles) {
     return b.diferenciaGoles - a.diferenciaGoles;
   }
 
-  // 3. Si tienen la misma diferencia, ordenar por goles a favor (descendente)
+  // 4. Si tienen la misma diferencia, ordenar por goles a favor (descendente)
   if (a.golesFavor !== b.golesFavor) {
     return b.golesFavor - a.golesFavor;
   }
 
-  // 4. Si todo es igual, mantener orden alfabético
+  // 5. Si todo es igual, mantener orden alfabético
   const nombreA = a.nombre || '';
   const nombreB = b.nombre || '';
   return nombreA.localeCompare(nombreB);

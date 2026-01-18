@@ -15,16 +15,31 @@ import { Jornada, getJornadaDisplayName } from '@/domain/entities/jornada.entity
 import { Match } from '@/domain/entities/match.entity';
 import { JornadaRepository } from '@/data/repositories/jornada.repository';
 import { MatchRepository } from '@/data/repositories/match.repository';
+import { TeamRepository } from '@/data/repositories/team.repository';
+import { MatchStateService } from '@/domain/services/match-state.service';
+import { MatchLiveController } from '@/presentation/components/features/matches';
 import { CalendarDays, Trophy, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getTeamFullName } from '@/core/config/firestore-constants';
+import { getTeamFullName, TorneoType } from '@/core/config/firestore-constants';
 
 const jornadaRepository = new JornadaRepository();
 const matchRepository = new MatchRepository();
+const teamRepository = new TeamRepository();
+const matchStateService = new MatchStateService(matchRepository, teamRepository);
 
 /**
  * Extrae el torneo del ID de la jornada
+ * Ejemplo: "apertura_01" -> "apertura" (TorneoType)
+ */
+const getTorneoTypeFromJornadaId = (jornadaId: string): TorneoType => {
+  const parts = jornadaId.split('_');
+  const torneo = parts[0]?.toLowerCase();
+  return (torneo === 'apertura' || torneo === 'clausura') ? torneo : 'apertura';
+};
+
+/**
+ * Extrae el nombre del torneo del ID de la jornada
  * Ejemplo: "apertura_01" -> "Apertura"
  */
 const getTorneoFromJornadaId = (jornadaId: string): string => {
@@ -67,6 +82,22 @@ export default function JornadasPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMatches, setLoadingMatches] = useState(false);
 
+  const loadMatches = async () => {
+    if (!selectedJornada) return;
+
+    try {
+      setLoadingMatches(true);
+      const data = await matchRepository.fetchMatches(selectedJornada);
+      // Ordenar por fecha
+      const sorted = [...data].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+      setMatches(sorted);
+    } catch (error) {
+      console.error('Error al cargar partidos:', error);
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
+
   useEffect(() => {
     const loadJornadas = async () => {
       try {
@@ -94,23 +125,8 @@ export default function JornadasPage() {
   }, [authLoading]);
 
   useEffect(() => {
-    const loadMatches = async () => {
-      if (!selectedJornada) return;
-
-      try {
-        setLoadingMatches(true);
-        const data = await matchRepository.fetchMatches(selectedJornada);
-        // Ordenar por fecha
-        const sorted = [...data].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-        setMatches(sorted);
-      } catch (error) {
-        console.error('Error al cargar partidos:', error);
-      } finally {
-        setLoadingMatches(false);
-      }
-    };
-
     loadMatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJornada]);
 
   if (authLoading || loading) {
@@ -217,7 +233,13 @@ export default function JornadasPage() {
                   ) : (
                     <div className="space-y-4">
                       {matches.map((match) => (
-                        <MatchCard key={match.id} match={match} />
+                        <MatchCard 
+                          key={match.id} 
+                          match={match} 
+                          jornadaId={selectedJornadaData.id}
+                          torneo={getTorneoTypeFromJornadaId(selectedJornadaData.id)}
+                          onMatchChange={loadMatches}
+                        />
                       ))}
                     </div>
                   )}
@@ -233,9 +255,12 @@ export default function JornadasPage() {
 
 interface MatchCardProps {
   match: Match;
+  jornadaId: string;
+  torneo: TorneoType;
+  onMatchChange: () => void;
 }
 
-function MatchCard({ match }: MatchCardProps) {
+function MatchCard({ match, jornadaId, torneo, onMatchChange }: MatchCardProps) {
   // Extraer códigos de equipos del ID del partido si no están presentes
   const teams = getTeamsFromMatchId(match.id);
   const equipoLocalId = match.equipoLocalId || teams.local;
@@ -277,55 +302,69 @@ function MatchCard({ match }: MatchCardProps) {
   };
 
   return (
-    <div className="flex items-center justify-between p-4 rounded-xl bg-[#f8f9fa] hover:bg-[#e9ecef] transition-colors">
-      <div className="flex items-center gap-4 flex-1">
-        {/* Equipo Local */}
-        <div className="flex items-center gap-3 flex-1 justify-end">
-          <span className="font-semibold text-[#344767] text-right">
-            {getTeamFullName(equipoLocalId)}
-          </span>
-          <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
-            {equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
-          </div>
-        </div>
-
-        {/* Marcador o Hora */}
-        <div className="flex flex-col items-center gap-1 min-w-[100px]">
-          {match.estado === 'pendiente' ? (
-            <>
-              <span className="text-xs text-[#67748e]">
-                {format(match.fecha, 'HH:mm', { locale: es })}
-              </span>
-              <span className="text-xs text-[#67748e]">
-                {format(match.fecha, 'dd MMM', { locale: es })}
-              </span>
-            </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-[#344767]">
-                {match.golesEquipoLocal}
-              </span>
-              <span className="text-[#67748e]">-</span>
-              <span className="text-2xl font-bold text-[#344767]">
-                {match.golesEquipoVisitante}
-              </span>
+    <div className="p-4 rounded-xl bg-[#f8f9fa] hover:bg-[#e9ecef] transition-colors space-y-3">
+      {/* Información del Partido */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4 flex-1">
+          {/* Equipo Local */}
+          <div className="flex items-center gap-3 flex-1 justify-end">
+            <span className="font-semibold text-[#344767] text-right">
+              {getTeamFullName(equipoLocalId)}
+            </span>
+            <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
+              {equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
             </div>
-          )}
+          </div>
+
+          {/* Marcador o Hora */}
+          <div className="flex flex-col items-center gap-1 min-w-[100px]">
+            {match.estado === 'pendiente' ? (
+              <>
+                <span className="text-xs text-[#67748e]">
+                  {format(match.fecha, 'HH:mm', { locale: es })}
+                </span>
+                <span className="text-xs text-[#67748e]">
+                  {format(match.fecha, 'dd MMM', { locale: es })}
+                </span>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-[#344767]">
+                  {match.golesEquipoLocal}
+                </span>
+                <span className="text-[#67748e]">-</span>
+                <span className="text-2xl font-bold text-[#344767]">
+                  {match.golesEquipoVisitante}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Equipo Visitante */}
+          <div className="flex items-center gap-3 flex-1">
+            <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
+              {equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
+            </div>
+            <span className="font-semibold text-[#344767]">
+              {getTeamFullName(equipoVisitanteId)}
+            </span>
+          </div>
         </div>
 
-        {/* Equipo Visitante */}
-        <div className="flex items-center gap-3 flex-1">
-          <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
-            {equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
-          </div>
-          <span className="font-semibold text-[#344767]">
-            {getTeamFullName(equipoVisitanteId)}
-          </span>
-        </div>
+        {/* Estado Badge */}
+        <div>{getStatusBadge()}</div>
       </div>
 
-      {/* Estado */}
-      <div>{getStatusBadge()}</div>
+      {/* Controles de Gestión */}
+      <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+        <MatchLiveController
+          match={match}
+          jornadaId={jornadaId}
+          torneo={torneo}
+          matchStateService={matchStateService}
+          onStateChange={onMatchChange}
+        />
+      </div>
     </div>
   );
 }

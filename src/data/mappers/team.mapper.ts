@@ -10,42 +10,47 @@ import { TeamCode, getTeamFullName } from '@/core/config/firestore-constants';
 export class TeamMapper {
   /**
    * Convierte un TeamDTO de Firestore a una entidad Team del dominio
+   * Mapea los campos de Firestore (matchesPlayed, etc) a los campos del dominio (partidosJugados, etc)
    */
   static toDomain(id: string, dto: Partial<TeamDTO>): Team {
+    // Mapear campos de Firestore a dominio
+    // Campos en Firestore: name, city, stadium, logo, matchesPlayed, matchesWon, matchesDrawn, 
+    // matchesLost, goalsScored, goalsAgainst, goalDifference, points
     return {
       id: id as TeamCode,
-      nombre: dto.nombre || getTeamFullName(id), // Usar función de mapeo si no existe el nombre
-      ciudad: dto.ciudad || '',
-      estadio: dto.estadio || '',
+      nombre: dto.name || getTeamFullName(id),
+      ciudad: dto.city || '',
+      estadio: dto.stadium || '',
       logo: dto.logo || `/teams/${id}.png`,
-      partidosJugados: dto.partidosJugados ?? 0,
-      partidosGanados: dto.partidosGanados ?? 0,
-      partidosEmpatados: dto.partidosEmpatados ?? 0,
-      partidosPerdidos: dto.partidosPerdidos ?? 0,
-      golesFavor: dto.golesFavor ?? 0,
-      golesContra: dto.golesContra ?? 0,
-      diferenciaGoles: dto.diferenciaGoles ?? 0,
-      puntos: dto.puntos ?? 0,
+      partidosJugados: dto.matchesPlayed ?? 0,
+      partidosGanados: dto.matchesWon ?? 0,
+      partidosEmpatados: dto.matchesDrawn ?? 0,
+      partidosPerdidos: dto.matchesLost ?? 0,
+      golesFavor: dto.goalsScored ?? 0,
+      golesContra: dto.goalsAgainst ?? 0,
+      diferenciaGoles: dto.goalDifference ?? 0,
+      puntos: dto.points ?? 0,
     };
   }
 
   /**
    * Convierte una entidad Team del dominio a un TeamDTO para Firestore
+   * Mapea los campos del dominio (partidosJugados, etc) a los campos de Firestore (matchesPlayed, etc)
    */
   static toDTO(team: Omit<Team, 'id' | 'posicion'>): TeamDTO {
     return {
-      nombre: team.nombre,
-      ciudad: team.ciudad,
-      estadio: team.estadio,
+      name: team.nombre,
+      city: team.ciudad,
+      stadium: team.estadio,
       logo: team.logo,
-      partidosJugados: team.partidosJugados,
-      partidosGanados: team.partidosGanados,
-      partidosEmpatados: team.partidosEmpatados,
-      partidosPerdidos: team.partidosPerdidos,
-      golesFavor: team.golesFavor,
-      golesContra: team.golesContra,
-      diferenciaGoles: team.diferenciaGoles,
-      puntos: team.puntos,
+      matchesPlayed: team.partidosJugados,
+      matchesWon: team.partidosGanados,
+      matchesDrawn: team.partidosEmpatados,
+      matchesLost: team.partidosPerdidos,
+      goalsScored: team.golesFavor,
+      goalsAgainst: team.golesContra,
+      goalDifference: team.diferenciaGoles,
+      points: team.puntos,
     };
   }
 

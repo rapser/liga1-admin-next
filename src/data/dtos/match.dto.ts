@@ -32,6 +32,18 @@ export interface MatchDTO {
 
   /** Número de jornada (opcional) */
   jornadaNumero?: number;
+
+  /** Fecha/hora cuando el partido cambió a estado "envivo" (Timestamp de Firestore) */
+  horaInicio?: Timestamp;
+
+  /** Minuto actual del partido (0-90+) */
+  minutoActual?: number;
+
+  /** Tiempo agregado al final de cada tiempo (en minutos) */
+  tiempoAgregado?: number;
+
+  /** Indica si está en primera parte (true) o segunda parte (false) */
+  primeraParte?: boolean;
 }
 
 /**

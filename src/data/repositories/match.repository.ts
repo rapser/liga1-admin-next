@@ -15,6 +15,7 @@ import {
   query,
   where,
   Unsubscribe,
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/core/config/firebase';
 import { FIRESTORE_COLLECTIONS } from '@/core/config/firestore-constants';
@@ -197,6 +198,39 @@ export class MatchRepository implements IMatchRepository {
    * NOTA: Esta implementación requiere conocer las jornadas activas
    * En producción, se recomienda tener un índice o colección separada
    */
+  /**
+   * Actualiza múltiples campos de un partido
+   */
+  async updateMatch(
+    jornadaId: string,
+    matchId: string,
+    updates: Partial<Match>
+  ): Promise<void> {
+    const matchRef = doc(
+      db,
+      FIRESTORE_COLLECTIONS.JORNADAS,
+      jornadaId,
+      FIRESTORE_COLLECTIONS.MATCHES,
+      matchId
+    );
+
+    // Convertir campos Date a Timestamp
+    const updateData: Record<string, unknown> = { ...updates };
+    
+    if (updates.fecha) {
+      updateData.fecha = Timestamp.fromDate(updates.fecha);
+    }
+    
+    if (updates.horaInicio) {
+      updateData.horaInicio = Timestamp.fromDate(updates.horaInicio);
+    }
+
+    // Remover campo id si existe
+    delete updateData.id;
+
+    await updateDoc(matchRef, updateData);
+  }
+
   async fetchLiveMatches(): Promise<Match[]> {
     // Implementación simplificada
     // En producción, considera mantener una colección separada de partidos en vivo

@@ -158,6 +158,7 @@ export class NewsRepository implements INewsRepository {
 
   /**
    * Actualiza una noticia existente
+   * Convierte los campos al formato real de Firestore: title, image, fecha, categoria, destacada, periodico, url
    */
   async updateNews(
     newsId: string,
@@ -165,17 +166,20 @@ export class NewsRepository implements INewsRepository {
   ): Promise<void> {
     const newsRef = doc(db, FIRESTORE_COLLECTIONS.NEWS, newsId);
 
-    // Convertir fecha a Timestamp si existe
-    const updateData: Record<string, unknown> = { ...updates };
+    // Convertir al formato de Firestore
+    const updateData: Record<string, unknown> = {};
+    
+    if (updates.titulo !== undefined) updateData.title = updates.titulo;
+    if (updates.imagenUrl !== undefined) updateData.image = updates.imagenUrl || '';
+    if (updates.publicada !== undefined) updateData.destacada = updates.publicada;
+    if (updates.autor !== undefined) updateData.periodico = updates.autor || '';
+    if (updates.urlExterna !== undefined) updateData.url = updates.urlExterna || '';
+    if (updates.categoria !== undefined) updateData.categoria = updates.categoria || 'general';
+    
     if (updates.fechaPublicacion) {
       const { Timestamp } = await import('firebase/firestore');
-      updateData.fechaPublicacion = Timestamp.fromDate(
-        updates.fechaPublicacion
-      );
+      updateData.fecha = Timestamp.fromDate(updates.fechaPublicacion);
     }
-
-    // Remover campo id
-    delete updateData.id;
 
     await updateDoc(newsRef, updateData);
   }

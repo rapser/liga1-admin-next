@@ -1,42 +1,44 @@
 /**
  * DTO para Team (Equipo)
  * Representa la estructura del documento en Firestore
+ * Los campos en Firestore son: matchesPlayed, matchesWon, matchesDrawn, matchesLost,
+ * goalsScored, goalsAgainst, goalDifference, points
  */
 
 export interface TeamDTO {
   /** Nombre completo del equipo */
-  nombre: string;
+  name: string;
 
   /** Ciudad del equipo */
-  ciudad: string;
+  city: string;
 
   /** Nombre del estadio */
-  estadio: string;
+  stadium: string;
 
   /** URL o path del logo */
   logo: string;
 
   /** Partidos jugados */
-  partidosJugados: number;
+  matchesPlayed: number;
 
   /** Partidos ganados */
-  partidosGanados: number;
+  matchesWon: number;
 
   /** Partidos empatados */
-  partidosEmpatados: number;
+  matchesDrawn: number;
 
   /** Partidos perdidos */
-  partidosPerdidos: number;
+  matchesLost: number;
 
   /** Goles a favor */
-  golesFavor: number;
+  goalsScored: number;
 
   /** Goles en contra */
-  golesContra: number;
+  goalsAgainst: number;
 
   /** Diferencia de goles */
-  diferenciaGoles: number;
+  goalDifference: number;
 
   /** Puntos totales */
-  puntos: number;
+  points: number;
 }

@@ -67,4 +67,13 @@ export interface IMatchRepository {
    * Obtiene todos los partidos en vivo en todas las jornadas
    */
   fetchLiveMatches(): Promise<Match[]>;
+
+  /**
+   * Actualiza múltiples campos de un partido
+   */
+  updateMatch(
+    jornadaId: string,
+    matchId: string,
+    updates: Partial<Match>
+  ): Promise<void>;
 }
