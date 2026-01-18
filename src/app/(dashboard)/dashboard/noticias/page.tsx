@@ -11,11 +11,17 @@ import { DashboardLayout } from '@/presentation/components/layout';
 import { PageHeader, StatCard } from '@/presentation/components/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { NewsItem } from '@/domain/entities/news.entity';
 import { NewsRepository } from '@/data/repositories/news.repository';
-import { Newspaper, Eye, Clock, CheckCircle2 } from 'lucide-react';
+import { Newspaper, Eye, Clock, CheckCircle2, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 const newsRepository = new NewsRepository();
 
@@ -23,26 +29,66 @@ export default function NoticiasPage() {
   const { loading: authLoading } = useRequireAuth();
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const loadNews = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Cargando noticias desde Firestore...');
+      const data = await newsRepository.fetchAllNews();
+      console.log(`Noticias cargadas: ${data.length}`);
+      setNews(data);
+    } catch (error: any) {
+      console.error('Error al cargar noticias:', error);
+      setError(error?.message || 'Error desconocido al cargar noticias');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadNews = async () => {
-      try {
-        setLoading(true);
-        const data = await newsRepository.fetchAllNews();
-        // Ordenar por fecha de publicación (más recientes primero)
-        const sorted = [...data].sort((a, b) => b.fechaPublicacion.getTime() - a.fechaPublicacion.getTime());
-        setNews(sorted);
-      } catch (error) {
-        console.error('Error al cargar noticias:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (!authLoading) {
       loadNews();
     }
   }, [authLoading]);
+
+  const handleCreateNews = async (formData: {
+    title: string;
+    image?: string;
+    categoria?: NewsItem['categoria'];
+    destacada: boolean;
+    periodico?: string;
+    url?: string;
+  }) => {
+    try {
+      setIsCreating(true);
+      const newNews: Omit<NewsItem, 'id'> = {
+        titulo: formData.title,
+        contenido: formData.title, // Usar el título como contenido por defecto
+        imagenUrl: formData.image,
+        categoria: formData.categoria || 'general',
+        fechaPublicacion: new Date(), // Fecha actual
+        publicada: formData.destacada,
+        autor: formData.periodico,
+        urlExterna: formData.url,
+      };
+      
+      await newsRepository.createNews(newNews);
+      toast.success('Noticia creada exitosamente');
+      setOpenDialog(false);
+      
+      // Recargar noticias
+      await loadNews();
+    } catch (error: any) {
+      console.error('Error al crear noticia:', error);
+      toast.error('Error al crear la noticia: ' + (error?.message || 'Error desconocido'));
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   if (authLoading || loading) {
     return (
@@ -65,6 +111,26 @@ export default function NoticiasPage() {
       <PageHeader
         title="Noticias"
         description="Gestión de noticias de la Liga 1"
+        actions={
+          <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-liga1 hover:opacity-90">
+                <Plus className="h-4 w-4" />
+                Agregar Noticia
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Crear Nueva Noticia</DialogTitle>
+              </DialogHeader>
+              <CreateNewsForm 
+                onSubmit={handleCreateNews} 
+                isSubmitting={isCreating}
+                key={openDialog ? 'open' : 'closed'} // Resetear formulario cuando se abre/cierra
+              />
+            </DialogContent>
+          </Dialog>
+        }
       />
 
       {/* Stats */}
@@ -92,18 +158,34 @@ export default function NoticiasPage() {
         />
       </div>
 
+      {/* Mensaje de Error */}
+      {error && (
+        <Card className="shadow-soft border-0 border-l-4 border-red-500 mb-6">
+          <CardContent className="py-4">
+            <div className="text-center text-red-600">
+              <p className="font-semibold">Error al cargar noticias</p>
+              <p className="text-sm mt-1">{error}</p>
+              <p className="text-xs mt-2 text-[#67748e]">Revisa la consola del navegador para más detalles</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Lista de Noticias */}
-      {news.length === 0 ? (
+      {news.length === 0 && !loading ? (
         <Card className="shadow-soft border-0">
           <CardContent className="py-12">
             <div className="text-center text-[#67748e]">
               <Newspaper className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No hay noticias disponibles</p>
+              {!error && (
+                <p className="text-sm mt-2">Verifica que existan noticias en la colección "news" de Firestore</p>
+              )}
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {news.map((item) => (
             <NewsCard key={item.id} news={item} />
           ))}
@@ -119,14 +201,14 @@ interface NewsCardProps {
 
 function NewsCard({ news }: NewsCardProps) {
   return (
-    <Card className="shadow-soft border-0 hover:shadow-soft-lg transition-shadow overflow-hidden">
+    <Card className="shadow-soft border-0 hover:shadow-soft-lg transition-shadow overflow-hidden p-0">
       {/* Image Header */}
       {news.imagenUrl && (
-        <div className="relative h-48 bg-gradient-liga1">
+        <div className="relative h-[222px] bg-gradient-liga1 rounded-t-xl overflow-hidden">
           <img
             src={news.imagenUrl}
             alt={news.titulo}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover rounded-t-xl"
           />
           <div className="absolute top-4 right-4">
             <Badge
@@ -139,26 +221,151 @@ function NewsCard({ news }: NewsCardProps) {
         </div>
       )}
 
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <CardTitle className="text-[#344767] line-clamp-2 mb-2">
-              {news.titulo}
-            </CardTitle>
-            <CardDescription className="line-clamp-2">
-              {news.contenido}
-            </CardDescription>
-          </div>
-        </div>
-
+      <CardHeader className={news.imagenUrl ? 'pt-4 pb-6' : 'pb-6'}>
+        <CardTitle className="text-[#344767] line-clamp-3 mb-3">
+          {news.titulo}
+        </CardTitle>
+        
         {/* Meta Info */}
-        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#e9ecef]">
-          <div className="flex items-center gap-2 text-xs text-[#67748e]">
-            <Clock className="h-4 w-4" />
-            {format(news.fechaPublicacion, "dd MMM yyyy 'a las' HH:mm", { locale: es })}
-          </div>
+        <div className="flex items-center gap-2 text-xs text-[#67748e]">
+          <Clock className="h-4 w-4" />
+          <span>{format(news.fechaPublicacion, "dd MMM yyyy 'a las' HH:mm", { locale: es })}</span>
         </div>
       </CardHeader>
     </Card>
+  );
+}
+
+interface CreateNewsFormProps {
+  onSubmit: (data: {
+    title: string;
+    image?: string;
+    categoria?: NewsItem['categoria'];
+    destacada: boolean;
+    periodico?: string;
+    url?: string;
+  }) => void;
+  isSubmitting: boolean;
+}
+
+function CreateNewsForm({ onSubmit, isSubmitting }: CreateNewsFormProps) {
+  const [formData, setFormData] = useState({
+    title: '',
+    image: '',
+    categoria: 'general' as NewsItem['categoria'],
+    destacada: false,
+    periodico: '',
+    url: '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.title.trim()) {
+      toast.error('El título es requerido');
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="title">Título *</Label>
+        <Input
+          id="title"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="Título de la noticia"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="image">URL de Imagen</Label>
+        <Input
+          id="image"
+          type="url"
+          value={formData.image}
+          onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+          placeholder="https://ejemplo.com/imagen.jpg"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="categoria">Categoría</Label>
+        <Select
+          value={formData.categoria}
+          onValueChange={(value) => setFormData({ ...formData, categoria: value as NewsItem['categoria'] })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="general">General</SelectItem>
+            <SelectItem value="resultado">Resultado</SelectItem>
+            <SelectItem value="fixture">Fixture</SelectItem>
+            <SelectItem value="tabla">Tabla de Posiciones</SelectItem>
+            <SelectItem value="comunicado">Comunicado Oficial</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="periodico">Periódico/Fuente</Label>
+        <Input
+          id="periodico"
+          value={formData.periodico}
+          onChange={(e) => setFormData({ ...formData, periodico: e.target.value })}
+          placeholder="Nombre del periódico o fuente"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="url">URL Externa</Label>
+        <Input
+          id="url"
+          type="url"
+          value={formData.url}
+          onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+          placeholder="https://ejemplo.com/noticia"
+        />
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="destacada"
+          checked={formData.destacada}
+          onChange={(e) => setFormData({ ...formData, destacada: e.target.checked })}
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <Label htmlFor="destacada" className="cursor-pointer">
+          Noticia destacada (publicada)
+        </Label>
+      </div>
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setFormData({
+              title: '',
+              image: '',
+              categoria: 'general',
+              destacada: false,
+              periodico: '',
+              url: '',
+            });
+          }}
+          disabled={isSubmitting}
+        >
+          Limpiar
+        </Button>
+        <Button type="submit" disabled={isSubmitting} className="bg-gradient-liga1">
+          {isSubmitting ? 'Creando...' : 'Crear Noticia'}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }

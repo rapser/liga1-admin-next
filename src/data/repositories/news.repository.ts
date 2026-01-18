@@ -30,16 +30,54 @@ export class NewsRepository implements INewsRepository {
    * Obtiene todas las noticias
    */
   async fetchAllNews(): Promise<NewsItem[]> {
-    const newsRef = collection(db, FIRESTORE_COLLECTIONS.NEWS);
-    const q = query(newsRef, orderBy('fechaPublicacion', 'desc'));
+    try {
+      const newsRef = collection(db, FIRESTORE_COLLECTIONS.NEWS);
+      
+      // Intentar con orderBy usando 'fecha' (campo real) o 'fechaPublicacion' (compatibilidad)
+      // Si falla por falta de índice, usar consulta simple
+      let snapshot;
+      try {
+        // Intentar primero con 'fecha' (campo real en Firestore)
+        const q = query(newsRef, orderBy('fecha', 'desc'));
+        snapshot = await getDocs(q);
+      } catch (orderByError: unknown) {
+        // Si falla, intentar con 'fechaPublicacion'
+        try {
+          const q = query(newsRef, orderBy('fechaPublicacion', 'desc'));
+          snapshot = await getDocs(q);
+        } catch {
+          // Si ambos fallan, obtener sin ordenar y ordenar en memoria
+          const errorMessage = orderByError instanceof Error ? orderByError.message : String(orderByError);
+          console.warn('orderBy falló, obteniendo sin ordenar:', errorMessage);
+          snapshot = await getDocs(newsRef);
+        }
+      }
 
-    const snapshot = await getDocs(q);
+      const news = snapshot.docs
+        .map((doc) => {
+          try {
+            const docData = doc.data();
+            console.log(`Mapeando noticia ${doc.id}:`, { 
+              titulo: docData.titulo, 
+              fechaPublicacion: docData.fechaPublicacion,
+              tipoFecha: typeof docData.fechaPublicacion 
+            });
+            return NewsMapper.toDomain(doc.id, docData as NewsDTO);
+          } catch (mapperError) {
+            console.error(`Error al mapear noticia ${doc.id}:`, mapperError, doc.data());
+            return null;
+          }
+        })
+        .filter((item): item is NewsItem => item !== null);
 
-    const news = snapshot.docs.map((doc) =>
-      NewsMapper.toDomain(doc.id, doc.data() as NewsDTO)
-    );
+      // Ordenar en memoria si no se ordenó en la consulta
+      news.sort((a, b) => b.fechaPublicacion.getTime() - a.fechaPublicacion.getTime());
 
-    return news;
+      return news;
+    } catch (error) {
+      console.error('Error en fetchAllNews:', error);
+      throw error;
+    }
   }
 
   /**
@@ -107,12 +145,14 @@ export class NewsRepository implements INewsRepository {
 
   /**
    * Crea una nueva noticia
+   * Usa el formato real de Firestore: title, image, fecha, categoria, destacada, periodico, url
    */
   async createNews(news: Omit<NewsItem, 'id'>): Promise<string> {
     const newsRef = collection(db, FIRESTORE_COLLECTIONS.NEWS);
-    const newsDTO = NewsMapper.toDTO(news);
+    // Usar toFirestoreFormat para guardar con los campos reales de Firestore
+    const firestoreData = NewsMapper.toFirestoreFormat(news);
 
-    const docRef = await addDoc(newsRef, newsDTO);
+    const docRef = await addDoc(newsRef, firestoreData);
     return docRef.id;
   }
 
