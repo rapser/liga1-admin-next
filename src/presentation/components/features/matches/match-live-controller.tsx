@@ -116,18 +116,48 @@ export function MatchLiveController({
 
   // Estado: En Vivo - Mostrar minutero, editor de marcador y botón para finalizar
   if (match.estado === 'envivo') {
-    const canFinish = canFinishMatch(match);
     const minutosTranscurridos = getMatchElapsedMinutes(match);
     const tiempoAgregado = match.tiempoAgregado || 0;
+    const canFinish = canFinishMatch(match);
     const haLlegadoA90Minutos = minutosTranscurridos >= 90;
     const necesitaConfigurarTiempoAgregado = haLlegadoA90Minutos && tiempoAgregado === 0;
     const tiempoAgregadoNoCompletado = haLlegadoA90Minutos && tiempoAgregado > 0 && minutosTranscurridos < (90 + tiempoAgregado);
+
+    // Debug: Log para verificar valores
+    console.log('MatchLiveController - Estado:', {
+      minutosTranscurridos,
+      tiempoAgregado,
+      tiempoRequerido: 90 + tiempoAgregado,
+      canFinish,
+      haLlegadoA90Minutos,
+      necesitaConfigurarTiempoAgregado,
+      tiempoAgregadoNoCompletado,
+    });
     
     return (
       <div className="flex flex-col gap-3">
-        {/* Timer y Botón Finalizar (solo visible después de 90 + tiempo agregado) */}
-        <div className={`flex items-center gap-2 ${canFinish ? 'justify-between' : 'justify-center'}`}>
-          <LiveMatchTimer match={match} />
+        {/* Timer, Control de Minutos Adicionales y Botón Finalizar */}
+        <div className={`flex items-center gap-2 ${
+          canFinish || necesitaConfigurarTiempoAgregado || tiempoAgregadoNoCompletado 
+            ? 'justify-between' 
+            : 'justify-center'
+        }`}>
+          <div className="flex items-center gap-2">
+            <LiveMatchTimer match={match} />
+            
+            {/* Control de Minutos Adicionales (a la derecha del minutero) */}
+            {(necesitaConfigurarTiempoAgregado || tiempoAgregadoNoCompletado) && !canFinish && (
+              <AddTimeConfig
+                jornadaId={jornadaId}
+                matchId={match.id}
+                currentAddedTime={tiempoAgregado}
+                matchStateService={matchStateService}
+                onTimeUpdated={onStateChange}
+              />
+            )}
+          </div>
+          
+          {/* Botón Finalizar (solo visible después de 90 + tiempo agregado) */}
           {canFinish && (
             <Button
               onClick={handleFinishMatch}
@@ -149,19 +179,6 @@ export function MatchLiveController({
             </Button>
           )}
         </div>
-
-        {/* Control de Minutos Adicionales (solo visible cuando llega a 90 minutos y aún no se completa el tiempo agregado) */}
-        {(necesitaConfigurarTiempoAgregado || tiempoAgregadoNoCompletado) && (
-          <div className="flex items-center justify-center">
-            <AddTimeConfig
-              jornadaId={jornadaId}
-              matchId={match.id}
-              currentAddedTime={tiempoAgregado}
-              matchStateService={matchStateService}
-              onTimeUpdated={onStateChange}
-            />
-          </div>
-        )}
 
         {/* Editor de Marcador */}
         <div className="flex items-center justify-center">

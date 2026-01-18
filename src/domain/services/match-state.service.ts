@@ -178,7 +178,8 @@ export class MatchStateService {
   /**
    * Finaliza un partido (cambia de "envivo" a "finalizado")
    * Valida que hayan transcurrido mínimo 90 minutos + tiempo agregado
-   * Actualiza la tabla de posiciones definitivamente
+   * NOTA: NO actualiza estadísticas porque ya fueron actualizadas durante el partido en vivo
+   * Solo cambia el estado del partido a "finalizado"
    */
   async finishMatch(jornadaId: string, matchId: string, torneo: TorneoType): Promise<void> {
     // Obtener el partido actual
@@ -198,12 +199,13 @@ export class MatchStateService {
     }
 
     // Actualizar el estado a finalizado
+    // NOTA: NO llamamos a updateStandingsFromMatch porque las estadísticas
+    // ya fueron actualizadas durante el partido en vivo mediante updateStandingsScore
+    // - partidosJugados ya se incrementó cuando inició el partido (startMatch)
+    // - goles, diferencia, PG/PE/PP, puntos ya se actualizan en tiempo real (updateStandingsScore)
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       estado: 'finalizado',
     });
-
-    // Actualizar tabla de posiciones definitivamente
-    await this.updateStandingsFromMatch(match, torneo);
   }
 
   /**

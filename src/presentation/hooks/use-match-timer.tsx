@@ -71,13 +71,16 @@ export function useMatchTimer(
   }, [match, currentTime]);
 
   // Calcular minutos adicionales transcurridos (incrementando de 1 en 1 desde 90 hasta tiempoAgregado)
+  // IMPORTANTE: Cuando llega a 90 minutos, el timer se detiene en 90 y solo incrementan los minutos adicionales
   const minutosAdicionalesTranscurridos = useCallback(() => {
+    // Si no llegó a 90 minutos o no hay tiempo agregado configurado, retornar 0
     if (minutoActual < 90 || tiempoAgregado === 0) {
       return 0;
     }
     
-    // Los minutos adicionales se cuentan después de los 90 minutos
-    // Si han pasado 92 minutos y tiempoAgregado es 5, entonces minutosAdicionalesTranscurridos = 2
+    // Cuando ya pasaron los 90 minutos y hay tiempo agregado configurado,
+    // calcular cuántos minutos adicionales han transcurrido desde el minuto 90
+    // Ejemplo: minutoActual = 92, tiempoAgregado = 5 → minutosAdicionales = 2
     const minutosDespuesDe90 = minutoActual - 90;
     return Math.min(minutosDespuesDe90, tiempoAgregado);
   }, [minutoActual, tiempoAgregado]);
@@ -88,21 +91,19 @@ export function useMatchTimer(
       return "0'";
     }
 
+    // Cuando llega a 90 minutos, el minuto se detiene en 90
+    // Solo los minutos adicionales incrementan de 1 en 1
     const minutoMostrado = Math.min(minutoActual, 90);
-    const minutosAdicionales = minutosAdicionalesTranscurridos();
     
     // Si ya pasaron los 90 minutos y hay tiempo agregado configurado
     if (minutoActual >= 90 && tiempoAgregado > 0) {
+      const minutosAdicionales = minutosAdicionalesTranscurridos();
       return `90' +${minutosAdicionales}`;
     }
     
-    // Si está en primera parte y hay tiempo agregado (después de 45 minutos)
-    if (tiempoAgregado > 0 && minutoMostrado >= 45 && !primeraParte) {
-      return `${minutoMostrado}' +${tiempoAgregado}`;
-    }
-
+    // Si no ha llegado a 90 minutos o no hay tiempo agregado, mostrar minuto normal
     return `${minutoMostrado}'`;
-  }, [minutoActual, tiempoAgregado, primeraParte, minutosAdicionalesTranscurridos]);
+  }, [minutoActual, tiempoAgregado, minutosAdicionalesTranscurridos]);
 
   const isActive = match?.estado === 'envivo';
 

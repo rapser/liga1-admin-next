@@ -122,7 +122,8 @@ export const getMatchElapsedMinutes = (match: Match): number => {
 
 /**
  * Verifica si un partido puede ser finalizado
- * Debe estar en vivo y haber completado 90 minutos + tiempo agregado configurado
+ * Debe estar en vivo, haber completado 90 minutos reglamentarios,
+ * y si hay tiempo agregado configurado, haberlo completado también
  */
 export const canFinishMatch = (match: Match): boolean => {
   if (match.estado !== 'envivo') {
@@ -132,7 +133,12 @@ export const canFinishMatch = (match: Match): boolean => {
   const minutosTranscurridos = getMatchElapsedMinutes(match);
   const tiempoAgregado = match.tiempoAgregado || 0;
   
-  // El partido puede finalizarse cuando han pasado 90 minutos reglamentarios + minutos adicionales configurados
+  // Si ya pasaron los 90 minutos, necesita tener tiempo agregado configurado
+  if (minutosTranscurridos >= 90 && tiempoAgregado === 0) {
+    return false; // No puede finalizar hasta configurar minutos adicionales
+  }
+  
+  // El partido puede finalizarse cuando han pasado 90 minutos + minutos adicionales configurados
   return minutosTranscurridos >= (90 + tiempoAgregado);
 };
 
