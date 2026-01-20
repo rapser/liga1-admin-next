@@ -12,13 +12,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Trophy, AlertCircle, Mail, Lock } from 'lucide-react';
+import { Trophy, AlertCircle, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, isAdmin, isViewer, loading, signInWithGoogle, signInWithEmail } = useAuth();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Form state
   const [email, setEmail] = useState('');
@@ -27,6 +29,8 @@ export default function LoginPage() {
   // Redirigir si ya está autenticado
   useEffect(() => {
     if (!loading && user && (isAdmin || isViewer)) {
+      setIsSigningIn(false); // Ocultar loader del botón
+      setIsRedirecting(true); // Mostrar loader de redirección
       router.push('/dashboard');
     }
   }, [user, isAdmin, isViewer, loading, router]);
@@ -43,7 +47,8 @@ export default function LoginPage() {
       setError(null);
       setIsSigningIn(true);
       await signInWithEmail(email, password);
-      // La redirección se maneja en el useEffect
+      // No ocultar isSigningIn aquí, se ocultará cuando se complete la redirección
+      // La redirección se maneja en el useEffect y mostrará el loader de redirección
     } catch (err) {
       console.error('Error en login:', err);
       setError(
@@ -51,7 +56,6 @@ export default function LoginPage() {
           ? err.message
           : 'Error al iniciar sesión. Verifica tus credenciales.'
       );
-    } finally {
       setIsSigningIn(false);
     }
   };
@@ -61,26 +65,35 @@ export default function LoginPage() {
       setError(null);
       setIsSigningIn(true);
       await signInWithGoogle();
-      // La redirección se maneja en el useEffect
+      // No ocultar isSigningIn aquí, se ocultará cuando se complete la redirección
+      // La redirección se maneja en el useEffect y mostrará el loader de redirección
     } catch (err) {
+      // Si el usuario canceló el login, no mostrar error
+      if (err instanceof Error && err.message === 'LOGIN_CANCELLED') {
+        // Usuario canceló, solo resetear el estado sin mostrar error
+        setIsSigningIn(false);
+        return;
+      }
+      
       console.error('Error en login:', err);
       setError(
         err instanceof Error
           ? err.message
           : 'Error al iniciar sesión con Google.'
       );
-    } finally {
       setIsSigningIn(false);
     }
   };
 
-  // Mostrar loading mientras se verifica la sesión
-  if (loading) {
+  // Mostrar loading mientras se verifica la sesión o se está redirigiendo
+  if (loading || isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-[#67748e]">Verificando sesión...</p>
+          <p className="text-[#67748e]">
+            {isRedirecting ? 'Redirigiendo al dashboard...' : 'Verificando sesión...'}
+          </p>
         </div>
       </div>
     );
@@ -149,16 +162,38 @@ export default function LoginPage() {
                       Contraseña
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#67748e]" />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#67748e] z-10" />
                       <Input
                         id="password"
-                        type="password"
-                        placeholder="••••••••"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Ingresa tu contraseña"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={isSigningIn}
-                        className="pl-10 h-12 border-[#dee2e6] focus:border-primary"
+                        className="pl-10 pr-10 h-12 border-[#dee2e6] focus:border-primary [&::placeholder]:text-base"
+                        style={
+                          !showPassword && password
+                            ? {
+                                fontFamily: 'monospace',
+                                letterSpacing: '0.15em',
+                                fontSize: '1.25rem',
+                              }
+                            : {}
+                        }
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        disabled={isSigningIn}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#67748e] hover:text-[#344767] transition-colors focus:outline-none"
+                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
