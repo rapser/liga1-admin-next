@@ -103,9 +103,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-center min-h-screen">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 max-w-6xl w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 max-w-6xl w-full overflow-hidden rounded-3xl shadow-soft-lg bg-white">
             {/* Left Side - Login Form */}
-            <div className="flex items-center justify-center p-8 lg:p-12">
+            <div className="flex items-center justify-center p-8 lg:p-12 rounded-l-3xl">
               <div className="w-full max-w-md">
                 {/* Header */}
                 <div className="mb-8">
@@ -147,11 +147,11 @@ export default function LoginPage() {
                       <Input
                         id="email"
                         type="email"
-                        placeholder="tu@email.com"
+                        placeholder="Ingresa tu email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={isSigningIn}
-                        className="pl-10 h-12 border-[#dee2e6] focus:border-primary"
+                        className="pl-10 h-12 border-[#dee2e6] focus:border-primary text-base [&::placeholder]:text-base"
                       />
                     </div>
                   </div>
@@ -189,9 +189,9 @@ export default function LoginPage() {
                         aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       >
                         {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
                           <Eye className="h-5 w-5" />
+                        ) : (
+                          <EyeOff className="h-5 w-5" />
                         )}
                       </button>
                     </div>
@@ -258,13 +258,13 @@ export default function LoginPage() {
             </div>
 
             {/* Right Side - Image with Skew Effect (Hidden on mobile) */}
-            <div className="hidden lg:flex items-center justify-end relative overflow-hidden">
+            <div className="hidden lg:flex items-center justify-center relative overflow-hidden rounded-r-3xl">
               <div
-                className="relative h-[600px] w-full -mr-24"
+                className="relative w-full h-full min-h-[600px]"
                 style={{ transform: 'skewX(-10deg)' }}
               >
                 <div
-                  className="absolute inset-0 bg-gradient-liga1 rounded-l-3xl ml-12"
+                  className="absolute inset-0 bg-gradient-liga1 rounded-r-3xl"
                   style={{ transform: 'skewX(10deg)' }}
                 >
                   {/* Overlay con patrón */}
