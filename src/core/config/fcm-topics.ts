@@ -52,24 +52,58 @@ export const getAllTeamTopics = (): string[] => {
 
 /**
  * Obtiene los topics de FCM para un partido (ambos equipos)
- * @param match - El partido con equipoLocalId y equipoVisitanteId
+ * @param match - El partido con equipoLocalId y equipoVisitanteId (o id para extraer códigos)
  * @returns Array de topics (team_local, team_visitante)
  */
-export const getTopicsForMatch = (match: { equipoLocalId: string | null; equipoVisitanteId: string | null }): string[] => {
+export const getTopicsForMatch = (match: { 
+  equipoLocalId?: string | null; 
+  equipoVisitanteId?: string | null;
+  id?: string;
+}): string[] => {
   const topics: string[] = [];
   
-  if (match.equipoLocalId) {
-    const localTopic = getTeamTopic(match.equipoLocalId);
-    if (localTopic) {
-      topics.push(localTopic);
+  // Intentar obtener códigos de equipos
+  let localCode = match.equipoLocalId || '';
+  let visitorCode = match.equipoVisitanteId || '';
+  
+  // Si no están disponibles, intentar extraer del ID del partido
+  // Formato del ID: "hua_ali" -> local: "hua", visitante: "ali"
+  if ((!localCode || !visitorCode) && match.id) {
+    const parts = match.id.split('_');
+    if (parts.length >= 2) {
+      if (!localCode) localCode = parts[0] || '';
+      if (!visitorCode) visitorCode = parts[1] || '';
     }
   }
   
-  if (match.equipoVisitanteId) {
-    const visitorTopic = getTeamTopic(match.equipoVisitanteId);
+  // Obtener topic del equipo local
+  if (localCode) {
+    const localTopic = getTeamTopic(localCode);
+    if (localTopic) {
+      topics.push(localTopic);
+    } else {
+      console.warn(`⚠️ No se encontró topic para equipo local: ${localCode}`);
+    }
+  }
+  
+  // Obtener topic del equipo visitante
+  if (visitorCode) {
+    const visitorTopic = getTeamTopic(visitorCode);
     if (visitorTopic) {
       topics.push(visitorTopic);
+    } else {
+      console.warn(`⚠️ No se encontró topic para equipo visitante: ${visitorCode}`);
     }
+  }
+  
+  if (topics.length === 0) {
+    console.error('❌ No se pudieron obtener topics para el partido:', {
+      matchId: match.id,
+      equipoLocalId: match.equipoLocalId,
+      equipoVisitanteId: match.equipoVisitanteId,
+      localCode,
+      visitorCode,
+    });
   }
   
   return topics;

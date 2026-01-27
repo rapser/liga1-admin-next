@@ -23,41 +23,55 @@ export async function POST(request: NextRequest) {
     const { topic, title, body: messageBody, eventType, data = {}, imageUrl } = body;
 
     // Validar que el topic esté presente
-    if (!topic) {
+    if (!topic || topic.trim() === '') {
+      console.error('❌ Topic vacío o inválido:', topic);
       return NextResponse.json(
-        { error: 'El topic es requerido' },
+        { error: 'El topic es requerido y no puede estar vacío' },
         { status: 400 }
       );
     }
 
+    // Validar formato del topic
+    if (!topic.startsWith('team_') && topic !== GENERAL_TOPIC) {
+      console.warn('⚠️ Topic con formato inesperado:', topic);
+    }
+
     // Validar que el título y el cuerpo estén presentes
-    if (!title || !messageBody) {
+    if (!title || !messageBody || title.trim() === '' || messageBody.trim() === '') {
+      console.error('❌ Título o cuerpo vacíos:', { title, body: messageBody });
       return NextResponse.json(
-        { error: 'El título y el cuerpo son requeridos' },
+        { error: 'El título y el cuerpo son requeridos y no pueden estar vacíos' },
         { status: 400 }
       );
     }
+
+    // Preparar datos del payload (asegurar que todos sean strings)
+    const dataPayload: Record<string, string> = {
+      event_type: eventType,
+    };
+    
+    // Agregar todos los datos adicionales como strings
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        dataPayload[key] = String(value);
+      }
+    });
 
     // Construir el mensaje de FCM
     // IMPORTANTE: Para iOS, el formato debe ser correcto
     const message: any = {
       topic,
       notification: {
-        title,
-        body: messageBody,
+        title: title.substring(0, 50), // Limitar título a 50 caracteres
+        body: messageBody.substring(0, 150), // Limitar cuerpo a 150 caracteres
       },
-      data: {
-        event_type: eventType,
-        ...Object.fromEntries(
-          Object.entries(data).map(([key, value]) => [key, String(value)])
-        ),
-      },
+      data: dataPayload,
       apns: {
         payload: {
           aps: {
             alert: {
-              title: title,
-              body: messageBody,
+              title: title.substring(0, 50),
+              body: messageBody.substring(0, 150),
             },
             sound: 'default',
             badge: 1,
@@ -79,23 +93,39 @@ export async function POST(request: NextRequest) {
       title,
       body: messageBody,
       eventType,
-      data,
-      messageStructure: JSON.stringify(message, null, 2),
+      dataKeys: Object.keys(dataPayload),
+      dataCount: Object.keys(dataPayload).length,
     });
 
-    // Enviar la notificación
-    const response = await messaging.send(message);
-    
-    console.log('✅ Notificación enviada exitosamente:', {
-      messageId: response,
-      topic,
-    });
+    // Validar que el mensaje esté bien formado antes de enviar
+    try {
+      // Enviar la notificación
+      const response = await messaging.send(message);
+      
+      console.log('✅ Notificación enviada exitosamente:', {
+        messageId: response,
+        topic,
+        eventType,
+      });
 
-    return NextResponse.json({
-      success: true,
-      messageId: response,
-      topic,
-    });
+      return NextResponse.json({
+        success: true,
+        messageId: response,
+        topic,
+        eventType,
+      });
+    } catch (sendError: any) {
+      // Error específico al enviar
+      console.error('❌ Error al enviar mensaje FCM:', {
+        error: sendError.message,
+        code: sendError.code,
+        topic,
+        eventType,
+        messagePreview: JSON.stringify(message).substring(0, 500),
+      });
+      throw sendError;
+    }
+
   } catch (error: any) {
     console.error('❌ Error al enviar notificación push:', {
       error: error.message,

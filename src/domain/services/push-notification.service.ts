@@ -45,6 +45,29 @@ export const generateEventId = (matchId: string, eventType: NotificationEventTyp
   return `${matchId}_${eventType}_${timestamp}${extra}`;
 };
 
+/**
+ * Normaliza un match para asegurar que tenga los códigos de equipos
+ * Extrae los códigos del ID del partido si no están disponibles
+ */
+const normalizeMatchForNotifications = (match: Match): Match => {
+  // Si ya tiene los códigos, retornar tal cual
+  if (match.equipoLocalId && match.equipoVisitanteId) {
+    return match;
+  }
+
+  // Extraer del ID del partido (formato: "hua_ali")
+  const parts = match.id.split('_');
+  if (parts.length >= 2) {
+    return {
+      ...match,
+      equipoLocalId: match.equipoLocalId || parts[0] || null,
+      equipoVisitanteId: match.equipoVisitanteId || parts[1] || null,
+    };
+  }
+
+  return match;
+};
+
 export class PushNotificationService {
   /**
    * Envía una notificación push a través de la API
@@ -91,27 +114,50 @@ export class PushNotificationService {
     topics: string[],
     notification: Omit<SendNotificationParams, 'topic'>
   ): Promise<Array<{ topic: string; success: boolean; messageId?: string; error?: string }>> {
+    if (topics.length === 0) {
+      console.error('❌ No hay topics para enviar');
+      return [];
+    }
+
     console.log(`📤 Enviando notificación a ${topics.length} topic(s):`, topics);
+    console.log('📋 Contenido de la notificación:', {
+      title: notification.title,
+      body: notification.body,
+      eventType: notification.eventType,
+      dataKeys: Object.keys(notification.data || {}),
+    });
     
     const results = [];
 
+    // Enviar a cada topic secuencialmente para mejor control de errores
     for (const topic of topics) {
       try {
-        await this.sendNotification({
+        console.log(`📤 Enviando a topic: ${topic}`);
+        const result = await this.sendNotification({
           ...notification,
           topic,
         });
-        results.push({ topic, success: true });
-        console.log(`✅ Notificación enviada exitosamente a topic: ${topic}`);
+        results.push({ topic, success: true, messageId: result?.messageId });
+        console.log(`✅ Notificación enviada exitosamente a topic: ${topic}`, result);
       } catch (error: any) {
-        console.error(`❌ Error enviando a topic ${topic}:`, error);
+        console.error(`❌ Error enviando a topic ${topic}:`, {
+          error: error.message,
+          stack: error.stack,
+          topic,
+        });
         results.push({ topic, success: false, error: error.message });
+        // Continuar con el siguiente topic aunque uno falle
       }
     }
 
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
     console.log(`📊 Resumen: ${successCount} exitosas, ${failCount} fallidas de ${topics.length} totales`);
+
+    // Si todas fallaron, lanzar error
+    if (successCount === 0 && topics.length > 0) {
+      throw new Error(`No se pudo enviar la notificación a ningún topic. Errores: ${results.map(r => r.error).join(', ')}`);
+    }
 
     return results;
   }
@@ -125,25 +171,33 @@ export class PushNotificationService {
     teamCode: string,
     scorer?: string
   ): Promise<void> {
+    // Normalizar match para asegurar códigos de equipos
+    const normalizedMatch = normalizeMatchForNotifications(match);
+    
     // Obtener topics de AMBOS equipos
-    const topics = getTopicsForMatch(match);
+    const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      throw new Error('No se encontraron topics válidos para los equipos del partido');
+      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
+      console.error('❌ Error en sendGoalNotification:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     console.log('⚽ Enviando notificación de gol:', {
       scoringTeam: teamCode,
       topics,
-      matchId: match.id,
+      matchId: normalizedMatch.id,
+      equipoLocalId: normalizedMatch.equipoLocalId,
+      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
+      originalMatchId: match.id,
     });
 
     const teamName = getTeamFullName(teamCode);
-    const localName = match.equipoLocalId ? getTeamFullName(match.equipoLocalId) : 'Local';
-    const visitorName = match.equipoVisitanteId ? getTeamFullName(match.equipoVisitanteId) : 'Visitante';
+    const localName = normalizedMatch.equipoLocalId ? getTeamFullName(normalizedMatch.equipoLocalId) : 'Local';
+    const visitorName = normalizedMatch.equipoVisitanteId ? getTeamFullName(normalizedMatch.equipoVisitanteId) : 'Visitante';
     
-    const minute = getMatchElapsedMinutes(match);
-    const score = `${match.golesEquipoLocal} - ${match.golesEquipoVisitante}`;
+    const minute = getMatchElapsedMinutes(normalizedMatch);
+    const score = `${normalizedMatch.golesEquipoLocal} - ${normalizedMatch.golesEquipoVisitante}`;
 
     const title = `⚽ ¡Gol de ${teamName}!`;
     const body = scorer
@@ -151,7 +205,7 @@ export class PushNotificationService {
       : `${localName} ${score} ${visitorName} (Min. ${minute}')`;
 
     // Generar ID único del evento para deduplicación en la app
-    const eventId = generateEventId(match.id, 'goal', `${minute}_${teamCode}`);
+    const eventId = generateEventId(normalizedMatch.id, 'goal', `${minute}_${teamCode}`);
 
     // Enviar a AMBOS equipos
     await this.sendNotificationToTopics(topics, {
@@ -160,13 +214,13 @@ export class PushNotificationService {
       eventType: 'goal',
       data: {
         event_id: eventId, // ID único para deduplicación en la app iOS
-        match_id: match.id,
-        home_team: match.equipoLocalId || '',
-        away_team: match.equipoVisitanteId || '',
+        match_id: normalizedMatch.id,
+        home_team: normalizedMatch.equipoLocalId || '',
+        away_team: normalizedMatch.equipoVisitanteId || '',
         scoring_team: teamCode,
         minute: minute.toString(),
-        home_score: match.golesEquipoLocal.toString(),
-        away_score: match.golesEquipoVisitante.toString(),
+        home_score: normalizedMatch.golesEquipoLocal.toString(),
+        away_score: normalizedMatch.golesEquipoVisitante.toString(),
         ...(scorer && { scorer }),
       },
     });
@@ -177,27 +231,34 @@ export class PushNotificationService {
    * IMPORTANTE: Envía a AMBOS equipos (local y visitante)
    */
   async sendMatchStartNotification(match: Match): Promise<void> {
+    // Normalizar match para asegurar códigos de equipos
+    const normalizedMatch = normalizeMatchForNotifications(match);
+    
     // Obtener topics de AMBOS equipos
-    const topics = getTopicsForMatch(match);
+    const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      throw new Error('No se encontraron topics válidos para los equipos del partido');
+      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
+      console.error('❌ Error en sendMatchStartNotification:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     console.log('🎯 Enviando notificación de inicio de partido:', {
       topics,
-      matchId: match.id,
+      matchId: normalizedMatch.id,
+      equipoLocalId: normalizedMatch.equipoLocalId,
+      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
     });
 
-    const localName = match.equipoLocalId ? getTeamFullName(match.equipoLocalId) : 'Local';
-    const visitorName = match.equipoVisitanteId ? getTeamFullName(match.equipoVisitanteId) : 'Visitante';
+    const localName = normalizedMatch.equipoLocalId ? getTeamFullName(normalizedMatch.equipoLocalId) : 'Local';
+    const visitorName = normalizedMatch.equipoVisitanteId ? getTeamFullName(normalizedMatch.equipoVisitanteId) : 'Visitante';
     const matchTitle = `${localName} vs ${visitorName}`;
 
     const title = '🎯 ¡Comienza el partido!';
     const body = `${matchTitle} - ¡Ya empezó!`;
 
     // Generar ID único del evento para deduplicación en la app
-    const eventId = generateEventId(match.id, 'match_start');
+    const eventId = generateEventId(normalizedMatch.id, 'match_start');
 
     // Enviar a AMBOS equipos
     await this.sendNotificationToTopics(topics, {
@@ -206,9 +267,9 @@ export class PushNotificationService {
       eventType: 'match_start',
       data: {
         event_id: eventId, // ID único para deduplicación en la app iOS
-        match_id: match.id,
-        home_team: match.equipoLocalId || '',
-        away_team: match.equipoVisitanteId || '',
+        match_id: normalizedMatch.id,
+        home_team: normalizedMatch.equipoLocalId || '',
+        away_team: normalizedMatch.equipoVisitanteId || '',
         event_type: 'match_start',
       },
     });
@@ -219,32 +280,39 @@ export class PushNotificationService {
    * IMPORTANTE: Envía a AMBOS equipos (local y visitante) con mensajes personalizados
    */
   async sendMatchEndNotification(match: Match): Promise<void> {
+    // Normalizar match para asegurar códigos de equipos
+    const normalizedMatch = normalizeMatchForNotifications(match);
+    
     // Obtener topics de AMBOS equipos
-    const topics = getTopicsForMatch(match);
+    const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      throw new Error('No se encontraron topics válidos para los equipos del partido');
+      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
+      console.error('❌ Error en sendMatchEndNotification:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     console.log('⏱️ Enviando notificación de resultado final:', {
       topics,
-      matchId: match.id,
+      matchId: normalizedMatch.id,
+      equipoLocalId: normalizedMatch.equipoLocalId,
+      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
     });
 
-    const localName = match.equipoLocalId ? getTeamFullName(match.equipoLocalId) : 'Local';
-    const visitorName = match.equipoVisitanteId ? getTeamFullName(match.equipoVisitanteId) : 'Visitante';
-    const score = `${match.golesEquipoLocal} - ${match.golesEquipoVisitante}`;
+    const localName = normalizedMatch.equipoLocalId ? getTeamFullName(normalizedMatch.equipoLocalId) : 'Local';
+    const visitorName = normalizedMatch.equipoVisitanteId ? getTeamFullName(normalizedMatch.equipoVisitanteId) : 'Visitante';
+    const score = `${normalizedMatch.golesEquipoLocal} - ${normalizedMatch.golesEquipoVisitante}`;
 
     // Generar ID único del evento para deduplicación en la app
-    const eventId = generateEventId(match.id, 'match_end');
+    const eventId = generateEventId(normalizedMatch.id, 'match_end');
 
     const baseData = {
       event_id: eventId, // ID único para deduplicación en la app iOS
-      match_id: match.id,
-      home_team: match.equipoLocalId || '',
-      away_team: match.equipoVisitanteId || '',
-      home_score: match.golesEquipoLocal.toString(),
-      away_score: match.golesEquipoVisitante.toString(),
+      match_id: normalizedMatch.id,
+      home_team: normalizedMatch.equipoLocalId || '',
+      away_team: normalizedMatch.equipoVisitanteId || '',
+      home_score: normalizedMatch.golesEquipoLocal.toString(),
+      away_score: normalizedMatch.golesEquipoVisitante.toString(),
       event_type: 'match_end',
     };
 
@@ -253,18 +321,18 @@ export class PushNotificationService {
 
     for (const topic of topics) {
       // Determinar si este topic es del equipo local o visitante
-      const isLocalTeam = match.equipoLocalId && topic === getTeamTopic(match.equipoLocalId);
-      const teamId = isLocalTeam ? match.equipoLocalId! : match.equipoVisitanteId!;
+      const isLocalTeam = normalizedMatch.equipoLocalId && topic === getTeamTopic(normalizedMatch.equipoLocalId);
+      const teamId = isLocalTeam ? normalizedMatch.equipoLocalId! : normalizedMatch.equipoVisitanteId!;
       
       // Calcular resultado para este equipo
       let resultText = '';
       let result = '';
       
       if (isLocalTeam) {
-        if (match.golesEquipoLocal > match.golesEquipoVisitante) {
+        if (normalizedMatch.golesEquipoLocal > normalizedMatch.golesEquipoVisitante) {
           resultText = '¡Victoria!';
           result = 'win';
-        } else if (match.golesEquipoLocal < match.golesEquipoVisitante) {
+        } else if (normalizedMatch.golesEquipoLocal < normalizedMatch.golesEquipoVisitante) {
           resultText = 'Derrota';
           result = 'loss';
         } else {
@@ -272,10 +340,10 @@ export class PushNotificationService {
           result = 'draw';
         }
       } else {
-        if (match.golesEquipoVisitante > match.golesEquipoLocal) {
+        if (normalizedMatch.golesEquipoVisitante > normalizedMatch.golesEquipoLocal) {
           resultText = '¡Victoria!';
           result = 'win';
-        } else if (match.golesEquipoVisitante < match.golesEquipoLocal) {
+        } else if (normalizedMatch.golesEquipoVisitante < normalizedMatch.golesEquipoLocal) {
           resultText = 'Derrota';
           result = 'loss';
         } else {
@@ -311,24 +379,31 @@ export class PushNotificationService {
     teamCode: string,
     player: string
   ): Promise<void> {
+    // Normalizar match para asegurar códigos de equipos
+    const normalizedMatch = normalizeMatchForNotifications(match);
+    
     // Obtener topics de AMBOS equipos
-    const topics = getTopicsForMatch(match);
+    const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      throw new Error('No se encontraron topics válidos para los equipos del partido');
+      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
+      console.error('❌ Error en sendRedCardNotification:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     console.log('🟥 Enviando notificación de tarjeta roja:', {
       affectedTeam: teamCode,
       topics,
-      matchId: match.id,
+      matchId: normalizedMatch.id,
+      equipoLocalId: normalizedMatch.equipoLocalId,
+      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
     });
 
     const teamName = getTeamFullName(teamCode);
-    const minute = getMatchElapsedMinutes(match);
+    const minute = getMatchElapsedMinutes(normalizedMatch);
 
     // Generar ID único del evento para deduplicación en la app
-    const eventId = generateEventId(match.id, 'red_card', `${minute}_${teamCode}_${player}`);
+    const eventId = generateEventId(normalizedMatch.id, 'red_card', `${minute}_${teamCode}_${player}`);
 
     // Enviar a AMBOS equipos
     await this.sendNotificationToTopics(topics, {
@@ -337,9 +412,9 @@ export class PushNotificationService {
       eventType: 'red_card',
       data: {
         event_id: eventId, // ID único para deduplicación en la app iOS
-        match_id: match.id,
-        home_team: match.equipoLocalId || '',
-        away_team: match.equipoVisitanteId || '',
+        match_id: normalizedMatch.id,
+        home_team: normalizedMatch.equipoLocalId || '',
+        away_team: normalizedMatch.equipoVisitanteId || '',
         affected_team: teamCode,
         minute: minute.toString(),
         player,
