@@ -42,11 +42,20 @@ export interface Match {
   /** Minuto actual del partido (0-90+) calculado desde horaInicio */
   minutoActual?: number;
 
-  /** Tiempo agregado al final de cada tiempo (en minutos) */
+  /** Tiempo agregado al final del segundo tiempo (en minutos) */
   tiempoAgregado?: number;
+
+  /** Tiempo agregado al final del primer tiempo (en minutos) */
+  tiempoAgregadoPrimeraParte?: number;
 
   /** Indica si está en primera parte (true) o segunda parte (false) */
   primeraParte?: boolean;
+
+  /** Indica si el partido está en descanso (entre primera y segunda parte) */
+  enDescanso?: boolean;
+
+  /** Fecha/hora cuando inició la segunda parte */
+  horaInicioSegundaParte?: Date;
 }
 
 /**
@@ -102,6 +111,7 @@ export const getMatchWinner = (
 
 /**
  * Calcula los minutos transcurridos desde que inició el partido
+ * Considera el descanso y la segunda parte
  * Retorna 0 si no hay horaInicio o si el partido no está en vivo
  */
 export const getMatchElapsedMinutes = (match: Match): number => {
@@ -109,11 +119,32 @@ export const getMatchElapsedMinutes = (match: Match): number => {
     return 0;
   }
 
+  // Si está en descanso, retornar 45 minutos (fin del primer tiempo)
+  if (match.enDescanso) {
+    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
+    return 45 + tiempoAgregadoPrimera;
+  }
+
   const now = new Date();
   const inicio = match.horaInicio instanceof Date 
     ? match.horaInicio 
     : new Date(match.horaInicio);
 
+  // Si ya inició la segunda parte, calcular desde el inicio de la segunda parte
+  if (match.horaInicioSegundaParte && !match.primeraParte) {
+    const inicioSegundaParte = match.horaInicioSegundaParte instanceof Date
+      ? match.horaInicioSegundaParte
+      : new Date(match.horaInicioSegundaParte);
+    
+    const diffMs = now.getTime() - inicioSegundaParte.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    
+    // Minutos de la segunda parte + 45 minutos del primer tiempo + tiempo agregado del primer tiempo
+    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
+    return 45 + tiempoAgregadoPrimera + Math.max(0, diffMinutes);
+  }
+
+  // Primera parte: calcular desde el inicio
   const diffMs = now.getTime() - inicio.getTime();
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
   
@@ -126,7 +157,7 @@ export const getMatchElapsedMinutes = (match: Match): number => {
  * y si hay tiempo agregado configurado, haberlo completado también
  */
 export const canFinishMatch = (match: Match): boolean => {
-  if (match.estado !== 'envivo') {
+  if (match.estado !== 'envivo' || match.enDescanso) {
     return false;
   }
 
@@ -143,19 +174,63 @@ export const canFinishMatch = (match: Match): boolean => {
 };
 
 /**
+ * Verifica si el partido debe entrar en descanso (llegó a 45 minutos + tiempo agregado del primer tiempo)
+ */
+export const shouldEnterHalftime = (match: Match): boolean => {
+  if (match.estado !== 'envivo' || match.enDescanso || !match.primeraParte) {
+    return false;
+  }
+
+  const minutosTranscurridos = getMatchElapsedMinutes(match);
+  const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
+  
+  // Si ya pasaron los 45 minutos, necesita tener tiempo agregado configurado
+  if (minutosTranscurridos >= 45 && tiempoAgregadoPrimera === 0) {
+    return true; // Debe configurar minutos adicionales del primer tiempo
+  }
+  
+  // Debe entrar en descanso cuando han pasado 45 minutos + minutos adicionales configurados
+  return minutosTranscurridos >= (45 + tiempoAgregadoPrimera);
+};
+
+/**
  * Obtiene el minuto actual formateado con tiempo agregado
  * Ejemplo: "45' +2" o "90' +5"
  */
 export const getFormattedMatchMinute = (match: Match): string => {
-  const minutosTranscurridos = getMatchElapsedMinutes(match);
-  const tiempoAgregado = match.tiempoAgregado || 0;
-  const minutoActual = Math.min(minutosTranscurridos, 90);
-  
-  if (minutoActual === 0 && tiempoAgregado === 0) {
-    return "0'";
+  if (match.enDescanso) {
+    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
+    if (tiempoAgregadoPrimera > 0) {
+      return `45' +${tiempoAgregadoPrimera} (Descanso)`;
+    }
+    return "45' (Descanso)";
   }
 
-  if (tiempoAgregado > 0 && minutoActual >= 45) {
+  const minutosTranscurridos = getMatchElapsedMinutes(match);
+  
+  // Primera parte
+  if (match.primeraParte && !match.enDescanso) {
+    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
+    const minutoActual = Math.min(minutosTranscurridos, 45);
+    
+    if (minutoActual === 0 && tiempoAgregadoPrimera === 0) {
+      return "0'";
+    }
+
+    if (tiempoAgregadoPrimera > 0 && minutoActual >= 45) {
+      return `${minutoActual}' +${tiempoAgregadoPrimera}`;
+    }
+
+    return `${minutoActual}'`;
+  }
+
+  // Segunda parte
+  const tiempoAgregado = match.tiempoAgregado || 0;
+  const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
+  const minutosSegundaParte = minutosTranscurridos - (45 + tiempoAgregadoPrimera);
+  const minutoActual = Math.min(minutosSegundaParte, 45) + 45;
+  
+  if (tiempoAgregado > 0 && minutosSegundaParte >= 45) {
     return `${minutoActual}' +${tiempoAgregado}`;
   }
 
@@ -166,6 +241,8 @@ export const getFormattedMatchMinute = (match: Match): string => {
  * Determina si el partido está en primera o segunda parte
  */
 export const isFirstHalf = (match: Match): boolean => {
-  const minutosTranscurridos = getMatchElapsedMinutes(match);
-  return minutosTranscurridos < 45;
+  if (match.enDescanso) {
+    return true; // Durante el descanso, técnicamente sigue siendo primera parte
+  }
+  return match.primeraParte === true;
 };

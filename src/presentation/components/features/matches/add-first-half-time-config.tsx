@@ -1,6 +1,6 @@
 /**
- * Componente AddTimeConfig
- * Permite configurar los minutos adicionales cuando el partido llega a 90 minutos
+ * Componente AddFirstHalfTimeConfig
+ * Permite configurar los minutos adicionales del primer tiempo cuando el partido llega a 45 minutos
  */
 
 'use client';
@@ -13,7 +13,7 @@ import { MatchStateService } from '@/domain/services/match-state.service';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface AddTimeConfigProps {
+interface AddFirstHalfTimeConfigProps {
   jornadaId: string;
   matchId: string;
   currentAddedTime: number;
@@ -21,13 +21,13 @@ interface AddTimeConfigProps {
   onTimeUpdated?: () => void;
 }
 
-export function AddTimeConfig({
+export function AddFirstHalfTimeConfig({
   jornadaId,
   matchId,
   currentAddedTime,
   matchStateService,
   onTimeUpdated,
-}: AddTimeConfigProps) {
+}: AddFirstHalfTimeConfigProps) {
   const [addedTime, setAddedTime] = useState(currentAddedTime || 0);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -44,10 +44,10 @@ export function AddTimeConfig({
 
     setIsUpdating(true);
     try {
-      await matchStateService.updateAddedTime(jornadaId, matchId, addedTime);
+      await matchStateService.updateFirstHalfAddedTime(jornadaId, matchId, addedTime);
       toast.success(
         addedTime > 0 
-          ? `Minutos adicionales configurados: ${addedTime}`
+          ? `Minutos adicionales configurados: ${addedTime}. Ahora puedes reanudar la segunda parte.`
           : `Minutos adicionales configurados: ${addedTime}`
       );
       // Actualizar el estado local para reflejar el cambio
@@ -55,7 +55,7 @@ export function AddTimeConfig({
       // Notificar al componente padre para que refresque los datos
       onTimeUpdated?.();
     } catch (error: any) {
-      console.error('Error al actualizar tiempo agregado:', error);
+      console.error('Error al actualizar tiempo agregado del primer tiempo:', error);
       toast.error(error?.message || 'Error al actualizar minutos adicionales');
     } finally {
       setIsUpdating(false);
@@ -64,12 +64,12 @@ export function AddTimeConfig({
 
   return (
     <div className="flex flex-col gap-2 p-3 bg-[#f8f9fa] rounded-lg border border-[#e9ecef]">
-      <Label htmlFor="addedTime" className="text-sm font-semibold text-[#344767]">
-        Minutos Adicionales del Segundo Tiempo
+      <Label htmlFor="firstHalfAddedTime" className="text-sm font-semibold text-[#344767]">
+        Minutos Adicionales del Primer Tiempo
       </Label>
       <div className="flex items-center gap-3">
         <Input
-          id="addedTime"
+          id="firstHalfAddedTime"
           type="number"
           min="0"
           max="15"
@@ -97,7 +97,7 @@ export function AddTimeConfig({
         </Button>
       </div>
       <p className="text-xs text-[#67748e]">
-        Ingresa los minutos adicionales del segundo tiempo (0-15). El partido finalizará después de 90 + minutos adicionales.
+        Ingresa los minutos adicionales del primer tiempo (0-15). Luego podrás reanudar la segunda parte.
       </p>
     </div>
   );

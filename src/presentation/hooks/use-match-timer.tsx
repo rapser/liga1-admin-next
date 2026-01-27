@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Match, getMatchElapsedMinutes, isFirstHalf } from '@/domain/entities/match.entity';
+import { Match, getMatchElapsedMinutes, isFirstHalf, getFormattedMatchMinute } from '@/domain/entities/match.entity';
 
 interface UseMatchTimerReturn {
   /** Minuto actual del partido (0-90+) */
@@ -85,25 +85,13 @@ export function useMatchTimer(
     return Math.min(minutosDespuesDe90, tiempoAgregado);
   }, [minutoActual, tiempoAgregado]);
 
-  // Formatear minuto con tiempo agregado
+  // Formatear minuto con tiempo agregado usando la función de la entidad
   const minutoFormateado = useCallback(() => {
-    if (minutoActual === 0 && tiempoAgregado === 0) {
+    if (!match || match.estado !== 'envivo') {
       return "0'";
     }
-
-    // Cuando llega a 90 minutos, el minuto se detiene en 90
-    // Solo los minutos adicionales incrementan de 1 en 1
-    const minutoMostrado = Math.min(minutoActual, 90);
-    
-    // Si ya pasaron los 90 minutos y hay tiempo agregado configurado
-    if (minutoActual >= 90 && tiempoAgregado > 0) {
-      const minutosAdicionales = minutosAdicionalesTranscurridos();
-      return `90' +${minutosAdicionales}`;
-    }
-    
-    // Si no ha llegado a 90 minutos o no hay tiempo agregado, mostrar minuto normal
-    return `${minutoMostrado}'`;
-  }, [minutoActual, tiempoAgregado, minutosAdicionalesTranscurridos]);
+    return getFormattedMatchMinute(match);
+  }, [match]);
 
   const isActive = match?.estado === 'envivo';
 

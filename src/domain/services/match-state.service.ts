@@ -4,7 +4,7 @@
  * iniciar partidos, actualizar marcadores y finalizar partidos
  */
 
-import { Match, EstadoMatch, canFinishMatch, getMatchElapsedMinutes } from '../entities/match.entity';
+import { Match, EstadoMatch, canFinishMatch, getMatchElapsedMinutes, shouldEnterHalftime } from '../entities/match.entity';
 import { IMatchRepository } from '../repositories/match.repository.interface';
 import { ITeamRepository } from '../repositories/team.repository.interface';
 import { TorneoType } from '@/core/config/firestore-constants';
@@ -40,6 +40,9 @@ export class MatchStateService {
       minutoActual: 0,
       primeraParte: true,
       tiempoAgregado: 0,
+      tiempoAgregadoPrimeraParte: 0,
+      enDescanso: false,
+      // No incluir horaInicioSegundaParte si es undefined
     };
 
     // Si el marcador no está establecido, inicializar a 0-0
@@ -149,7 +152,7 @@ export class MatchStateService {
   }
 
   /**
-   * Actualiza el tiempo agregado (minutos adicionales) de un partido
+   * Actualiza el tiempo agregado (minutos adicionales) del segundo tiempo
    * Se llama cuando el partido llega a 90 minutos para configurar cuántos minutos adicionales habrá
    */
   async updateAddedTime(jornadaId: string, matchId: string, minutosAdicionales: number): Promise<void> {
@@ -172,6 +175,63 @@ export class MatchStateService {
     // Actualizar tiempo agregado en Firestore
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       tiempoAgregado: minutosAdicionales,
+    });
+  }
+
+  /**
+   * Actualiza el tiempo agregado del primer tiempo
+   * Se llama cuando el partido llega a 45 minutos para configurar cuántos minutos adicionales habrá
+   */
+  async updateFirstHalfAddedTime(jornadaId: string, matchId: string, minutosAdicionales: number): Promise<void> {
+    // Validar que el partido esté en vivo
+    const match = await this.matchRepository.fetchMatchById(jornadaId, matchId);
+    
+    if (!match) {
+      throw new Error('Partido no encontrado');
+    }
+
+    if (match.estado !== 'envivo') {
+      throw new Error(`No se puede actualizar el tiempo agregado del primer tiempo de un partido en estado "${match.estado}"`);
+    }
+
+    // Validar valores
+    if (minutosAdicionales < 0 || minutosAdicionales > 15) {
+      throw new Error('Los minutos adicionales deben estar entre 0 y 15');
+    }
+
+    // Actualizar tiempo agregado del primer tiempo y pausar el partido (entrar en descanso)
+    await this.matchRepository.updateMatch(jornadaId, matchId, {
+      tiempoAgregadoPrimeraParte: minutosAdicionales,
+      enDescanso: true,
+    });
+  }
+
+  /**
+   * Reanuda la segunda parte del partido
+   * Cambia el estado de descanso a segunda parte y registra la hora de inicio
+   */
+  async resumeSecondHalf(jornadaId: string, matchId: string): Promise<void> {
+    // Validar que el partido esté en vivo y en descanso
+    const match = await this.matchRepository.fetchMatchById(jornadaId, matchId);
+    
+    if (!match) {
+      throw new Error('Partido no encontrado');
+    }
+
+    if (match.estado !== 'envivo') {
+      throw new Error(`No se puede reanudar un partido en estado "${match.estado}"`);
+    }
+
+    if (!match.enDescanso) {
+      throw new Error('El partido no está en descanso');
+    }
+
+    // Reanudar segunda parte
+    const ahora = new Date();
+    await this.matchRepository.updateMatch(jornadaId, matchId, {
+      enDescanso: false,
+      primeraParte: false,
+      horaInicioSegundaParte: ahora,
     });
   }
 

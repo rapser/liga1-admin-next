@@ -42,7 +42,10 @@ export class MatchMapper {
       horaInicio: dto.horaInicio?.toDate(),
       minutoActual: dto.minutoActual,
       tiempoAgregado: dto.tiempoAgregado,
+      tiempoAgregadoPrimeraParte: dto.tiempoAgregadoPrimeraParte,
       primeraParte: dto.primeraParte,
+      enDescanso: dto.enDescanso,
+      horaInicioSegundaParte: dto.horaInicioSegundaParte?.toDate(),
     };
   }
 
@@ -63,7 +66,10 @@ export class MatchMapper {
       horaInicio: match.horaInicio ? Timestamp.fromDate(match.horaInicio) : undefined,
       minutoActual: match.minutoActual,
       tiempoAgregado: match.tiempoAgregado,
+      tiempoAgregadoPrimeraParte: match.tiempoAgregadoPrimeraParte,
       primeraParte: match.primeraParte,
+      enDescanso: match.enDescanso,
+      horaInicioSegundaParte: match.horaInicioSegundaParte ? Timestamp.fromDate(match.horaInicioSegundaParte) : undefined,
     };
   }
 

@@ -39,11 +39,20 @@ export interface MatchDTO {
   /** Minuto actual del partido (0-90+) */
   minutoActual?: number;
 
-  /** Tiempo agregado al final de cada tiempo (en minutos) */
+  /** Tiempo agregado al final del segundo tiempo (en minutos) */
   tiempoAgregado?: number;
+
+  /** Tiempo agregado al final del primer tiempo (en minutos) */
+  tiempoAgregadoPrimeraParte?: number;
 
   /** Indica si está en primera parte (true) o segunda parte (false) */
   primeraParte?: boolean;
+
+  /** Indica si el partido está en descanso (entre primera y segunda parte) */
+  enDescanso?: boolean;
+
+  /** Fecha/hora cuando inició la segunda parte (Timestamp de Firestore) */
+  horaInicioSegundaParte?: Timestamp;
 }
 
 /**
