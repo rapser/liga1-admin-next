@@ -128,8 +128,8 @@ export function MatchLiveController({
         }
       };
 
-      // Verificar cada 10 segundos para evitar múltiples llamadas
-      const interval = setInterval(checkHalftime, 10000);
+      // Verificar cada 5 segundos para detectar más rápido cuando llega a 45 minutos
+      const interval = setInterval(checkHalftime, 5000);
       return () => clearInterval(interval);
     }
   }, [match, jornadaId, matchStateService, onStateChange]);
@@ -167,17 +167,19 @@ export function MatchLiveController({
     const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
     const canFinish = canFinishMatch(match);
     
-    // Lógica para el primer tiempo: mostrar 3 minutos antes de llegar a 45 (minuto 42)
+    // Lógica para el primer tiempo: mostrar automáticamente cuando llega a 45 minutos
     const estaEnPrimeraParte = match.primeraParte && !match.enDescanso;
     const estaCercaDe45Minutos = minutosTranscurridos >= 42 && minutosTranscurridos < 45 && estaEnPrimeraParte;
     const haLlegadoA45Minutos = minutosTranscurridos >= 45 && estaEnPrimeraParte;
+    // Mostrar automáticamente cuando llega a 45 minutos o está cerca
     const necesitaConfigurarTiempoAgregadoPrimera = (estaCercaDe45Minutos || haLlegadoA45Minutos) && tiempoAgregadoPrimera === 0;
     const tiempoAgregadoPrimeraNoCompletado = haLlegadoA45Minutos && tiempoAgregadoPrimera > 0 && minutosTranscurridos < (45 + tiempoAgregadoPrimera);
     
-    // Lógica para el segundo tiempo: mostrar 3 minutos antes de llegar a 90 (minuto 87)
+    // Lógica para el segundo tiempo: mostrar automáticamente cuando llega a 90 minutos
     const estaEnSegundaParte = !match.primeraParte && !match.enDescanso;
     const estaCercaDe90Minutos = minutosTranscurridos >= 87 && minutosTranscurridos < 90 && estaEnSegundaParte;
     const haLlegadoA90Minutos = minutosTranscurridos >= 90 && estaEnSegundaParte;
+    // Mostrar automáticamente cuando llega a 90 minutos o está cerca
     const necesitaConfigurarTiempoAgregado = (estaCercaDe90Minutos || haLlegadoA90Minutos) && tiempoAgregado === 0;
     const tiempoAgregadoNoCompletado = haLlegadoA90Minutos && tiempoAgregado > 0 && minutosTranscurridos < (90 + tiempoAgregado);
 

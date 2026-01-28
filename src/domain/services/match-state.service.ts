@@ -238,8 +238,7 @@ export class MatchStateService {
   /**
    * Finaliza un partido (cambia de "envivo" a "finalizado")
    * Valida que hayan transcurrido mínimo 90 minutos + tiempo agregado
-   * NOTA: NO actualiza estadísticas porque ya fueron actualizadas durante el partido en vivo
-   * Solo cambia el estado del partido a "finalizado"
+   * Actualiza la tabla de posiciones para asegurar que todos los campos estén correctos
    */
   async finishMatch(jornadaId: string, matchId: string, torneo: TorneoType): Promise<void> {
     // Obtener el partido actual
@@ -258,11 +257,14 @@ export class MatchStateService {
       );
     }
 
+    // Actualizar la tabla de posiciones con el resultado final del partido
+    // Esto asegura que todos los campos (partidosJugados, partidosGanados, partidosEmpatados,
+    // partidosPerdidos, golesFavor, golesContra, diferenciaGoles, puntos) estén correctamente actualizados
+    console.log('🔄 Actualizando tabla de posiciones al finalizar el partido...');
+    await this.updateStandingsFromMatch(match, torneo);
+    console.log('✅ Tabla de posiciones actualizada correctamente');
+
     // Actualizar el estado a finalizado
-    // NOTA: NO llamamos a updateStandingsFromMatch porque las estadísticas
-    // ya fueron actualizadas durante el partido en vivo mediante updateStandingsScore
-    // - partidosJugados ya se incrementó cuando inició el partido (startMatch)
-    // - goles, diferencia, PG/PE/PP, puntos ya se actualizan en tiempo real (updateStandingsScore)
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       estado: 'finalizado',
     });
@@ -458,7 +460,8 @@ export class MatchStateService {
 
   /**
    * Actualiza la tabla de posiciones basándose en el resultado de un partido finalizado
-   * Incrementa partidos jugados, ganados, empatados, perdidos y calcula puntos
+   * Actualiza partidos ganados, empatados, perdidos, goles y calcula puntos
+   * NOTA: partidosJugados NO se incrementa aquí porque ya se incrementó cuando inició el partido (startMatch)
    */
   private async updateStandingsFromMatch(match: Match, torneo: TorneoType): Promise<void> {
     if (!match.equipoLocalId || !match.equipoVisitanteId) {
@@ -469,8 +472,14 @@ export class MatchStateService {
     const { golesEquipoLocal, golesEquipoVisitante } = match;
 
     // Obtener estadísticas actuales de ambos equipos
-    const equipoLocal = await this.teamRepository.fetchTeamById(torneo, match.equipoLocalId);
-    const equipoVisitante = await this.teamRepository.fetchTeamById(torneo, match.equipoVisitanteId);
+    // Primero intentar desde apertura, luego desde el torneo correspondiente
+    let equipoLocal = await this.teamRepository.fetchTeamById('apertura', match.equipoLocalId);
+    let equipoVisitante = await this.teamRepository.fetchTeamById('apertura', match.equipoVisitanteId);
+
+    if (!equipoLocal || !equipoVisitante) {
+      equipoLocal = await this.teamRepository.fetchTeamById(torneo, match.equipoLocalId);
+      equipoVisitante = await this.teamRepository.fetchTeamById(torneo, match.equipoVisitanteId);
+    }
 
     if (!equipoLocal || !equipoVisitante) {
       const errorMsg = `Equipos no encontrados: local=${match.equipoLocalId || 'N/A'}, visitante=${match.equipoVisitanteId || 'N/A'}`;
@@ -484,45 +493,72 @@ export class MatchStateService {
     const ganaVisitante = golesEquipoVisitante > golesEquipoLocal;
 
     // Calcular nuevas estadísticas para el equipo local
+    // NOTA: partidosJugados ya fue incrementado cuando inició el partido (startMatch)
+    // Por lo tanto, NO debemos incrementarlo de nuevo aquí
+    // Solo actualizamos: partidosGanados, partidosEmpatados, partidosPerdidos, goles, diferencia, puntos
+    
     const newPartidosGanadosLocal = equipoLocal.partidosGanados + (ganaLocal ? 1 : 0);
     const newPartidosEmpatadosLocal = equipoLocal.partidosEmpatados + (empate ? 1 : 0);
     const newPartidosPerdidosLocal = equipoLocal.partidosPerdidos + (ganaVisitante ? 1 : 0);
     const newGolesFavorLocal = equipoLocal.golesFavor + golesEquipoLocal;
     const newGolesContraLocal = equipoLocal.golesContra + golesEquipoVisitante;
-    
-    const newStatsLocal = {
-      partidosJugados: equipoLocal.partidosJugados + 1,
-      partidosGanados: newPartidosGanadosLocal,
-      partidosEmpatados: newPartidosEmpatadosLocal,
-      partidosPerdidos: newPartidosPerdidosLocal,
-      golesFavor: newGolesFavorLocal,
-      golesContra: newGolesContraLocal,
-      diferenciaGoles: newGolesFavorLocal - newGolesContraLocal,
-      puntos: newPartidosGanadosLocal * 3 + newPartidosEmpatadosLocal,
-    };
+    const newDiferenciaGolesLocal = newGolesFavorLocal - newGolesContraLocal;
+    const newPuntosLocal = newPartidosGanadosLocal * 3 + newPartidosEmpatadosLocal;
 
-    // Calcular nuevas estadísticas para el equipo visitante
     const newPartidosGanadosVisitante = equipoVisitante.partidosGanados + (ganaVisitante ? 1 : 0);
     const newPartidosEmpatadosVisitante = equipoVisitante.partidosEmpatados + (empate ? 1 : 0);
     const newPartidosPerdidosVisitante = equipoVisitante.partidosPerdidos + (ganaLocal ? 1 : 0);
     const newGolesFavorVisitante = equipoVisitante.golesFavor + golesEquipoVisitante;
     const newGolesContraVisitante = equipoVisitante.golesContra + golesEquipoLocal;
-    
+    const newDiferenciaGolesVisitante = newGolesFavorVisitante - newGolesContraVisitante;
+    const newPuntosVisitante = newPartidosGanadosVisitante * 3 + newPartidosEmpatadosVisitante;
+
+    // Crear objeto con los campos actualizados
+    // partidosJugados NO se actualiza aquí porque ya fue incrementado en startMatch
+    const newStatsLocal = {
+      partidosGanados: newPartidosGanadosLocal,
+      partidosEmpatados: newPartidosEmpatadosLocal,
+      partidosPerdidos: newPartidosPerdidosLocal,
+      golesFavor: newGolesFavorLocal,
+      golesContra: newGolesContraLocal,
+      diferenciaGoles: newDiferenciaGolesLocal,
+      puntos: newPuntosLocal,
+    };
+
     const newStatsVisitante = {
-      partidosJugados: equipoVisitante.partidosJugados + 1,
       partidosGanados: newPartidosGanadosVisitante,
       partidosEmpatados: newPartidosEmpatadosVisitante,
       partidosPerdidos: newPartidosPerdidosVisitante,
       golesFavor: newGolesFavorVisitante,
       golesContra: newGolesContraVisitante,
-      diferenciaGoles: newGolesFavorVisitante - newGolesContraVisitante,
-      puntos: newPartidosGanadosVisitante * 3 + newPartidosEmpatadosVisitante,
+      diferenciaGoles: newDiferenciaGolesVisitante,
+      puntos: newPuntosVisitante,
     };
 
-    console.log('Actualizando tabla de posiciones:', {
+    console.log('🔄 Actualizando tabla de posiciones al finalizar partido:', {
       torneo,
-      local: { id: match.equipoLocalId, stats: newStatsLocal },
-      visitante: { id: match.equipoVisitanteId, stats: newStatsVisitante },
+      partido: `${match.equipoLocalId} ${golesEquipoLocal}-${golesEquipoVisitante} ${match.equipoVisitanteId}`,
+      resultado: ganaLocal ? 'Victoria Local' : ganaVisitante ? 'Victoria Visitante' : 'Empate',
+      local: { 
+        id: match.equipoLocalId, 
+        antes: { 
+          partidosJugados: equipoLocal.partidosJugados,
+          partidosGanados: equipoLocal.partidosGanados,
+          golesFavor: equipoLocal.golesFavor,
+          puntos: equipoLocal.puntos 
+        },
+        nuevo: newStatsLocal 
+      },
+      visitante: { 
+        id: match.equipoVisitanteId, 
+        antes: { 
+          partidosJugados: equipoVisitante.partidosJugados,
+          partidosGanados: equipoVisitante.partidosGanados,
+          golesFavor: equipoVisitante.golesFavor,
+          puntos: equipoVisitante.puntos 
+        },
+        nuevo: newStatsVisitante 
+      },
     });
 
     // Actualizar en Firestore (solo apertura o clausura)
