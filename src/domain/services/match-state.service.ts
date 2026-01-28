@@ -181,6 +181,7 @@ export class MatchStateService {
   /**
    * Actualiza el tiempo agregado del primer tiempo
    * Se llama cuando el partido llega a 45 minutos para configurar cuántos minutos adicionales habrá
+   * NO pone en descanso automáticamente - el descanso se activa cuando se completan los 45 + minutos adicionales
    */
   async updateFirstHalfAddedTime(jornadaId: string, matchId: string, minutosAdicionales: number): Promise<void> {
     // Validar que el partido esté en vivo
@@ -199,9 +200,37 @@ export class MatchStateService {
       throw new Error('Los minutos adicionales deben estar entre 0 y 15');
     }
 
-    // Actualizar tiempo agregado del primer tiempo y pausar el partido (entrar en descanso)
+    // Solo actualizar tiempo agregado del primer tiempo, NO poner en descanso
+    // El descanso se activará automáticamente cuando se completen los 45 + minutos adicionales
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       tiempoAgregadoPrimeraParte: minutosAdicionales,
+    });
+  }
+
+  /**
+   * Finaliza el primer tiempo manualmente
+   * Pone el partido en descanso con 0 minutos adicionales si no se han configurado
+   */
+  async finishFirstHalf(jornadaId: string, matchId: string): Promise<void> {
+    // Validar que el partido esté en vivo
+    const match = await this.matchRepository.fetchMatchById(jornadaId, matchId);
+    
+    if (!match) {
+      throw new Error('Partido no encontrado');
+    }
+
+    if (match.estado !== 'envivo') {
+      throw new Error(`No se puede finalizar el primer tiempo de un partido en estado "${match.estado}"`);
+    }
+
+    if (!match.primeraParte || match.enDescanso) {
+      throw new Error('El partido no está en primera parte');
+    }
+
+    // Si no tiene tiempo agregado configurado, establecerlo en 0 y poner en descanso
+    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte ?? 0;
+    await this.matchRepository.updateMatch(jornadaId, matchId, {
+      tiempoAgregadoPrimeraParte: tiempoAgregadoPrimera,
       enDescanso: true,
     });
   }
@@ -238,7 +267,8 @@ export class MatchStateService {
   /**
    * Finaliza un partido (cambia de "envivo" a "finalizado")
    * Valida que hayan transcurrido mínimo 90 minutos + tiempo agregado
-   * Actualiza la tabla de posiciones para asegurar que todos los campos estén correctos
+   * NOTA: NO actualiza la tabla de posiciones porque ya se actualiza en tiempo real
+   * durante el partido mediante updateStandingsScore cada vez que cambia el marcador
    */
   async finishMatch(jornadaId: string, matchId: string, torneo: TorneoType): Promise<void> {
     // Obtener el partido actual
@@ -257,17 +287,13 @@ export class MatchStateService {
       );
     }
 
-    // Actualizar la tabla de posiciones con el resultado final del partido
-    // Esto asegura que todos los campos (partidosJugados, partidosGanados, partidosEmpatados,
-    // partidosPerdidos, golesFavor, golesContra, diferenciaGoles, puntos) estén correctamente actualizados
-    console.log('🔄 Actualizando tabla de posiciones al finalizar el partido...');
-    await this.updateStandingsFromMatch(match, torneo);
-    console.log('✅ Tabla de posiciones actualizada correctamente');
-
-    // Actualizar el estado a finalizado
+    // Solo actualizar el estado a finalizado
+    // La tabla de posiciones ya está actualizada en tiempo real durante el partido
+    // mediante updateStandingsScore que se llama cada vez que cambia el marcador
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       estado: 'finalizado',
     });
+    console.log('✅ Partido finalizado. La tabla de posiciones ya está actualizada en tiempo real.');
   }
 
   /**

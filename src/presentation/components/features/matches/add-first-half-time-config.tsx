@@ -47,7 +47,7 @@ export function AddFirstHalfTimeConfig({
       await matchStateService.updateFirstHalfAddedTime(jornadaId, matchId, addedTime);
       toast.success(
         addedTime > 0 
-          ? `Minutos adicionales configurados: ${addedTime}. Ahora puedes reanudar la segunda parte.`
+          ? `Minutos adicionales configurados: ${addedTime}. El partido seguirá contando hasta completar los ${45 + addedTime} minutos.`
           : `Minutos adicionales configurados: ${addedTime}`
       );
       // Actualizar el estado local para reflejar el cambio
@@ -97,7 +97,7 @@ export function AddFirstHalfTimeConfig({
         </Button>
       </div>
       <p className="text-xs text-[#67748e]">
-        Ingresa los minutos adicionales del primer tiempo (0-15). Luego podrás reanudar la segunda parte.
+        Ingresa los minutos adicionales del primer tiempo (0-15). El partido seguirá contando hasta completar los 45 + minutos adicionales, luego entrará en descanso automáticamente.
       </p>
     </div>
   );
