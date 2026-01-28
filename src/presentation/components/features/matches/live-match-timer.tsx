@@ -181,9 +181,16 @@ export function LiveMatchTimer({
     const segundosAdicionales =
       minutosAdicionalesTranscurridos * 60 + (segundosSegundaParte % 60);
 
+    // LIMITAR el tiempo adicional al máximo configurado (no debe exceder tiempoAgregadoSegundo minutos)
+    const segundosAdicionalesMaximos = tiempoAgregadoSegundo * 60;
+    const segundosAdicionalesLimitados = Math.min(
+      segundosAdicionales,
+      segundosAdicionalesMaximos,
+    );
+
     return (
       <div className="flex flex-col items-center gap-2">
-        {/* Línea superior: 90:00 [+5] */}
+        {/* Línea superior: 90:00 [+6] */}
         <div className="flex items-center gap-2">
           <div className="text-5xl font-bold text-[#344767]">
             {formatTime(90 * 60)}
@@ -194,11 +201,11 @@ export function LiveMatchTimer({
             </div>
           )}
         </div>
-        {/* Línea inferior: 3:10 (progreso de adicionales) */}
+        {/* Línea inferior: 6:00 (progreso de adicionales, limitado al máximo) */}
         {showAddedTime && (
           <div className="flex items-center gap-2">
             <div className="text-3xl font-bold text-[#344767]">
-              {formatTime(segundosAdicionales)}
+              {formatTime(segundosAdicionalesLimitados)}
             </div>
           </div>
         )}

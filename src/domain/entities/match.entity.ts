@@ -44,9 +44,6 @@ export interface Match {
   /** Fecha/hora cuando el partido cambió a estado "envivo" */
   horaInicio?: Date;
 
-  /** Minuto actual del partido (0-90+) calculado desde horaInicio */
-  minutoActual?: number;
-
   /** Tiempo agregado al final del segundo tiempo (en minutos) */
   tiempoAgregado?: number;
 

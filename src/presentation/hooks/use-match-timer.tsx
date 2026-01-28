@@ -54,9 +54,7 @@ export function useMatchTimer(
 
   // Calcular valores derivados
   const minutoActual =
-    match && match.estado === "envivo"
-      ? getMatchElapsedMinutes(match)
-      : match?.minutoActual || 0;
+    match && match.estado === "envivo" ? getMatchElapsedMinutes(match) : 0;
 
   const primeraParte =
     match && match.estado === "envivo"
