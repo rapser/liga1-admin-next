@@ -3,39 +3,57 @@
  * Lista todas las jornadas y permite ver los partidos de cada una
  */
 
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
-import { DashboardLayout } from '@/presentation/components/layout';
-import { PageHeader } from '@/presentation/components/shared';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Jornada, getJornadaDisplayName } from '@/domain/entities/jornada.entity';
-import { Match } from '@/domain/entities/match.entity';
-import { JornadaRepository } from '@/data/repositories/jornada.repository';
-import { MatchRepository } from '@/data/repositories/match.repository';
-import { TeamRepository } from '@/data/repositories/team.repository';
-import { MatchStateService } from '@/domain/services/match-state.service';
-import { MatchLiveController } from '@/presentation/components/features/matches';
-import { CalendarDays, Trophy, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { getTeamFullName, TorneoType } from '@/core/config/firestore-constants';
+import { useState, useEffect } from "react";
+import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
+import { DashboardLayout } from "@/presentation/components/layout";
+import { PageHeader } from "@/presentation/components/shared";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Jornada,
+  getJornadaDisplayName,
+} from "@/domain/entities/jornada.entity";
+import { Match } from "@/domain/entities/match.entity";
+import { JornadaRepository } from "@/data/repositories/jornada.repository";
+import { MatchRepository } from "@/data/repositories/match.repository";
+import { TeamRepository } from "@/data/repositories/team.repository";
+import { MatchStateService } from "@/domain/services/match-state.service";
+import { MatchLiveController } from "@/presentation/components/features/matches";
+import {
+  CalendarDays,
+  Trophy,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { getTeamFullName, TorneoType } from "@/core/config/firestore-constants";
 
 const jornadaRepository = new JornadaRepository();
 const matchRepository = new MatchRepository();
 const teamRepository = new TeamRepository();
-const matchStateService = new MatchStateService(matchRepository, teamRepository);
+const matchStateService = new MatchStateService(
+  matchRepository,
+  teamRepository,
+);
 
 /**
  * Extrae el torneo del ID de la jornada
  * Ejemplo: "apertura_01" -> "apertura" (TorneoType)
  */
 const getTorneoTypeFromJornadaId = (jornadaId: string): TorneoType => {
-  const parts = jornadaId.split('_');
+  const parts = jornadaId.split("_");
   const torneo = parts[0]?.toLowerCase();
-  return (torneo === 'apertura' || torneo === 'clausura') ? torneo : 'apertura';
+  return torneo === "apertura" || torneo === "clausura" ? torneo : "apertura";
 };
 
 /**
@@ -43,11 +61,11 @@ const getTorneoTypeFromJornadaId = (jornadaId: string): TorneoType => {
  * Ejemplo: "apertura_01" -> "Apertura"
  */
 const getTorneoFromJornadaId = (jornadaId: string): string => {
-  const parts = jornadaId.split('_');
+  const parts = jornadaId.split("_");
   if (parts[0]) {
     return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
   }
-  return 'Torneo';
+  return "Torneo";
 };
 
 /**
@@ -55,22 +73,24 @@ const getTorneoFromJornadaId = (jornadaId: string): string => {
  * Ejemplo: "apertura_01" -> "Fecha 01"
  */
 const getFechaFromJornadaId = (jornadaId: string): string => {
-  const parts = jornadaId.split('_');
+  const parts = jornadaId.split("_");
   if (parts[1]) {
     return `Fecha ${parts[1]}`;
   }
-  return 'Fecha';
+  return "Fecha";
 };
 
 /**
  * Extrae los códigos de equipos del ID del partido
  * Ejemplo: "uni_ali" -> { local: "uni", visitante: "ali" }
  */
-const getTeamsFromMatchId = (matchId: string): { local: string; visitante: string } => {
-  const parts = matchId.split('_');
+const getTeamsFromMatchId = (
+  matchId: string,
+): { local: string; visitante: string } => {
+  const parts = matchId.split("_");
   return {
-    local: parts[0] || '',
-    visitante: parts[1] || '',
+    local: parts[0] || "",
+    visitante: parts[1] || "",
   };
 };
 
@@ -89,10 +109,12 @@ export default function JornadasPage() {
       setLoadingMatches(true);
       const data = await matchRepository.fetchMatches(selectedJornada);
       // Ordenar por fecha
-      const sorted = [...data].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+      const sorted = [...data].sort(
+        (a, b) => a.fecha.getTime() - b.fecha.getTime(),
+      );
       setMatches(sorted);
     } catch (error) {
-      console.error('Error al cargar partidos:', error);
+      console.error("Error al cargar partidos:", error);
     } finally {
       setLoadingMatches(false);
     }
@@ -113,7 +135,7 @@ export default function JornadasPage() {
           setSelectedJornada(sorted[0].id);
         }
       } catch (error) {
-        console.error('Error al cargar jornadas:', error);
+        console.error("Error al cargar jornadas:", error);
       } finally {
         setLoading(false);
       }
@@ -147,7 +169,11 @@ export default function JornadasPage() {
   return (
     <DashboardLayout>
       <PageHeader
-        title={selectedJornadaData ? getTorneoFromJornadaId(selectedJornadaData.id) : "Jornadas"}
+        title={
+          selectedJornadaData
+            ? getTorneoFromJornadaId(selectedJornadaData.id)
+            : "Jornadas"
+        }
         description="Temporada 2026"
       />
 
@@ -166,16 +192,22 @@ export default function JornadasPage() {
                   onClick={() => setSelectedJornada(jornada.id)}
                   className={`w-full text-left p-3 rounded-xl transition-all ${
                     selectedJornada === jornada.id
-                      ? 'bg-gradient-liga1 text-white shadow-soft'
-                      : 'bg-[#f8f9fa] hover:bg-[#e9ecef] text-[#344767]'
+                      ? "bg-gradient-liga1 text-white shadow-soft"
+                      : "bg-[#f8f9fa] hover:bg-[#e9ecef] text-[#344767]"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-semibold">{getFechaFromJornadaId(jornada.id)}</p>
-                      <p className={`text-xs ${
-                        selectedJornada === jornada.id ? 'text-white/80' : 'text-[#67748e]'
-                      }`}>
+                      <p className="font-semibold">
+                        {getFechaFromJornadaId(jornada.id)}
+                      </p>
+                      <p
+                        className={`text-xs ${
+                          selectedJornada === jornada.id
+                            ? "text-white/80"
+                            : "text-[#67748e]"
+                        }`}
+                      >
                         {getTorneoFromJornadaId(jornada.id)}
                       </p>
                     </div>
@@ -199,13 +231,21 @@ export default function JornadasPage() {
                       <CardTitle className="text-[#344767] text-2xl">
                         {getFechaFromJornadaId(selectedJornadaData.id)}
                       </CardTitle>
-                      <CardDescription>{getTorneoFromJornadaId(selectedJornadaData.id)}</CardDescription>
+                      <CardDescription>
+                        {getTorneoFromJornadaId(selectedJornadaData.id)}
+                      </CardDescription>
                     </div>
                     <Badge
-                      variant={selectedJornadaData.esActiva ? 'default' : 'secondary'}
-                      className={selectedJornadaData.esActiva ? 'bg-gradient-success border-0' : ''}
+                      variant={
+                        selectedJornadaData.mostrar ? "default" : "secondary"
+                      }
+                      className={
+                        selectedJornadaData.mostrar
+                          ? "bg-gradient-success border-0"
+                          : ""
+                      }
                     >
-                      {selectedJornadaData.esActiva ? 'Activa' : 'Inactiva'}
+                      {selectedJornadaData.mostrar ? "Activa" : "Inactiva"}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -216,28 +256,35 @@ export default function JornadasPage() {
                 <CardHeader>
                   <CardTitle className="text-[#344767]">Partidos</CardTitle>
                   <CardDescription>
-                    {matches.length} {matches.length === 1 ? 'partido' : 'partidos'}
+                    {matches.length}{" "}
+                    {matches.length === 1 ? "partido" : "partidos"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {loadingMatches ? (
                     <div className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                      <p className="text-[#67748e] text-sm">Cargando partidos...</p>
+                      <p className="text-[#67748e] text-sm">
+                        Cargando partidos...
+                      </p>
                     </div>
                   ) : matches.length === 0 ? (
                     <div className="text-center py-12">
                       <Trophy className="h-12 w-12 mx-auto mb-4 text-[#67748e] opacity-50" />
-                      <p className="text-[#67748e]">No hay partidos en esta jornada</p>
+                      <p className="text-[#67748e]">
+                        No hay partidos en esta jornada
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {matches.map((match) => (
-                        <MatchCard 
-                          key={match.id} 
-                          match={match} 
+                        <MatchCard
+                          key={match.id}
+                          match={match}
                           jornadaId={selectedJornadaData.id}
-                          torneo={getTorneoTypeFromJornadaId(selectedJornadaData.id)}
+                          torneo={getTorneoTypeFromJornadaId(
+                            selectedJornadaData.id,
+                          )}
                           onMatchChange={loadMatches}
                         />
                       ))}
@@ -260,7 +307,12 @@ interface MatchCardProps {
   onMatchChange: () => void;
 }
 
-function MatchCard({ match, jornadaId, torneo, onMatchChange }: MatchCardProps) {
+function MatchCard({
+  match,
+  jornadaId,
+  torneo,
+  onMatchChange,
+}: MatchCardProps) {
   // Extraer códigos de equipos del ID del partido si no están presentes
   const teams = getTeamsFromMatchId(match.id);
   const equipoLocalId = match.equipoLocalId || teams.local;
@@ -269,7 +321,10 @@ function MatchCard({ match, jornadaId, torneo, onMatchChange }: MatchCardProps) 
   const getStatusBadge = () => {
     if (match.suspendido) {
       return (
-        <Badge variant="outline" className="bg-[#fef5d3] text-[#fbc400] border-[#fbc400]">
+        <Badge
+          variant="outline"
+          className="bg-[#fef5d3] text-[#fbc400] border-[#fbc400]"
+        >
           <AlertCircle className="h-3 w-3 mr-1" />
           Suspendido
         </Badge>
@@ -277,23 +332,26 @@ function MatchCard({ match, jornadaId, torneo, onMatchChange }: MatchCardProps) 
     }
 
     switch (match.estado) {
-      case 'pendiente':
+      case "pendiente":
         return (
           <Badge variant="secondary">
             <Clock className="h-3 w-3 mr-1" />
             Pendiente
           </Badge>
         );
-      case 'envivo':
+      case "envivo":
         return (
           <Badge className="bg-gradient-success border-0 animate-pulse">
             <div className="h-2 w-2 rounded-full bg-white mr-2"></div>
             En Vivo
           </Badge>
         );
-      case 'finalizado':
+      case "finalizado":
         return (
-          <Badge variant="outline" className="bg-[#8097bf] text-white border-[#8097bf]">
+          <Badge
+            variant="outline"
+            className="bg-[#8097bf] text-white border-[#8097bf]"
+          >
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Finalizado
           </Badge>
@@ -304,55 +362,58 @@ function MatchCard({ match, jornadaId, torneo, onMatchChange }: MatchCardProps) 
   return (
     <div className="p-4 rounded-xl bg-[#f8f9fa] hover:bg-[#e9ecef] transition-colors space-y-3">
       {/* Información del Partido */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4 flex-1">
-          {/* Equipo Local */}
-          <div className="flex items-center gap-3 flex-1 justify-end">
-            <span className="font-semibold text-[#344767] text-right">
-              {getTeamFullName(equipoLocalId)}
-            </span>
-            <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
-              {equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
-            </div>
-          </div>
+      <div className="space-y-2">
+        {/* Estado Badge (arriba a la derecha) */}
+        <div className="flex justify-end">{getStatusBadge()}</div>
 
-          {/* Marcador o Hora */}
-          <div className="flex flex-col items-center gap-1 min-w-[100px]">
-            {match.estado === 'pendiente' ? (
-              <>
-                <span className="text-xs text-[#67748e]">
-                  {format(match.fecha, 'HH:mm', { locale: es })}
-                </span>
-                <span className="text-xs text-[#67748e]">
-                  {format(match.fecha, 'dd MMM', { locale: es })}
-                </span>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-[#344767]">
-                  {match.golesEquipoLocal}
-                </span>
-                <span className="text-[#67748e]">-</span>
-                <span className="text-2xl font-bold text-[#344767]">
-                  {match.golesEquipoVisitante}
-                </span>
+        {/* Equipos y marcador (centrado en segunda línea) */}
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-4 flex-1">
+            {/* Equipo Local */}
+            <div className="flex items-center gap-3 flex-1 justify-end">
+              <span className="font-semibold text-[#344767] text-right">
+                {getTeamFullName(equipoLocalId)}
+              </span>
+              <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
+                {equipoLocalId?.substring(0, 2).toUpperCase() || "?"}
               </div>
-            )}
-          </div>
-
-          {/* Equipo Visitante */}
-          <div className="flex items-center gap-3 flex-1">
-            <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
-              {equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
             </div>
-            <span className="font-semibold text-[#344767]">
-              {getTeamFullName(equipoVisitanteId)}
-            </span>
+
+            {/* Marcador o Hora */}
+            <div className="flex flex-col items-center gap-1 min-w-[100px]">
+              {match.estado === "pendiente" ? (
+                <>
+                  <span className="text-xs text-[#67748e]">
+                    {format(match.fecha, "HH:mm", { locale: es })}
+                  </span>
+                  <span className="text-xs text-[#67748e]">
+                    {format(match.fecha, "dd MMM", { locale: es })}
+                  </span>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-[#344767]">
+                    {match.golesEquipoLocal}
+                  </span>
+                  <span className="text-[#67748e]">-</span>
+                  <span className="text-2xl font-bold text-[#344767]">
+                    {match.golesEquipoVisitante}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Equipo Visitante */}
+            <div className="flex items-center gap-3 flex-1">
+              <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
+                {equipoVisitanteId?.substring(0, 2).toUpperCase() || "?"}
+              </div>
+              <span className="font-semibold text-[#344767]">
+                {getTeamFullName(equipoVisitanteId)}
+              </span>
+            </div>
           </div>
         </div>
-
-        {/* Estado Badge */}
-        <div>{getStatusBadge()}</div>
       </div>
 
       {/* Controles de Gestión */}
