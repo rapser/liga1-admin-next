@@ -27,24 +27,33 @@ export function AddTimeConfig({
   matchStateService,
   onTimeUpdated,
 }: AddTimeConfigProps) {
-  const [addedTime, setAddedTime] = useState(currentAddedTime || 0);
+  // Este input es DELTA (minutos a sumar), no el total
+  const [deltaTime, setDeltaTime] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
-    setAddedTime(currentAddedTime || 0);
+    // Si el total cambia desde props, no pisamos el delta del usuario
   }, [currentAddedTime]);
 
   const handleUpdate = async () => {
-    if (addedTime < 0 || addedTime > 15) {
+    if (deltaTime < 0 || deltaTime > 15) {
       toast.error("Los minutos adicionales deben estar entre 0 y 15");
+      return;
+    }
+    const newTotal = (currentAddedTime || 0) + deltaTime;
+    if (newTotal < 0 || newTotal > 15) {
+      toast.error("El total de minutos adicionales debe estar entre 0 y 15");
+      return;
+    }
+    if (deltaTime === 0) {
       return;
     }
 
     setIsUpdating(true);
     try {
-      await matchStateService.updateAddedTime(jornadaId, matchId, addedTime);
-      toast.success(`Minutos adicionales configurados: ${addedTime}`);
-      setAddedTime(addedTime);
+      await matchStateService.updateAddedTime(jornadaId, matchId, newTotal);
+      toast.success(`Minutos adicionales actualizados: +${newTotal}`);
+      setDeltaTime(0);
       onTimeUpdated?.();
     } catch (error: any) {
       console.error("Error al actualizar tiempo agregado:", error);
@@ -61,8 +70,8 @@ export function AddTimeConfig({
         type="number"
         min="0"
         max="15"
-        value={addedTime}
-        onChange={(e) => setAddedTime(parseInt(e.target.value) || 0)}
+        value={deltaTime}
+        onChange={(e) => setDeltaTime(parseInt(e.target.value) || 0)}
         className="w-16 h-10 text-center text-lg font-bold"
         disabled={isUpdating}
         placeholder="0"
@@ -70,7 +79,7 @@ export function AddTimeConfig({
       <div className="text-2xl font-semibold text-[#67748e]">]</div>
       <Button
         onClick={handleUpdate}
-        disabled={isUpdating || addedTime === currentAddedTime}
+        disabled={isUpdating || deltaTime === 0}
         size="sm"
         className="bg-gradient-liga1 hover:opacity-90"
       >

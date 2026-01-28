@@ -59,8 +59,8 @@ const getMatchElapsedSeconds = (match: Match): number => {
     const diffMs = now.getTime() - inicioSegundaParte.getTime();
     const diffSeconds = Math.floor(diffMs / 1000);
 
-    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
-    return (45 + tiempoAgregadoPrimera) * 60 + Math.max(0, diffSeconds);
+    // Segunda parte: el reloj base vuelve a 45:00 (NO suma el adicional del 1T)
+    return 45 * 60 + Math.max(0, diffSeconds);
   }
 
   const diffMs = now.getTime() - inicio.getTime();
@@ -197,6 +197,36 @@ export function MatchLiveController({
     }
   };
 
+  // Auto-reanudar segundo tiempo:
+  // - A los 15 minutos: se muestra el botón
+  // - Si pasan 5 minutos más sin intervención: se reanuda automáticamente (20 min total)
+  useEffect(() => {
+    if (match.estado !== "envivo" || !match.enDescanso) {
+      return;
+    }
+
+    const checkAutoResume = async () => {
+      const segundosDescanso = getHalftimeElapsedSeconds(match);
+      if (segundosDescanso >= 20 * 60) {
+        try {
+          await matchStateService.resumeSecondHalf(jornadaId, match.id);
+          toast.info(
+            "Segundo tiempo iniciado automáticamente tras 20 minutos de descanso",
+          );
+          onStateChange?.();
+        } catch (error: any) {
+          console.error(
+            "Error al reanudar automáticamente el segundo tiempo:",
+            error,
+          );
+        }
+      }
+    };
+
+    const interval = setInterval(checkAutoResume, 5000);
+    return () => clearInterval(interval);
+  }, [match, jornadaId, matchStateService, onStateChange]);
+
   // Detectar cuando se completan los 45 + minutos adicionales y poner en descanso automáticamente
   useEffect(() => {
     if (match.estado === "envivo" && !match.enDescanso && match.primeraParte) {
@@ -261,10 +291,10 @@ export function MatchLiveController({
               const segundosAdicionalesTranscurridos =
                 segundosSegundaParte - 45 * 60;
 
-              // Si pasaron más de 1 minuto (60 segundos) desde que se completaron los adicionales, finalizar
+              // Tolerancia: 5 minutos después de consumir los adicionales
               if (
                 segundosAdicionalesTranscurridos >=
-                tiempoAgregado * 60 + 60
+                tiempoAgregado * 60 + 5 * 60
               ) {
                 try {
                   await matchStateService.finishMatch(
@@ -331,8 +361,8 @@ export function MatchLiveController({
     const estaEnPrimeraParte = match.primeraParte && !match.enDescanso;
     const estaCercaDe45Minutos =
       minutosTranscurridos >= 40 && estaEnPrimeraParte;
-    const necesitaConfigurarTiempoAgregadoPrimera =
-      estaCercaDe45Minutos && tiempoAgregadoPrimera === 0;
+    // Mostrar el componente desde el 40' en adelante, incluso si ya existe +X (para poder sumar más)
+    const puedeAjustarTiempoAgregadoPrimera = estaCercaDe45Minutos;
     const tieneTiempoAgregadoPrimera = tiempoAgregadoPrimera > 0;
     const haCompletadoPrimerTiempo =
       estaEnPrimeraParte &&
@@ -343,8 +373,8 @@ export function MatchLiveController({
     const estaEnSegundaParte = !match.primeraParte && !match.enDescanso;
     const estaCercaDe90Minutos =
       minutosTranscurridos >= 85 && estaEnSegundaParte;
-    const necesitaConfigurarTiempoAgregado =
-      estaCercaDe90Minutos && tiempoAgregado === 0;
+    // Mostrar el componente desde el 85' en adelante, incluso si ya existe +X (para poder sumar más)
+    const puedeAjustarTiempoAgregadoSegundo = estaCercaDe90Minutos;
     const tieneTiempoAgregado = tiempoAgregado > 0;
     const haCompletadoTiempoAgregado =
       estaEnSegundaParte &&
@@ -355,6 +385,7 @@ export function MatchLiveController({
     if (match.enDescanso) {
       const segundosDescanso = getHalftimeElapsedSeconds(match);
       const minutosDescanso = Math.floor(segundosDescanso / 60);
+      // Mostrar botón recién a los 15 minutos (descanso reglamentario)
       const puedeContinuar = minutosDescanso >= 15;
 
       return (
@@ -362,9 +393,6 @@ export function MatchLiveController({
           {/* Timer en descanso */}
           <div className="flex flex-col items-center gap-2">
             <LiveMatchTimer match={match} showAddedTime={false} />
-            <div className="text-sm font-semibold text-yellow-600">
-              Descanso
-            </div>
           </div>
 
           {/* Botón para continuar - solo después de 15 minutos */}
@@ -411,7 +439,7 @@ export function MatchLiveController({
         </div>
 
         {/* Control de Minutos Adicionales del Primer Tiempo - Mostrar a los 40 minutos */}
-        {necesitaConfigurarTiempoAgregadoPrimera && (
+        {puedeAjustarTiempoAgregadoPrimera && (
           <div className="flex items-center justify-center">
             <AddFirstHalfTimeConfig
               jornadaId={jornadaId}
@@ -424,7 +452,7 @@ export function MatchLiveController({
         )}
 
         {/* Control de Minutos Adicionales del Segundo Tiempo - Mostrar a los 85 minutos */}
-        {necesitaConfigurarTiempoAgregado && estaEnSegundaParte && (
+        {puedeAjustarTiempoAgregadoSegundo && estaEnSegundaParte && (
           <div className="flex items-center justify-center">
             <AddTimeConfig
               jornadaId={jornadaId}

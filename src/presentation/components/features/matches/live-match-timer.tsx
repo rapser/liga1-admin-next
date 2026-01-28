@@ -43,9 +43,8 @@ const getMatchElapsedSeconds = (match: Match): number => {
     const diffMs = now.getTime() - inicioSegundaParte.getTime();
     const diffSeconds = Math.floor(diffMs / 1000);
 
-    // Segundos de la segunda parte + 45 minutos del primer tiempo + tiempo agregado del primer tiempo
-    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
-    return (45 + tiempoAgregadoPrimera) * 60 + Math.max(0, diffSeconds);
+    // Segunda parte: el reloj base vuelve a 45:00 (NO suma el adicional del 1T)
+    return 45 * 60 + Math.max(0, diffSeconds);
   }
 
   // Primera parte: calcular desde el inicio
@@ -131,14 +130,11 @@ export function LiveMatchTimer({
               </div>
             )}
           </div>
-          {/* Línea inferior: 1:10 [+4] */}
+          {/* Línea inferior: 1:10 (progreso de adicionales) */}
           {showAddedTime && (
             <div className="flex items-center gap-2">
               <div className="text-3xl font-bold text-[#344767]">
                 {formatTime(segundosAdicionales)}
-              </div>
-              <div className="text-2xl font-semibold text-[#67748e]">
-                [+{tiempoAgregadoPrimeraParte}]
               </div>
             </div>
           )}
@@ -155,7 +151,8 @@ export function LiveMatchTimer({
   }
 
   // Segunda parte
-  const segundosSegundaParte = totalSeconds - (45 + tiempoAgregadoPrimera) * 60;
+  // En segunda parte, totalSeconds ya incluye el offset base 45:00
+  const segundosSegundaParte = totalSeconds - 45 * 60;
   const minutosSegundaParte = Math.floor(segundosSegundaParte / 60);
   const minutosTotales = 45 + tiempoAgregadoPrimera + minutosSegundaParte;
 
@@ -197,14 +194,11 @@ export function LiveMatchTimer({
             </div>
           )}
         </div>
-        {/* Línea inferior: 3:10 [+5] */}
+        {/* Línea inferior: 3:10 (progreso de adicionales) */}
         {showAddedTime && (
           <div className="flex items-center gap-2">
             <div className="text-3xl font-bold text-[#344767]">
               {formatTime(segundosAdicionales)}
-            </div>
-            <div className="text-2xl font-semibold text-[#67748e]">
-              [+{tiempoAgregadoSegundo}]
             </div>
           </div>
         )}
