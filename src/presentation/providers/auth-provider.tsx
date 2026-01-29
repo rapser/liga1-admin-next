@@ -123,7 +123,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
           'No tienes permisos para acceder a este panel. Contacta al administrador.'
         );
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Detectar si el usuario canceló el popup
+      const isCancelled = 
+        error?.code === 'auth/popup-closed-by-user' ||
+        error?.code === 'auth/cancelled-popup-request' ||
+        error?.code === 'auth/popup-blocked';
+
+      if (isCancelled) {
+        // Si el usuario canceló, no lanzar error, solo resetear loading
+        console.log('Login con Google cancelado por el usuario');
+        setLoading(false);
+        // Lanzar un error específico que se maneje silenciosamente en la página de login
+        throw new Error('LOGIN_CANCELLED');
+      }
+
       console.error('Error al iniciar sesión:', error);
       throw error;
     } finally {

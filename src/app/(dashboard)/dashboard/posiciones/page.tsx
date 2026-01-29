@@ -30,17 +30,14 @@ export default function PosicionesPage() {
       try {
         setLoading(true);
 
-        // Cargar las 3 tablas en paralelo
-        const [apertura, clausura, acumulado] = await Promise.all([
-          teamRepository.fetchStandings('apertura'),
-          teamRepository.fetchStandings('clausura'),
-          teamRepository.fetchStandings('acumulado'),
-        ]);
+        // Solo cargar tabla de apertura (clausura y acumulado no se cargan todavía)
+        const apertura = await teamRepository.fetchStandings('apertura');
 
         // Ordenar equipos por posición
         setAperturaTeams([...apertura].sort(compareTeams));
-        setClausuraTeams([...clausura].sort(compareTeams));
-        setAcumuladoTeams([...acumulado].sort(compareTeams));
+        // Clausura y acumulado se mantienen vacíos (empty view)
+        setClausuraTeams([]);
+        setAcumuladoTeams([]);
       } catch (error) {
         console.error('Error al cargar las tablas:', error);
       } finally {

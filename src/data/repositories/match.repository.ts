@@ -214,15 +214,28 @@ export class MatchRepository implements IMatchRepository {
       matchId
     );
 
-    // Convertir campos Date a Timestamp
-    const updateData: Record<string, unknown> = { ...updates };
+    // Convertir campos Date a Timestamp y filtrar campos undefined
+    const updateData: Record<string, unknown> = {};
     
-    if (updates.fecha) {
-      updateData.fecha = Timestamp.fromDate(updates.fecha);
+    // Solo incluir campos que no sean undefined
+    Object.keys(updates).forEach((key) => {
+      const value = updates[key as keyof Match];
+      if (value !== undefined) {
+        updateData[key] = value;
+      }
+    });
+    
+    // Convertir campos Date a Timestamp
+    if (updateData.fecha && updateData.fecha instanceof Date) {
+      updateData.fecha = Timestamp.fromDate(updateData.fecha as Date);
     }
     
-    if (updates.horaInicio) {
-      updateData.horaInicio = Timestamp.fromDate(updates.horaInicio);
+    if (updateData.horaInicio && updateData.horaInicio instanceof Date) {
+      updateData.horaInicio = Timestamp.fromDate(updateData.horaInicio as Date);
+    }
+
+    if (updateData.horaInicioSegundaParte && updateData.horaInicioSegundaParte instanceof Date) {
+      updateData.horaInicioSegundaParte = Timestamp.fromDate(updateData.horaInicioSegundaParte as Date);
     }
 
     // Remover campo id si existe

@@ -1,6 +1,6 @@
 /**
- * Componente AddTimeConfig
- * Permite configurar los minutos adicionales del segundo tiempo
+ * Componente AddFirstHalfTimeConfig
+ * Permite configurar los minutos adicionales del primer tiempo
  */
 
 "use client";
@@ -12,7 +12,7 @@ import { MatchStateService } from "@/domain/services/match-state.service";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-interface AddTimeConfigProps {
+interface AddFirstHalfTimeConfigProps {
   jornadaId: string;
   matchId: string;
   currentAddedTime: number;
@@ -20,13 +20,13 @@ interface AddTimeConfigProps {
   onTimeUpdated?: () => void;
 }
 
-export function AddTimeConfig({
+export function AddFirstHalfTimeConfig({
   jornadaId,
   matchId,
   currentAddedTime,
   matchStateService,
   onTimeUpdated,
-}: AddTimeConfigProps) {
+}: AddFirstHalfTimeConfigProps) {
   // Este input es DELTA (minutos a sumar), no el total
   const [deltaTime, setDeltaTime] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -51,12 +51,19 @@ export function AddTimeConfig({
 
     setIsUpdating(true);
     try {
-      await matchStateService.updateAddedTime(jornadaId, matchId, newTotal);
+      await matchStateService.updateFirstHalfAddedTime(
+        jornadaId,
+        matchId,
+        newTotal,
+      );
       toast.success(`Minutos adicionales actualizados: +${newTotal}`);
       setDeltaTime(0);
       onTimeUpdated?.();
     } catch (error: any) {
-      console.error("Error al actualizar tiempo agregado:", error);
+      console.error(
+        "Error al actualizar tiempo agregado del primer tiempo:",
+        error,
+      );
       toast.error(error?.message || "Error al actualizar minutos adicionales");
     } finally {
       setIsUpdating(false);

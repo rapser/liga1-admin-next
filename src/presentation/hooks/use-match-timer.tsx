@@ -3,16 +3,23 @@
  * Calcula los minutos transcurridos desde horaInicio y actualiza cada minuto
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Match, getMatchElapsedMinutes, isFirstHalf } from '@/domain/entities/match.entity';
+import { useState, useEffect, useCallback } from "react";
+import {
+  Match,
+  getMatchElapsedMinutes,
+  isFirstHalf,
+  getFormattedMatchMinute,
+} from "@/domain/entities/match.entity";
 
 interface UseMatchTimerReturn {
   /** Minuto actual del partido (0-90+) */
   minutoActual: number;
   /** Indica si está en primera parte (true) o segunda parte (false) */
   primeraParte: boolean;
-  /** Tiempo agregado (puede ser configurado manualmente) */
+  /** Tiempo agregado del segundo tiempo (puede ser configurado manualmente) */
   tiempoAgregado: number;
+  /** Tiempo agregado del primer tiempo */
+  tiempoAgregadoPrimera: number;
   /** Tiempo transcurrido total en segundos */
   tiempoTranscurridoSegundos: number;
   /** Minuto formateado con tiempo agregado (ej: "45' +2") */
@@ -28,13 +35,13 @@ interface UseMatchTimerReturn {
  */
 export function useMatchTimer(
   match: Match | null,
-  updateInterval: number = 1000
+  updateInterval: number = 1000,
 ): UseMatchTimerReturn {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
   // Actualizar el tiempo actual periódicamente
   useEffect(() => {
-    if (!match || match.estado !== 'envivo') {
+    if (!match || match.estado !== "envivo") {
       return;
     }
 
@@ -46,25 +53,27 @@ export function useMatchTimer(
   }, [match, updateInterval]);
 
   // Calcular valores derivados
-  const minutoActual = match && match.estado === 'envivo'
-    ? getMatchElapsedMinutes(match)
-    : match?.minutoActual || 0;
+  const minutoActual =
+    match && match.estado === "envivo" ? getMatchElapsedMinutes(match) : 0;
 
-  const primeraParte = match && match.estado === 'envivo'
-    ? isFirstHalf(match)
-    : match?.primeraParte ?? true;
+  const primeraParte =
+    match && match.estado === "envivo"
+      ? isFirstHalf(match)
+      : (match?.primeraParte ?? true);
 
   const tiempoAgregado = match?.tiempoAgregado || 0;
+  const tiempoAgregadoPrimera = match?.tiempoAgregadoPrimeraParte || 0;
 
   // Calcular tiempo transcurrido en segundos (más preciso que minutos)
   const tiempoTranscurridoSegundos = useCallback(() => {
-    if (!match?.horaInicio || match.estado !== 'envivo') {
+    if (!match?.horaInicio || match.estado !== "envivo") {
       return 0;
     }
 
-    const inicio = match.horaInicio instanceof Date 
-      ? match.horaInicio 
-      : new Date(match.horaInicio);
+    const inicio =
+      match.horaInicio instanceof Date
+        ? match.horaInicio
+        : new Date(match.horaInicio);
 
     const diffMs = currentTime.getTime() - inicio.getTime();
     return Math.floor(diffMs / 1000);
@@ -77,7 +86,7 @@ export function useMatchTimer(
     if (minutoActual < 90 || tiempoAgregado === 0) {
       return 0;
     }
-    
+
     // Cuando ya pasaron los 90 minutos y hay tiempo agregado configurado,
     // calcular cuántos minutos adicionales han transcurrido desde el minuto 90
     // Ejemplo: minutoActual = 92, tiempoAgregado = 5 → minutosAdicionales = 2
@@ -85,32 +94,21 @@ export function useMatchTimer(
     return Math.min(minutosDespuesDe90, tiempoAgregado);
   }, [minutoActual, tiempoAgregado]);
 
-  // Formatear minuto con tiempo agregado
+  // Formatear minuto con tiempo agregado usando la función de la entidad
   const minutoFormateado = useCallback(() => {
-    if (minutoActual === 0 && tiempoAgregado === 0) {
+    if (!match || match.estado !== "envivo") {
       return "0'";
     }
+    return getFormattedMatchMinute(match);
+  }, [match]);
 
-    // Cuando llega a 90 minutos, el minuto se detiene en 90
-    // Solo los minutos adicionales incrementan de 1 en 1
-    const minutoMostrado = Math.min(minutoActual, 90);
-    
-    // Si ya pasaron los 90 minutos y hay tiempo agregado configurado
-    if (minutoActual >= 90 && tiempoAgregado > 0) {
-      const minutosAdicionales = minutosAdicionalesTranscurridos();
-      return `90' +${minutosAdicionales}`;
-    }
-    
-    // Si no ha llegado a 90 minutos o no hay tiempo agregado, mostrar minuto normal
-    return `${minutoMostrado}'`;
-  }, [minutoActual, tiempoAgregado, minutosAdicionalesTranscurridos]);
-
-  const isActive = match?.estado === 'envivo';
+  const isActive = match?.estado === "envivo";
 
   return {
     minutoActual,
     primeraParte,
     tiempoAgregado,
+    tiempoAgregadoPrimera,
     tiempoTranscurridoSegundos: tiempoTranscurridoSegundos(),
     minutoFormateado: minutoFormateado(),
     isActive,
