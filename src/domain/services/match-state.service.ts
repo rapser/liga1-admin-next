@@ -76,8 +76,7 @@ export class MatchStateService {
     // Actualizar el partido
     await this.matchRepository.updateMatch(jornadaId, matchId, updates);
 
-    // Incrementar partidos jugados en 1 para ambos equipos (SOLO cuando inicia el partido)
-    // Esto es lo ÚNICO que cambia en matchesPlayed
+    // Extraer IDs de equipos si no están presentes
     if (!match.equipoLocalId || !match.equipoVisitanteId) {
       const parts = matchId.split("_");
       if (parts.length >= 2) {
@@ -108,6 +107,38 @@ export class MatchStateService {
         ]);
         console.log("✅ Partidos jugados incrementados al iniciar el partido");
       }
+
+      // IMPORTANTE: Actualizar la tabla de posiciones con el marcador inicial (0-0)
+      // Esto asegura que todos los campos (goles, puntos, etc.) se inicialicen correctamente
+      // incluso si el partido nunca cambia de marcador o el primer cambio no se detecta correctamente
+      const marcadorInicialLocal =
+        updates.golesEquipoLocal ?? match.golesEquipoLocal ?? 0;
+      const marcadorInicialVisitante =
+        updates.golesEquipoVisitante ?? match.golesEquipoVisitante ?? 0;
+
+      console.log(
+        "🔵 Inicializando tabla de posiciones con marcador inicial:",
+        {
+          matchId,
+          marcador: `${marcadorInicialLocal}-${marcadorInicialVisitante}`,
+          equipoLocalId: match.equipoLocalId,
+          equipoVisitanteId: match.equipoVisitanteId,
+          torneo,
+        },
+      );
+
+      await this.updateStandingsScore(
+        {
+          ...match,
+          ...updates,
+          golesEquipoLocal: marcadorInicialLocal,
+          golesEquipoVisitante: marcadorInicialVisitante,
+        },
+        torneo,
+        0, // previousLocalScore = 0 (marcador anterior antes de iniciar)
+        0, // previousVisitorScore = 0 (marcador anterior antes de iniciar)
+      );
+      console.log("✅ Tabla de posiciones inicializada al iniciar el partido");
     }
   }
 
@@ -487,36 +518,65 @@ export class MatchStateService {
     const actualEmpate = golesEquipoLocal === golesEquipoVisitante;
     const actualGanaVisitante = golesEquipoVisitante > golesEquipoLocal;
 
-    // Revertir el resultado anterior y aplicar el resultado actual
-    // Esto permite que cuando el marcador cambia (ej: 2-1 → 2-2), se actualice correctamente
-    const baseMatchesWonLocal =
-      equipoLocal.partidosGanados - (anteriorGanaLocal ? 1 : 0);
-    const baseMatchesDrawnLocal =
-      equipoLocal.partidosEmpatados - (anteriorEmpate ? 1 : 0);
-    const baseMatchesLostLocal =
-      equipoLocal.partidosPerdidos - (anteriorGanaVisitante ? 1 : 0);
+    // Si el marcador anterior es 0-0, significa que es la primera vez que se actualiza (inicio del partido)
+    // En este caso, no hay que revertir nada, solo aplicar el resultado actual
+    const esInicializacion =
+      previousLocalScore === 0 && previousVisitorScore === 0;
 
-    const baseMatchesWonVisitante =
-      equipoVisitante.partidosGanados - (anteriorGanaVisitante ? 1 : 0);
-    const baseMatchesDrawnVisitante =
-      equipoVisitante.partidosEmpatados - (anteriorEmpate ? 1 : 0);
-    const baseMatchesLostVisitante =
-      equipoVisitante.partidosPerdidos - (anteriorGanaLocal ? 1 : 0);
+    let newMatchesWonLocal: number;
+    let newMatchesDrawnLocal: number;
+    let newMatchesLostLocal: number;
+    let newMatchesWonVisitante: number;
+    let newMatchesDrawnVisitante: number;
+    let newMatchesLostVisitante: number;
 
-    // Aplicar el resultado ACTUAL del partido
-    const newMatchesWonLocal =
-      Math.max(0, baseMatchesWonLocal) + (actualGanaLocal ? 1 : 0);
-    const newMatchesDrawnLocal =
-      Math.max(0, baseMatchesDrawnLocal) + (actualEmpate ? 1 : 0);
-    const newMatchesLostLocal =
-      Math.max(0, baseMatchesLostLocal) + (actualGanaVisitante ? 1 : 0);
+    if (esInicializacion) {
+      // Primera vez: simplemente aplicar el resultado actual a los totales existentes
+      newMatchesWonLocal =
+        equipoLocal.partidosGanados + (actualGanaLocal ? 1 : 0);
+      newMatchesDrawnLocal =
+        equipoLocal.partidosEmpatados + (actualEmpate ? 1 : 0);
+      newMatchesLostLocal =
+        equipoLocal.partidosPerdidos + (actualGanaVisitante ? 1 : 0);
 
-    const newMatchesWonVisitante =
-      Math.max(0, baseMatchesWonVisitante) + (actualGanaVisitante ? 1 : 0);
-    const newMatchesDrawnVisitante =
-      Math.max(0, baseMatchesDrawnVisitante) + (actualEmpate ? 1 : 0);
-    const newMatchesLostVisitante =
-      Math.max(0, baseMatchesLostVisitante) + (actualGanaLocal ? 1 : 0);
+      newMatchesWonVisitante =
+        equipoVisitante.partidosGanados + (actualGanaVisitante ? 1 : 0);
+      newMatchesDrawnVisitante =
+        equipoVisitante.partidosEmpatados + (actualEmpate ? 1 : 0);
+      newMatchesLostVisitante =
+        equipoVisitante.partidosPerdidos + (actualGanaLocal ? 1 : 0);
+    } else {
+      // Cambio de marcador: revertir el resultado anterior y aplicar el resultado actual
+      // Esto permite que cuando el marcador cambia (ej: 2-1 → 2-2), se actualice correctamente
+      const baseMatchesWonLocal =
+        equipoLocal.partidosGanados - (anteriorGanaLocal ? 1 : 0);
+      const baseMatchesDrawnLocal =
+        equipoLocal.partidosEmpatados - (anteriorEmpate ? 1 : 0);
+      const baseMatchesLostLocal =
+        equipoLocal.partidosPerdidos - (anteriorGanaVisitante ? 1 : 0);
+
+      const baseMatchesWonVisitante =
+        equipoVisitante.partidosGanados - (anteriorGanaVisitante ? 1 : 0);
+      const baseMatchesDrawnVisitante =
+        equipoVisitante.partidosEmpatados - (anteriorEmpate ? 1 : 0);
+      const baseMatchesLostVisitante =
+        equipoVisitante.partidosPerdidos - (anteriorGanaLocal ? 1 : 0);
+
+      // Aplicar el resultado ACTUAL del partido
+      newMatchesWonLocal =
+        Math.max(0, baseMatchesWonLocal) + (actualGanaLocal ? 1 : 0);
+      newMatchesDrawnLocal =
+        Math.max(0, baseMatchesDrawnLocal) + (actualEmpate ? 1 : 0);
+      newMatchesLostLocal =
+        Math.max(0, baseMatchesLostLocal) + (actualGanaVisitante ? 1 : 0);
+
+      newMatchesWonVisitante =
+        Math.max(0, baseMatchesWonVisitante) + (actualGanaVisitante ? 1 : 0);
+      newMatchesDrawnVisitante =
+        Math.max(0, baseMatchesDrawnVisitante) + (actualEmpate ? 1 : 0);
+      newMatchesLostVisitante =
+        Math.max(0, baseMatchesLostVisitante) + (actualGanaLocal ? 1 : 0);
+    }
 
     // NOTA: partidosJugados NO se actualiza aquí
     // partidosJugados solo se incrementa UNA VEZ cuando el partido INICIA (en startMatch)

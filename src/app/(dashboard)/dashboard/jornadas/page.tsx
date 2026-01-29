@@ -334,7 +334,10 @@ function MatchCard({
     switch (match.estado) {
       case "pendiente":
         return (
-          <Badge variant="secondary">
+          <Badge
+            variant="outline"
+            className="bg-[#fef5d3] text-[#d97706] border-[#fbc400]"
+          >
             <Clock className="h-3 w-3 mr-1" />
             Pendiente
           </Badge>
