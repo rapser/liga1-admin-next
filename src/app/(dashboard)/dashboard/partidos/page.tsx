@@ -3,23 +3,29 @@
  * Muestra todos los partidos: próximos, en vivo y finalizados
  */
 
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
-import { DashboardLayout } from '@/presentation/components/layout';
-import { PageHeader, StatCard } from '@/presentation/components/shared';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Match } from '@/domain/entities/match.entity';
-import { Jornada } from '@/domain/entities/jornada.entity';
-import { MatchRepository } from '@/data/repositories/match.repository';
-import { JornadaRepository } from '@/data/repositories/jornada.repository';
-import { Trophy, Clock, Play, CheckCircle2, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { getTeamFullName } from '@/core/config/firestore-constants';
+import { useState, useEffect } from "react";
+import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
+import { DashboardLayout } from "@/presentation/components/layout";
+import { PageHeader, StatCard } from "@/presentation/components/shared";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Match } from "@/domain/entities/match.entity";
+import { Jornada } from "@/domain/entities/jornada.entity";
+import { MatchRepository } from "@/data/repositories/match.repository";
+import { JornadaRepository } from "@/data/repositories/jornada.repository";
+import { Trophy, Clock, Play, CheckCircle2, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { getTeamFullName } from "@/core/config/firestore-constants";
 
 const matchRepository = new MatchRepository();
 const jornadaRepository = new JornadaRepository();
@@ -28,11 +34,13 @@ const jornadaRepository = new JornadaRepository();
  * Extrae los códigos de equipos del ID del partido
  * Ejemplo: "uni_ali" -> { local: "uni", visitante: "ali" }
  */
-const getTeamsFromMatchId = (matchId: string): { local: string; visitante: string } => {
-  const parts = matchId.split('_');
+const getTeamsFromMatchId = (
+  matchId: string,
+): { local: string; visitante: string } => {
+  const parts = matchId.split("_");
   return {
-    local: parts[0] || '',
-    visitante: parts[1] || '',
+    local: parts[0] || "",
+    visitante: parts[1] || "",
   };
 };
 
@@ -49,14 +57,18 @@ export default function PartidosPage() {
         const jornadas = await jornadaRepository.fetchVisibleJornadas();
 
         // Obtener partidos de las jornadas visibles
-        const matchesPromises = jornadas.map(j => matchRepository.fetchMatches(j.id));
+        const matchesPromises = jornadas.map((j) =>
+          matchRepository.fetchMatches(j.id),
+        );
         const matchesArrays = await Promise.all(matchesPromises);
 
         // Aplanar el array y ordenar por fecha
-        const matches = matchesArrays.flat().sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+        const matches = matchesArrays
+          .flat()
+          .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
         setAllMatches(matches);
       } catch (error) {
-        console.error('Error al cargar partidos:', error);
+        console.error("Error al cargar partidos:", error);
       } finally {
         setLoading(false);
       }
@@ -80,10 +92,16 @@ export default function PartidosPage() {
     );
   }
 
-  const enVivoMatches = allMatches.filter(m => m.estado === 'envivo' && !m.suspendido);
-  const proximosMatches = allMatches.filter(m => m.estado === 'pendiente' && !m.suspendido);
-  const finalizadosMatches = allMatches.filter(m => m.estado === 'finalizado');
-  const suspendidosMatches = allMatches.filter(m => m.suspendido);
+  const enVivoMatches = allMatches.filter(
+    (m) => m.estado === "envivo" && !m.suspendido,
+  );
+  const proximosMatches = allMatches.filter(
+    (m) => m.estado === "pendiente" && !m.suspendido,
+  );
+  const finalizadosMatches = allMatches.filter(
+    (m) => m.estado === "finalizado",
+  );
+  const suspendidosMatches = allMatches.filter((m) => m.suspendido);
 
   return (
     <DashboardLayout>
@@ -142,19 +160,31 @@ export default function PartidosPage() {
         </TabsList>
 
         <TabsContent value="en-vivo">
-          <MatchesList matches={enVivoMatches} emptyMessage="No hay partidos en vivo" />
+          <MatchesList
+            matches={enVivoMatches}
+            emptyMessage="No hay partidos en vivo"
+          />
         </TabsContent>
 
         <TabsContent value="proximos">
-          <MatchesList matches={proximosMatches} emptyMessage="No hay partidos próximos" />
+          <MatchesList
+            matches={proximosMatches}
+            emptyMessage="No hay partidos próximos"
+          />
         </TabsContent>
 
         <TabsContent value="finalizados">
-          <MatchesList matches={finalizadosMatches} emptyMessage="No hay partidos finalizados" />
+          <MatchesList
+            matches={finalizadosMatches}
+            emptyMessage="No hay partidos finalizados"
+          />
         </TabsContent>
 
         <TabsContent value="suspendidos">
-          <MatchesList matches={suspendidosMatches} emptyMessage="No hay partidos suspendidos" />
+          <MatchesList
+            matches={suspendidosMatches}
+            emptyMessage="No hay partidos suspendidos"
+          />
         </TabsContent>
       </Tabs>
     </DashboardLayout>
@@ -202,7 +232,10 @@ function MatchCard({ match }: MatchCardProps) {
   const getStatusBadge = () => {
     if (match.suspendido) {
       return (
-        <Badge variant="outline" className="bg-[#fef5d3] text-[#fbc400] border-[#fbc400]">
+        <Badge
+          variant="outline"
+          className="bg-[#fef5d3] text-[#fbc400] border-[#fbc400]"
+        >
           <AlertCircle className="h-3 w-3 mr-1" />
           Suspendido
         </Badge>
@@ -210,23 +243,29 @@ function MatchCard({ match }: MatchCardProps) {
     }
 
     switch (match.estado) {
-      case 'pendiente':
+      case "pendiente":
         return (
-          <Badge variant="secondary">
+          <Badge
+            variant="outline"
+            className="bg-[#fef5d3] text-[#d97706] border-[#fbc400]"
+          >
             <Clock className="h-3 w-3 mr-1" />
-            {format(match.fecha, 'dd/MM/yyyy HH:mm', { locale: es })}
+            {format(match.fecha, "dd/MM/yyyy HH:mm", { locale: es })}
           </Badge>
         );
-      case 'envivo':
+      case "envivo":
         return (
           <Badge className="bg-gradient-success border-0 animate-pulse">
             <div className="h-2 w-2 rounded-full bg-white mr-2"></div>
             En Vivo
           </Badge>
         );
-      case 'finalizado':
+      case "finalizado":
         return (
-          <Badge variant="outline" className="bg-[#8097bf] text-white border-[#8097bf]">
+          <Badge
+            variant="outline"
+            className="bg-[#8097bf] text-white border-[#8097bf]"
+          >
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Final
           </Badge>
@@ -241,7 +280,7 @@ function MatchCard({ match }: MatchCardProps) {
           {/* Equipo Local */}
           <div className="flex items-center gap-4 flex-1">
             <div className="h-14 w-14 rounded-xl bg-gradient-liga1 flex items-center justify-center text-white font-bold shadow-soft">
-              {equipoLocalId?.substring(0, 2).toUpperCase() || '?'}
+              {equipoLocalId?.substring(0, 2).toUpperCase() || "?"}
             </div>
             <div>
               <p className="font-bold text-[#344767] text-lg">
@@ -253,7 +292,7 @@ function MatchCard({ match }: MatchCardProps) {
 
           {/* Marcador o Estado */}
           <div className="flex flex-col items-center gap-2 px-8">
-            {match.estado !== 'pendiente' ? (
+            {match.estado !== "pendiente" ? (
               <div className="flex items-center gap-4">
                 <span className="text-4xl font-bold text-[#344767]">
                   {match.golesEquipoLocal}
@@ -281,7 +320,7 @@ function MatchCard({ match }: MatchCardProps) {
               <p className="text-xs text-[#67748e]">Visitante</p>
             </div>
             <div className="h-14 w-14 rounded-xl bg-gradient-error flex items-center justify-center text-white font-bold shadow-soft">
-              {equipoVisitanteId?.substring(0, 2).toUpperCase() || '?'}
+              {equipoVisitanteId?.substring(0, 2).toUpperCase() || "?"}
             </div>
           </div>
         </div>
