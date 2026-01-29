@@ -144,7 +144,15 @@ export const getMatchElapsedMinutes = (match: Match): number => {
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
     // Segunda parte: el reloj base vuelve a 45:00 (NO suma el adicional del 1T)
-    return 45 + Math.max(0, diffMinutes);
+    const minutosSegundaParte = Math.max(0, diffMinutes);
+    const minutosTotales = 45 + minutosSegundaParte;
+
+    // LIMITAR el tiempo total: si hay tiempo agregado configurado, máximo es 90 + tiempo agregado
+    // Si no hay tiempo agregado configurado, máximo es 90 minutos
+    const tiempoAgregado = match.tiempoAgregado || 0;
+    const minutosMaximos = tiempoAgregado > 0 ? 90 + tiempoAgregado : 90;
+
+    return Math.min(minutosTotales, minutosMaximos);
   }
 
   // Primera parte: calcular desde el inicio
