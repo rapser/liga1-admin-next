@@ -228,35 +228,7 @@ export function MatchLiveController({
     }
   };
 
-  // Auto-reanudar segundo tiempo:
-  // - A los 15 minutos: se muestra el botón
-  // - Si pasan 5 minutos más sin intervención: se reanuda automáticamente (20 min total)
-  useEffect(() => {
-    if (match.estado !== "envivo" || !match.enDescanso) {
-      return;
-    }
-
-    const checkAutoResume = async () => {
-      const segundosDescanso = getHalftimeElapsedSeconds(match);
-      if (segundosDescanso >= 20 * 60) {
-        try {
-          await matchStateService.resumeSecondHalf(jornadaId, match.id);
-          toast.info(
-            "Segundo tiempo iniciado automáticamente tras 20 minutos de descanso",
-          );
-          onStateChange?.();
-        } catch (error: any) {
-          console.error(
-            "Error al reanudar automáticamente el segundo tiempo:",
-            error,
-          );
-        }
-      }
-    };
-
-    const interval = setInterval(checkAutoResume, 5000);
-    return () => clearInterval(interval);
-  }, [match, jornadaId, matchStateService, onStateChange]);
+  // El segundo tiempo solo se inicia manualmente al presionar "Continuar con Segundo Tiempo"
 
   // Detectar cuando se completan los 45 + minutos adicionales y poner en descanso automáticamente
   useEffect(() => {
