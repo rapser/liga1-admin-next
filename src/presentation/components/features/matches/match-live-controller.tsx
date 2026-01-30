@@ -456,8 +456,7 @@ export function MatchLiveController({
     if (match.enDescanso) {
       const segundosDescanso = getHalftimeElapsedSeconds(match);
       const minutosDescanso = Math.floor(segundosDescanso / 60);
-      // Mostrar botón recién a los 15 minutos (descanso reglamentario)
-      const puedeContinuar = minutosDescanso >= 15;
+      const descansoReglamentario = minutosDescanso >= 15;
 
       return (
         <div className="flex flex-col gap-4">
@@ -466,29 +465,33 @@ export function MatchLiveController({
             <LiveMatchTimer match={match} showAddedTime={false} />
           </div>
 
-          {/* Botón para continuar - solo después de 15 minutos */}
-          {puedeContinuar && (
-            <div className="flex items-center justify-center">
-              <Button
-                onClick={handleResumeSecondHalf}
-                disabled={isProcessing}
-                className="bg-gradient-liga1 hover:opacity-90 w-full"
-                size="lg"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Reanudando...
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="h-5 w-5 mr-2" />
-                    Continuar con Segundo Tiempo
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+          {/* Botón para iniciar segundo tiempo manualmente - siempre visible en descanso */}
+          <div className="flex flex-col items-center gap-2">
+            {!descansoReglamentario && (
+              <p className="text-sm text-[#67748e]">
+                Descanso reglamentario: 15 min. Puedes continuar manualmente
+                cuando quieras.
+              </p>
+            )}
+            <Button
+              onClick={handleResumeSecondHalf}
+              disabled={isProcessing}
+              className="bg-gradient-liga1 hover:opacity-90 w-full"
+              size="lg"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Reanudando...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-5 w-5 mr-2" />
+                  Continuar con Segundo Tiempo
+                </>
+              )}
+            </Button>
+          </div>
 
           {/* Editor de Marcador */}
           <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">

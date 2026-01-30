@@ -97,6 +97,8 @@ export class MatchStateService {
 
       if (equipoLocal && equipoVisitante) {
         // Incrementar solo matchesPlayed (una sola vez, cuando inicia el partido)
+        // NO actualizar puntos/goles aquí: se aplican en updateMatchScore al cambiar el marcador
+        // o en finishMatch si el partido termina 0-0 (para evitar doble conteo por lecturas obsoletas)
         await Promise.all([
           this.teamRepository.updateTeamStats(torneo, match.equipoLocalId, {
             partidosJugados: equipoLocal.partidosJugados + 1,
@@ -107,38 +109,6 @@ export class MatchStateService {
         ]);
         console.log("✅ Partidos jugados incrementados al iniciar el partido");
       }
-
-      // IMPORTANTE: Actualizar la tabla de posiciones con el marcador inicial (0-0)
-      // Esto asegura que todos los campos (goles, puntos, etc.) se inicialicen correctamente
-      // incluso si el partido nunca cambia de marcador o el primer cambio no se detecta correctamente
-      const marcadorInicialLocal =
-        updates.golesEquipoLocal ?? match.golesEquipoLocal ?? 0;
-      const marcadorInicialVisitante =
-        updates.golesEquipoVisitante ?? match.golesEquipoVisitante ?? 0;
-
-      console.log(
-        "🔵 Inicializando tabla de posiciones con marcador inicial:",
-        {
-          matchId,
-          marcador: `${marcadorInicialLocal}-${marcadorInicialVisitante}`,
-          equipoLocalId: match.equipoLocalId,
-          equipoVisitanteId: match.equipoVisitanteId,
-          torneo,
-        },
-      );
-
-      await this.updateStandingsScore(
-        {
-          ...match,
-          ...updates,
-          golesEquipoLocal: marcadorInicialLocal,
-          golesEquipoVisitante: marcadorInicialVisitante,
-        },
-        torneo,
-        0, // previousLocalScore = 0 (marcador anterior antes de iniciar)
-        0, // previousVisitorScore = 0 (marcador anterior antes de iniciar)
-      );
-      console.log("✅ Tabla de posiciones inicializada al iniciar el partido");
     }
   }
 
@@ -348,22 +318,21 @@ export class MatchStateService {
   /**
    * Finaliza un partido (cambia de "envivo" a "finalizado")
    * Valida que hayan transcurrido mínimo 90 minutos + tiempo agregado
-   * NOTA: NO actualiza la tabla de posiciones porque ya se actualiza en tiempo real
-   * durante el partido mediante updateStandingsScore cada vez que cambia el marcador
+   * NO vuelve a actualizar la tabla: ya se actualizó en tiempo real en updateMatchScore.
+   * Si el partido terminó 0-0, la tabla tendrá PJ+1 pero 0 puntos hasta que se llame
+   * updateMatchScore(0,0) o se pueda aplicar el 0-0 al finalizar (ver comentario abajo).
    */
   async finishMatch(
     jornadaId: string,
     matchId: string,
     torneo: TorneoType,
   ): Promise<void> {
-    // Obtener el partido actual
     const match = await this.matchRepository.fetchMatchById(jornadaId, matchId);
 
     if (!match) {
       throw new Error("Partido no encontrado");
     }
 
-    // Validar que se pueda finalizar
     if (!canFinishMatch(match)) {
       const minutosTranscurridos = getMatchElapsedMinutes(match);
       throw new Error(
@@ -372,15 +341,17 @@ export class MatchStateService {
       );
     }
 
-    // Solo actualizar el estado a finalizado
-    // La tabla de posiciones ya está actualizada en tiempo real durante el partido
-    // mediante updateStandingsScore que se llama cada vez que cambia el marcador
+    // Si el partido terminó 0-0, nunca se llamó updateMatchScore; aplicar 1 punto a cada uno
+    const local = match.golesEquipoLocal ?? 0;
+    const visitante = match.golesEquipoVisitante ?? 0;
+    if (local === 0 && visitante === 0) {
+      await this.updateStandingsScore(match, torneo, 0, 0);
+    }
+
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       estado: "finalizado",
     });
-    console.log(
-      "✅ Partido finalizado. La tabla de posiciones ya está actualizada en tiempo real.",
-    );
+    console.log("✅ Partido finalizado.");
   }
 
   /**
