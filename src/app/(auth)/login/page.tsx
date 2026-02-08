@@ -119,7 +119,7 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  <h2 className="text-3xl font-bold text-[#344767] mb-2 bg-gradient-to-r from-[#0047BB] to-[#17c1e8] bg-clip-text text-transparent">
+                  <h2 className="text-3xl font-bold text-[#344767] mb-2 bg-gradient-to-r from-[#f84f4f] to-[#ff8f8f] bg-clip-text text-transparent">
                     Bienvenido
                   </h2>
                   <p className="text-sm text-[#67748e]">

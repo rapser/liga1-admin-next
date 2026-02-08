@@ -5,9 +5,10 @@
 
 'use client';
 
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { usePathname } from 'next/navigation';
-import { Bell, Search, ChevronRight, LogOut, User, Settings } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Bell, Search, ChevronRight, LogOut, User, Settings, Loader2 } from 'lucide-react';
 import { useAuth } from '@/presentation/providers/auth-provider';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -36,16 +37,21 @@ const routeMap: Record<string, string[]> = {
 
 export function Navbar({ className }: NavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, adminUser, isAdmin, logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Generar breadcrumbs desde pathname
   const breadcrumbs = routeMap[pathname] || ['Dashboard'];
 
   const handleLogout = async () => {
     try {
+      setIsLoggingOut(true);
       await logout();
+      router.push('/login');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -155,15 +161,35 @@ export function Navbar({ className }: NavbarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={handleLogout}
+                disabled={isLoggingOut}
                 className="cursor-pointer text-destructive focus:text-destructive"
               >
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Cerrar sesión</span>
+                {isLoggingOut ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <span>Cerrando sesión...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Cerrar sesión</span>
+                  </>
+                )}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Overlay de cierre de sesión */}
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-[#67748e] font-medium">Cerrando sesión...</p>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

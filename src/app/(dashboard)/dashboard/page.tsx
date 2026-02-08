@@ -29,6 +29,8 @@ interface UpcomingMatch extends Match {
 export default function DashboardPage() {
   const { loading } = useRequireAuth();
   const [jornadasCount, setJornadasCount] = useState(0);
+  const [currentFecha, setCurrentFecha] = useState<number | null>(null);
+  const [currentTorneo, setCurrentTorneo] = useState<string | null>(null);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
   const [nextMatchDate, setNextMatchDate] = useState<Date | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -144,6 +146,24 @@ export default function DashboardPage() {
         console.log(`   - Partidos a mostrar: ${filteredMatches.length}`);
         console.log(`   - IDs de partidos:`, filteredMatches.map(m => `${m.equipoLocalId}_${m.equipoVisitanteId}`));
         
+        // Ordenar por hora del partido (más próximo primero, de arriba hacia abajo)
+        filteredMatches.sort((a, b) => {
+          const fechaA = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+          const fechaB = b.fecha instanceof Date ? b.fecha : new Date(b.fecha);
+          return fechaA.getTime() - fechaB.getTime();
+        });
+
+        // Obtener la fecha (jornada) del primer partido próximo
+        // Extraemos el número y torneo directamente del jornadaId (ej: "apertura_02" → 2, "apertura")
+        if (filteredMatches.length > 0) {
+          const firstMatch = filteredMatches[0];
+          const parts = firstMatch.jornadaId.split('_');
+          if (parts.length >= 2) {
+            setCurrentFecha(parseInt(parts[1], 10));
+            setCurrentTorneo(parts[0]);
+          }
+        }
+
         // Asegurarse de que solo se establezcan los partidos filtrados
         if (filteredMatches.length > 0) {
           setUpcomingMatches(filteredMatches);
@@ -241,10 +261,10 @@ export default function DashboardPage() {
           variant="info"
         />
         <StatCard
-          title="Jornadas"
-          value={jornadasCount.toString()}
+          title="Jornada"
+          value={currentFecha ? currentFecha.toString() : '-'}
           icon={CalendarDays}
-          subtitle="Apertura + Clausura"
+          subtitle={currentTorneo ? currentTorneo.charAt(0).toUpperCase() + currentTorneo.slice(1) : 'Liga 1 2026'}
           variant="success"
         />
         <StatCard
@@ -343,11 +363,11 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-sm font-semibold text-[#344767]">Gestión de noticias</span>
               </li>
-              <li className="flex items-center gap-3 p-3 rounded-xl hover:bg-[#f8f9fa] transition-colors">
-                <div className="h-8 w-8 rounded-lg bg-gradient-warning flex items-center justify-center">
-                  <Activity className="h-4 w-4 text-white" />
+              <li className="flex items-center gap-3 p-3 rounded-xl bg-[#f8f9fa]">
+                <div className="h-8 w-8 rounded-lg bg-gradient-success flex items-center justify-center">
+                  <CheckCircle2 className="h-4 w-4 text-white" />
                 </div>
-                <span className="text-sm">Notificaciones push (próximamente)</span>
+                <span className="text-sm font-semibold text-[#344767]">Notificaciones push</span>
               </li>
             </ul>
           </CardContent>
