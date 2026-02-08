@@ -10,7 +10,9 @@ import {
   canFinishMatch,
   getMatchElapsedMinutes,
   shouldEnterHalftime,
+  isMatchAlreadyPlayed,
 } from "../entities/match.entity";
+import { Team } from "../entities/team.entity";
 import { IMatchRepository } from "../repositories/match.repository.interface";
 import { ITeamRepository } from "../repositories/team.repository.interface";
 import { TorneoType } from "@/core/config/firestore-constants";
@@ -44,17 +46,54 @@ export class MatchStateService {
       );
     }
 
+    // Detectar si el partido ya se jugó en la vida real
+    const yaSeJugo = isMatchAlreadyPlayed(match);
+
     // Preparar actualizaciones
     const ahora = new Date();
-    const updates: Partial<Match> = {
-      estado: "envivo",
-      horaInicio: ahora,
-      primeraParte: true,
-      tiempoAgregado: 0,
-      tiempoAgregadoPrimeraParte: 0,
-      enDescanso: false,
-      // No incluir horaInicioSegundaParte si es undefined
-    };
+
+    let updates: Partial<Match>;
+
+    if (yaSeJugo) {
+      // MODO RÁPIDO: El partido ya se jugó en la vida real
+      // Colocamos horaInicio 46 min en el pasado y horaInicioSegundaParte 46 min en el pasado
+      // para que el cronómetro marque 90+ minutos inmediatamente
+      // y el admin solo necesite cargar el marcador y finalizar
+      const horaInicioPasado = new Date(ahora.getTime() - 46 * 60 * 1000);
+      const horaInicioSegundaPartePasado = new Date(
+        ahora.getTime() - 46 * 60 * 1000,
+      );
+
+      updates = {
+        estado: "envivo",
+        horaInicio: horaInicioPasado,
+        primeraParte: false,
+        tiempoAgregado: 1, // 1 minuto agregado para permitir finalizar inmediatamente
+        tiempoAgregadoPrimeraParte: 0,
+        enDescanso: false,
+        horaInicioSegundaParte: horaInicioSegundaPartePasado,
+      };
+
+      console.log(
+        "⚡ MODO RÁPIDO: Partido ya jugado, saltando a minuto 90+",
+        {
+          matchId,
+          fechaPartido: match.fecha,
+          horaInicio: horaInicioPasado,
+          horaInicioSegundaParte: horaInicioSegundaPartePasado,
+        },
+      );
+    } else {
+      // MODO NORMAL: Partido en tiempo real
+      updates = {
+        estado: "envivo",
+        horaInicio: ahora,
+        primeraParte: true,
+        tiempoAgregado: 0,
+        tiempoAgregadoPrimeraParte: 0,
+        enDescanso: false,
+      };
+    }
 
     // Si el marcador no está establecido, inicializar a 0-0
     const finalLocalScore = match.golesEquipoLocal ?? 0;
@@ -273,7 +312,12 @@ export class MatchStateService {
     }
 
     if (!match.primeraParte || match.enDescanso) {
-      throw new Error("El partido no está en primera parte");
+      // No es un error: el partido ya avanzó a segunda parte (modo rápido)
+      // o ya está en descanso por otra llamada concurrente. Simplemente ignorar.
+      console.log(
+        "ℹ️ finishFirstHalf ignorado: el partido ya no está en primera parte",
+      );
+      return;
     }
 
     // Si no tiene tiempo agregado configurado, establecerlo en 0 y poner en descanso

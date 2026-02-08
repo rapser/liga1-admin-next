@@ -34,7 +34,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, isToday, isTomorrow, isYesterday } from "date-fns";
 import { es } from "date-fns/locale";
 import { getTeamFullName, TorneoType } from "@/core/config/firestore-constants";
 
@@ -385,14 +385,41 @@ function MatchCard({
             {/* Marcador o Hora */}
             <div className="flex flex-col items-center gap-1 min-w-[100px]">
               {match.estado === "pendiente" ? (
-                <>
-                  <span className="text-xs text-[#67748e]">
-                    {format(match.fecha, "HH:mm", { locale: es })}
-                  </span>
-                  <span className="text-xs text-[#67748e]">
-                    {format(match.fecha, "dd MMM", { locale: es })}
-                  </span>
-                </>
+                (() => {
+                  const fechaPartido =
+                    match.fecha instanceof Date
+                      ? match.fecha
+                      : new Date(match.fecha);
+                  const hora = format(fechaPartido, "h:mm a", { locale: es })
+                    .replace("AM", "a.m.")
+                    .replace("PM", "p.m.");
+
+                  let etiquetaDia: string;
+                  if (isToday(fechaPartido)) {
+                    etiquetaDia = "Hoy";
+                  } else if (isTomorrow(fechaPartido)) {
+                    etiquetaDia = "Mañana";
+                  } else if (isYesterday(fechaPartido)) {
+                    etiquetaDia = "Ayer";
+                  } else {
+                    // "Sab, 7/2" — día abreviado + día/mes
+                    const diaSemana = format(fechaPartido, "EEE", {
+                      locale: es,
+                    });
+                    const diaSemanaCapitalizado =
+                      diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+                    etiquetaDia = `${diaSemanaCapitalizado}, ${fechaPartido.getDate()}/${fechaPartido.getMonth() + 1}`;
+                  }
+
+                  return (
+                    <>
+                      <span className="text-xs font-semibold text-[#344767]">
+                        {etiquetaDia}
+                      </span>
+                      <span className="text-xs text-[#67748e]">{hora}</span>
+                    </>
+                  );
+                })()
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-2xl font-bold text-[#344767]">

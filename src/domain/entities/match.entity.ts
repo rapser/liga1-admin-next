@@ -258,3 +258,38 @@ export const isFirstHalf = (match: Match): boolean => {
   }
   return match.primeraParte === true;
 };
+
+/**
+ * Determina si un partido ya se jugó en la vida real.
+ * Un partido se considera "ya jugado" si:
+ * - La fecha programada del partido es de un día anterior, O
+ * - Han pasado al menos 2 horas desde la hora programada del partido
+ *
+ * Esto permite al administrador iniciar el partido e ir directo al minuto 90
+ * para solo cargar el marcador final y finalizarlo, sin esperar los 90 min reales.
+ */
+export const isMatchAlreadyPlayed = (match: Match): boolean => {
+  if (!match.fecha) return false;
+
+  const now = new Date();
+  const fechaPartido =
+    match.fecha instanceof Date ? match.fecha : new Date(match.fecha);
+
+  // Verificar si la fecha del partido es de un día anterior
+  const hoyInicio = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const partidoInicio = new Date(
+    fechaPartido.getFullYear(),
+    fechaPartido.getMonth(),
+    fechaPartido.getDate(),
+  );
+
+  if (partidoInicio.getTime() < hoyInicio.getTime()) {
+    return true; // El partido fue de un día anterior
+  }
+
+  // Verificar si han pasado al menos 2 horas desde la hora programada
+  const diffMs = now.getTime() - fechaPartido.getTime();
+  const dosHorasEnMs = 2 * 60 * 60 * 1000;
+
+  return diffMs >= dosHorasEnMs;
+};

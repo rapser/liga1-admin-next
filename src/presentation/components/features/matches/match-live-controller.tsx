@@ -10,6 +10,7 @@ import {
   Match,
   canFinishMatch,
   getMatchElapsedMinutes,
+  isMatchAlreadyPlayed,
 } from "@/domain/entities/match.entity";
 import { MatchStateService } from "@/domain/services/match-state.service";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { AddTimeConfig } from "./add-time-config";
 import { AddFirstHalfTimeConfig } from "./add-first-half-time-config";
 import { PushNotificationModal } from "./push-notification-modal";
 import { useMatchTimer } from "@/presentation/hooks/use-match-timer";
-import { Play, Square, Loader2, Bell, PlayCircle } from "lucide-react";
+import { Play, Square, Loader2, Bell, PlayCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { TorneoType } from "@/core/config/firestore-constants";
 
@@ -155,10 +156,22 @@ export function MatchLiveController({
       return;
     }
 
+    // Detectar si el partido ya se jugó en la vida real
+    const yaSeJugo = isMatchAlreadyPlayed(match);
+
     setIsProcessing(true);
     try {
       await matchStateService.startMatch(jornadaId, match.id, torneo);
-      toast.success("Partido iniciado exitosamente");
+
+      if (yaSeJugo) {
+        toast.success(
+          "⚡ Modo rápido: Partido ya jugado. Cronómetro en 90+. Actualiza el marcador y finaliza.",
+          { duration: 6000 },
+        );
+      } else {
+        toast.success("Partido iniciado exitosamente");
+      }
+
       onStateChange?.();
     } catch (error: any) {
       console.error("Error al iniciar partido:", error);
@@ -328,18 +341,29 @@ export function MatchLiveController({
 
   // Estado: Pendiente - Mostrar botón para iniciar
   if (match.estado === "pendiente") {
+    const yaSeJugo = isMatchAlreadyPlayed(match);
+
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col items-start gap-2">
         <Button
           onClick={handleStartMatch}
           disabled={isProcessing}
-          className="bg-gradient-liga1 hover:opacity-90"
+          className={
+            yaSeJugo
+              ? "bg-gradient-liga1 hover:opacity-90"
+              : "bg-gradient-liga1 hover:opacity-90"
+          }
           size="sm"
         >
           {isProcessing ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Iniciando...
+            </>
+          ) : yaSeJugo ? (
+            <>
+              <Zap className="h-4 w-4 mr-2" />
+              Cargar Resultado
             </>
           ) : (
             <>
@@ -348,6 +372,11 @@ export function MatchLiveController({
             </>
           )}
         </Button>
+        {yaSeJugo && (
+          <span className="text-xs text-amber-600 font-medium">
+            ⚡ Partido ya jugado — irá directo al min. 90
+          </span>
+        )}
       </div>
     );
   }
