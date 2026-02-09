@@ -110,22 +110,11 @@ export class TeamRepository implements ITeamRepository {
     const teamRef = doc(db, collectionName, teamId);
 
     try {
-      console.log(`🔵 updateTeamStats llamado: ${teamId} en ${torneo} (colección: ${collectionName})`);
-      
       // Obtener el equipo actual para completar los campos faltantes
       const currentTeam = await this.fetchTeamById(torneo, teamId);
       if (!currentTeam) {
-        const errorMsg = `Equipo ${teamId} no encontrado en ${torneo} (colección: ${collectionName})`;
-        console.error(`❌ ${errorMsg}`);
-        throw new Error(errorMsg);
+        throw new Error(`Equipo ${teamId} no encontrado en ${torneo} (colección: ${collectionName})`);
       }
-
-      console.log(`✅ Equipo ${teamId} encontrado en ${torneo}:`, {
-        golesFavor: currentTeam.golesFavor,
-        golesContra: currentTeam.golesContra,
-        puntos: currentTeam.puntos,
-        partidosJugados: currentTeam.partidosJugados,
-      });
 
       // Combinar estadísticas actuales con las nuevas
       const updatedTeam: Team = {
@@ -139,39 +128,12 @@ export class TeamRepository implements ITeamRepository {
       // Convertir a DTO (mapea partidosJugados -> matchesPlayed, etc)
       const updateData = TeamMapper.toDTO(teamWithoutId);
 
-      console.log(`📝 Actualizando equipo ${teamId} en ${collectionName}:`, {
-        teamId,
-        referenciaFirestore: `${collectionName}/${teamId}`,
-        statsRecibidos: stats,
-        valoresAntes: {
-          goalsScored: currentTeam.golesFavor,
-          goalsAgainst: currentTeam.golesContra,
-          goalDifference: currentTeam.diferenciaGoles,
-          points: currentTeam.puntos,
-        },
-        valoresNuevos: {
-          goalsScored: updateData.goalsScored,
-          goalsAgainst: updateData.goalsAgainst,
-          goalDifference: updateData.goalDifference,
-          points: updateData.points,
-        },
-        datosCompletosAFirestore: updateData,
-      });
-
       // Actualizar SOLO los campos de estadísticas en Firestore
       // Usar updateDoc que solo actualiza los campos especificados
-      await updateDoc(teamRef, updateData);
-      
-      console.log(`✅ Equipo ${teamId} actualizado exitosamente en Firestore (${collectionName}/${teamId})`);
-    } catch (error: any) {
-      console.error(`❌ Error al actualizar equipo ${teamId} en ${torneo}:`, {
-        error: error.message,
-        stack: error.stack,
-        collectionName,
-        teamId,
-        statsRecibidos: stats,
-      });
-      throw new Error(`Error al actualizar estadísticas del equipo ${teamId}: ${error.message}`);
+      await updateDoc(teamRef, updateData as unknown as Record<string, unknown>);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error al actualizar estadísticas del equipo ${teamId}: ${errMsg}`);
     }
   }
 

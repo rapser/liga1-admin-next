@@ -162,9 +162,8 @@ export function PushNotificationModal({
       setCustomBody('');
       setCustomTopic('');
       onOpenChange(false);
-    } catch (error: any) {
-      console.error('Error al enviar notificación:', error);
-      toast.error(error?.message || 'Error al enviar la notificación');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Error al enviar la notificación');
     } finally {
       setIsSending(false);
     }

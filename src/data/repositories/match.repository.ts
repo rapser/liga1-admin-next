@@ -245,12 +245,7 @@ export class MatchRepository implements IMatchRepository {
   }
 
   async fetchLiveMatches(): Promise<Match[]> {
-    // Implementación simplificada
-    // En producción, considera mantener una colección separada de partidos en vivo
-    // o usar Cloud Functions para actualizar un índice
-    console.warn(
-      'fetchLiveMatches: Implementación básica. Considera optimizar con índices.'
-    );
+    // TODO: Implementar con colección separada o Cloud Functions para mejor rendimiento
     return [];
   }
 }

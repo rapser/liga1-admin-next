@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { messaging } from '@/core/config/firebase-admin';
+import { type TopicMessage } from 'firebase-admin/messaging';
 import { getTeamTopic, GENERAL_TOPIC, NotificationEventType } from '@/core/config/fcm-topics';
 import { getTeamFullName } from '@/core/config/firestore-constants';
 
@@ -31,10 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar formato del topic
-    if (!topic.startsWith('team_') && topic !== GENERAL_TOPIC) {
-      console.warn('⚠️ Topic con formato inesperado:', topic);
-    }
+    // Validar formato del topic (solo team_ o GENERAL_TOPIC son válidos)
 
     // Validar que el título y el cuerpo estén presentes
     if (!title || !messageBody || title.trim() === '' || messageBody.trim() === '') {
@@ -59,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     // Construir el mensaje de FCM
     // IMPORTANTE: Para iOS, el formato debe ser correcto
-    const message: any = {
+    const message: TopicMessage = {
       topic,
       notification: {
         title: title.substring(0, 50), // Limitar título a 50 caracteres
@@ -87,26 +85,9 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Log para debugging
-    console.log('📤 Enviando notificación push:', {
-      topic,
-      title,
-      body: messageBody,
-      eventType,
-      dataKeys: Object.keys(dataPayload),
-      dataCount: Object.keys(dataPayload).length,
-    });
-
-    // Validar que el mensaje esté bien formado antes de enviar
+    // Enviar la notificación
     try {
-      // Enviar la notificación
       const response = await messaging.send(message);
-      
-      console.log('✅ Notificación enviada exitosamente:', {
-        messageId: response,
-        topic,
-        eventType,
-      });
 
       return NextResponse.json({
         success: true,
@@ -114,38 +95,23 @@ export async function POST(request: NextRequest) {
         topic,
         eventType,
       });
-    } catch (sendError: any) {
-      // Error específico al enviar
-      console.error('❌ Error al enviar mensaje FCM:', {
-        error: sendError.message,
-        code: sendError.code,
-        topic,
-        eventType,
-        messagePreview: JSON.stringify(message).substring(0, 500),
-      });
+    } catch (sendError: unknown) {
+      const sendErrMsg = sendError instanceof Error ? sendError.message : String(sendError);
+      console.error('❌ Error al enviar mensaje FCM:', sendErrMsg);
       throw sendError;
     }
 
-  } catch (error: any) {
-    console.error('❌ Error al enviar notificación push:', {
-      error: error.message,
-      code: error.code,
-      stack: error.stack,
-      topic,
-      title,
-      body: messageBody,
-    });
-    
-    // Si es un error de FCM, proporcionar más detalles
-    if (error.code) {
-      console.error('Código de error FCM:', error.code);
-    }
-    
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errCode = (error as Record<string, unknown>)?.code as string | undefined;
+
+    console.error('❌ Error al enviar notificación push:', errMsg);
+
     return NextResponse.json(
       {
         error: 'Error al enviar la notificación',
-        details: error.message,
-        code: error.code,
+        details: errMsg,
+        code: errCode,
       },
       { status: 500 }
     );

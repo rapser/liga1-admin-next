@@ -37,8 +37,7 @@ export function MatchScoreEditor({
     setIsUpdating(true);
     try {
       await onScoreChange(localScore, visitorScore);
-    } catch (error) {
-      console.error('Error al actualizar marcador:', error);
+    } catch {
       // Revertir valores en caso de error
       setLocalScore(match.golesEquipoLocal || 0);
       setVisitorScore(match.golesEquipoVisitante || 0);
@@ -89,7 +88,7 @@ export function MatchScoreEditor({
   const hasChanges = localScore !== match.golesEquipoLocal || visitorScore !== match.golesEquipoVisitante;
 
   return (
-    <div className="flex flex-col gap-3 p-3 bg-[#f8f9fa] rounded-lg">
+    <div className="flex flex-col gap-3 p-3 bg-background rounded-lg">
       {/* Controles de Marcador */}
       <div className="flex items-center justify-center gap-3">
         {/* Marcador Local */}
@@ -124,7 +123,7 @@ export function MatchScoreEditor({
           </Button>
         </div>
 
-        <span className="text-xl text-[#67748e] font-bold">-</span>
+        <span className="text-xl text-foreground font-bold">-</span>
 
         {/* Marcador Visitante */}
         <div className="flex items-center gap-2">

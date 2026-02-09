@@ -34,14 +34,12 @@ export function useRequireAuth(options: UseRequireAuthOptions = {}) {
 
     // Si requiere admin y el usuario no es admin, redirigir
     if (requireAdmin && !isAdmin) {
-      console.warn('Acceso denegado: se requieren permisos de administrador');
-      router.push('/dashboard'); // Redirigir al dashboard en lugar de login
+      router.push('/dashboard');
       return;
     }
 
     // Si el usuario no es ni admin ni viewer, redirigir
     if (!isAdmin && !isViewer) {
-      console.warn('Acceso denegado: usuario no autorizado');
       router.push(redirectTo);
     }
   }, [user, isAdmin, isViewer, loading, requireAdmin, redirectTo, router]);

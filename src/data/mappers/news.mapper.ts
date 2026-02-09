@@ -67,7 +67,6 @@ export class NewsMapper {
     
     if (!fechaRaw) {
       // Si no hay fecha, usar fecha actual
-      console.warn(`Noticia ${id}: fecha no encontrada, usando fecha actual`);
       fechaPublicacion = new Date();
     } else if (typeof fechaRaw === 'object' && 'toDate' in fechaRaw && typeof (fechaRaw as Timestamp).toDate === 'function') {
       // Es un Timestamp de Firestore
@@ -79,7 +78,6 @@ export class NewsMapper {
       // Es un string (ISO date string)
       fechaPublicacion = new Date(fechaRaw);
       if (isNaN(fechaPublicacion.getTime())) {
-        console.warn(`Noticia ${id}: fecha string inválida: "${fechaRaw}", usando fecha actual`);
         fechaPublicacion = new Date();
       }
     } else if (typeof fechaRaw === 'number') {
@@ -88,12 +86,10 @@ export class NewsMapper {
       const timestamp = fechaRaw < 946684800000 ? fechaRaw * 1000 : fechaRaw;
       fechaPublicacion = new Date(timestamp);
       if (isNaN(fechaPublicacion.getTime())) {
-        console.warn(`Noticia ${id}: fecha número inválida: ${fechaRaw}, usando fecha actual`);
         fechaPublicacion = new Date();
       }
     } else {
       // Por defecto usar fecha actual
-      console.warn(`Noticia ${id}: fecha tipo desconocido: ${typeof fechaRaw}, usando fecha actual`);
       fechaPublicacion = new Date();
     }
 

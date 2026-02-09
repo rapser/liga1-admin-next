@@ -157,7 +157,7 @@ export default function JornadasPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-[#67748e]">Cargando jornadas...</p>
+            <p className="text-foreground">Cargando jornadas...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -181,7 +181,7 @@ export default function JornadasPage() {
         {/* Lista de Jornadas */}
         <Card className="shadow-soft border-0 lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-[#344767] text-lg">Jornadas</CardTitle>
+            <CardTitle className="text-accent-foreground text-lg">Jornadas</CardTitle>
             <CardDescription>Temporada 2026</CardDescription>
           </CardHeader>
           <CardContent>
@@ -193,7 +193,7 @@ export default function JornadasPage() {
                   className={`w-full text-left p-3 rounded-xl transition-all ${
                     selectedJornada === jornada.id
                       ? "bg-gradient-liga1 text-white shadow-soft"
-                      : "bg-[#f8f9fa] hover:bg-[#e9ecef] text-[#344767]"
+                      : "bg-background hover:bg-muted text-accent-foreground"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -205,7 +205,7 @@ export default function JornadasPage() {
                         className={`text-xs ${
                           selectedJornada === jornada.id
                             ? "text-white/80"
-                            : "text-[#67748e]"
+                            : "text-foreground"
                         }`}
                       >
                         {getTorneoFromJornadaId(jornada.id)}
@@ -228,7 +228,7 @@ export default function JornadasPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-[#344767] text-2xl">
+                      <CardTitle className="text-accent-foreground text-2xl">
                         {getFechaFromJornadaId(selectedJornadaData.id)}
                       </CardTitle>
                       <CardDescription>
@@ -254,7 +254,7 @@ export default function JornadasPage() {
               {/* Lista de Partidos */}
               <Card className="shadow-soft border-0">
                 <CardHeader>
-                  <CardTitle className="text-[#344767]">Partidos</CardTitle>
+                  <CardTitle className="text-accent-foreground">Partidos</CardTitle>
                   <CardDescription>
                     {matches.length}{" "}
                     {matches.length === 1 ? "partido" : "partidos"}
@@ -264,14 +264,14 @@ export default function JornadasPage() {
                   {loadingMatches ? (
                     <div className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                      <p className="text-[#67748e] text-sm">
+                      <p className="text-foreground text-sm">
                         Cargando partidos...
                       </p>
                     </div>
                   ) : matches.length === 0 ? (
                     <div className="text-center py-12">
-                      <Trophy className="h-12 w-12 mx-auto mb-4 text-[#67748e] opacity-50" />
-                      <p className="text-[#67748e]">
+                      <Trophy className="h-12 w-12 mx-auto mb-4 text-foreground opacity-50" />
+                      <p className="text-foreground">
                         No hay partidos en esta jornada
                       </p>
                     </div>
@@ -323,7 +323,7 @@ function MatchCard({
       return (
         <Badge
           variant="outline"
-          className="bg-[#fef5d3] text-[#fbc400] border-[#fbc400]"
+          className="bg-badge-warning-bg text-badge-suspended-text border-badge-warning-border"
         >
           <AlertCircle className="h-3 w-3 mr-1" />
           Suspendido
@@ -336,7 +336,7 @@ function MatchCard({
         return (
           <Badge
             variant="outline"
-            className="bg-[#fef5d3] text-[#d97706] border-[#fbc400]"
+            className="bg-badge-warning-bg text-badge-warning-text border-badge-warning-border"
           >
             <Clock className="h-3 w-3 mr-1" />
             Pendiente
@@ -353,7 +353,7 @@ function MatchCard({
         return (
           <Badge
             variant="outline"
-            className="bg-[#8097bf] text-white border-[#8097bf]"
+            className="bg-badge-finalized-bg text-white border-badge-finalized-border"
           >
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Finalizado
@@ -363,7 +363,7 @@ function MatchCard({
   };
 
   return (
-    <div className="p-4 rounded-xl bg-[#f8f9fa] hover:bg-[#e9ecef] transition-colors space-y-3">
+    <div className="p-4 rounded-xl bg-background hover:bg-muted transition-colors space-y-3">
       {/* Información del Partido */}
       <div className="space-y-2">
         {/* Estado Badge (arriba a la derecha) */}
@@ -374,10 +374,10 @@ function MatchCard({
           <div className="flex items-center gap-4 flex-1">
             {/* Equipo Local */}
             <div className="flex items-center gap-3 flex-1 justify-end">
-              <span className="font-semibold text-[#344767] text-right">
+              <span className="font-semibold text-accent-foreground text-right">
                 {getTeamFullName(equipoLocalId)}
               </span>
-              <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
+              <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-accent-foreground font-bold text-sm shadow-soft">
                 {equipoLocalId?.substring(0, 2).toUpperCase() || "?"}
               </div>
             </div>
@@ -413,20 +413,20 @@ function MatchCard({
 
                   return (
                     <>
-                      <span className="text-xs font-semibold text-[#344767]">
+                      <span className="text-xs font-semibold text-accent-foreground">
                         {etiquetaDia}
                       </span>
-                      <span className="text-xs text-[#67748e]">{hora}</span>
+                      <span className="text-xs text-foreground">{hora}</span>
                     </>
                   );
                 })()
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-[#344767]">
+                  <span className="text-2xl font-bold text-accent-foreground">
                     {match.golesEquipoLocal}
                   </span>
-                  <span className="text-[#67748e]">-</span>
-                  <span className="text-2xl font-bold text-[#344767]">
+                  <span className="text-foreground">-</span>
+                  <span className="text-2xl font-bold text-accent-foreground">
                     {match.golesEquipoVisitante}
                   </span>
                 </div>
@@ -435,10 +435,10 @@ function MatchCard({
 
             {/* Equipo Visitante */}
             <div className="flex items-center gap-3 flex-1">
-              <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#344767] font-bold text-sm shadow-soft">
+              <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-accent-foreground font-bold text-sm shadow-soft">
                 {equipoVisitanteId?.substring(0, 2).toUpperCase() || "?"}
               </div>
-              <span className="font-semibold text-[#344767]">
+              <span className="font-semibold text-accent-foreground">
                 {getTeamFullName(equipoVisitanteId)}
               </span>
             </div>
@@ -447,7 +447,7 @@ function MatchCard({
       </div>
 
       {/* Controles de Gestión */}
-      <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+      <div className="flex items-center justify-center pt-2 border-t border-muted">
         <MatchLiveController
           match={match}
           jornadaId={jornadaId}

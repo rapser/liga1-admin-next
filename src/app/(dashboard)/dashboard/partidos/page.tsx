@@ -85,7 +85,7 @@ export default function PartidosPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-[#67748e]">Cargando partidos...</p>
+            <p className="text-foreground">Cargando partidos...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -201,7 +201,7 @@ function MatchesList({ matches, emptyMessage }: MatchesListProps) {
     return (
       <Card className="shadow-soft border-0">
         <CardContent className="py-12">
-          <div className="text-center text-[#67748e]">
+          <div className="text-center text-foreground">
             <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>{emptyMessage}</p>
           </div>
@@ -234,7 +234,7 @@ function MatchCard({ match }: MatchCardProps) {
       return (
         <Badge
           variant="outline"
-          className="bg-[#fef5d3] text-[#fbc400] border-[#fbc400]"
+          className="bg-badge-warning-bg text-badge-suspended-text border-badge-warning-border"
         >
           <AlertCircle className="h-3 w-3 mr-1" />
           Suspendido
@@ -247,7 +247,7 @@ function MatchCard({ match }: MatchCardProps) {
         return (
           <Badge
             variant="outline"
-            className="bg-[#fef5d3] text-[#d97706] border-[#fbc400]"
+            className="bg-badge-warning-bg text-badge-warning-text border-badge-warning-border"
           >
             <Clock className="h-3 w-3 mr-1" />
             {format(match.fecha, "dd/MM/yyyy HH:mm", { locale: es })}
@@ -264,7 +264,7 @@ function MatchCard({ match }: MatchCardProps) {
         return (
           <Badge
             variant="outline"
-            className="bg-[#8097bf] text-white border-[#8097bf]"
+            className="bg-badge-finalized-bg text-white border-badge-finalized-border"
           >
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Final
@@ -283,10 +283,10 @@ function MatchCard({ match }: MatchCardProps) {
               {equipoLocalId?.substring(0, 2).toUpperCase() || "?"}
             </div>
             <div>
-              <p className="font-bold text-[#344767] text-lg">
+              <p className="font-bold text-accent-foreground text-lg">
                 {getTeamFullName(equipoLocalId)}
               </p>
-              <p className="text-xs text-[#67748e]">Local</p>
+              <p className="text-xs text-foreground">Local</p>
             </div>
           </div>
 
@@ -294,18 +294,18 @@ function MatchCard({ match }: MatchCardProps) {
           <div className="flex flex-col items-center gap-2 px-8">
             {match.estado !== "pendiente" ? (
               <div className="flex items-center gap-4">
-                <span className="text-4xl font-bold text-[#344767]">
+                <span className="text-4xl font-bold text-accent-foreground">
                   {match.golesEquipoLocal}
                 </span>
-                <span className="text-2xl text-[#67748e]">-</span>
-                <span className="text-4xl font-bold text-[#344767]">
+                <span className="text-2xl text-foreground">-</span>
+                <span className="text-4xl font-bold text-accent-foreground">
                   {match.golesEquipoVisitante}
                 </span>
               </div>
             ) : (
               <div className="text-center">
-                <Trophy className="h-8 w-8 text-[#67748e] mx-auto mb-2" />
-                <p className="text-sm text-[#67748e]">VS</p>
+                <Trophy className="h-8 w-8 text-foreground mx-auto mb-2" />
+                <p className="text-sm text-foreground">VS</p>
               </div>
             )}
             <div>{getStatusBadge()}</div>
@@ -314,10 +314,10 @@ function MatchCard({ match }: MatchCardProps) {
           {/* Equipo Visitante */}
           <div className="flex items-center gap-4 flex-1 justify-end">
             <div className="text-right">
-              <p className="font-bold text-[#344767] text-lg">
+              <p className="font-bold text-accent-foreground text-lg">
                 {getTeamFullName(equipoVisitanteId)}
               </p>
-              <p className="text-xs text-[#67748e]">Visitante</p>
+              <p className="text-xs text-foreground">Visitante</p>
             </div>
             <div className="h-14 w-14 rounded-xl bg-gradient-error flex items-center justify-center text-white font-bold shadow-soft">
               {equipoVisitanteId?.substring(0, 2).toUpperCase() || "?"}

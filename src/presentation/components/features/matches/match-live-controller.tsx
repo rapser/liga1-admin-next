@@ -125,12 +125,6 @@ export function MatchLiveController({
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Log inicial para verificar que el componente se está renderizando
-  console.log(
-    "[MatchLiveController] Componente renderizado, estado:",
-    match.estado,
-  );
-
   // Usar el hook useMatchTimer que actualiza cada segundo
   // El hook fuerza re-renders cada segundo porque actualiza currentTime internamente
   const { minutoActual, primeraParte, tiempoAgregado, tiempoAgregadoPrimera } =
@@ -173,9 +167,8 @@ export function MatchLiveController({
       }
 
       onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al iniciar partido:", error);
-      toast.error(error?.message || "Error al iniciar el partido");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al iniciar el partido");
     } finally {
       setIsProcessing(false);
     }
@@ -197,9 +190,8 @@ export function MatchLiveController({
       await matchStateService.finishMatch(jornadaId, match.id, torneo);
       toast.success("Partido finalizado exitosamente");
       onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al finalizar partido:", error);
-      toast.error(error?.message || "Error al finalizar el partido");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al finalizar el partido");
     } finally {
       setIsProcessing(false);
     }
@@ -215,9 +207,8 @@ export function MatchLiveController({
         torneo,
       );
       onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al actualizar marcador:", error);
-      toast.error(error?.message || "Error al actualizar el marcador");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al actualizar el marcador");
       throw error;
     }
   };
@@ -233,9 +224,8 @@ export function MatchLiveController({
       await matchStateService.resumeSecondHalf(jornadaId, match.id);
       toast.success("Segunda parte iniciada");
       onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al reanudar segunda parte:", error);
-      toast.error(error?.message || "Error al reanudar la segunda parte");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al reanudar la segunda parte");
     } finally {
       setIsProcessing(false);
     }
@@ -255,8 +245,8 @@ export function MatchLiveController({
           try {
             await matchStateService.finishFirstHalf(jornadaId, match.id);
             onStateChange?.();
-          } catch (error: any) {
-            console.error("Error al poner partido en descanso:", error);
+          } catch {
+            // Error silencioso - se reintentará en el siguiente intervalo
           }
         }
         // Si ya se configuraron minutos adicionales y se completaron los 45 + minutos adicionales
@@ -267,8 +257,8 @@ export function MatchLiveController({
           try {
             await matchStateService.finishFirstHalf(jornadaId, match.id);
             onStateChange?.();
-          } catch (error: any) {
-            console.error("Error al poner partido en descanso:", error);
+          } catch {
+            // Error silencioso - se reintentará en el siguiente intervalo
           }
         }
       };
@@ -322,11 +312,8 @@ export function MatchLiveController({
                     "Partido finalizado automáticamente después de consumir los minutos adicionales",
                   );
                   onStateChange?.();
-                } catch (error: any) {
-                  console.error(
-                    "Error al finalizar partido automáticamente:",
-                    error,
-                  );
+                } catch {
+                  // Error silencioso - se reintentará en el siguiente intervalo
                 }
               }
             }
@@ -469,7 +456,7 @@ export function MatchLiveController({
           {/* Botón para iniciar segundo tiempo manualmente - siempre visible en descanso */}
           <div className="flex flex-col items-center gap-2">
             {!descansoReglamentario && (
-              <p className="text-sm text-[#67748e]">
+              <p className="text-sm text-foreground">
                 Descanso reglamentario: 15 min. Puedes continuar manualmente
                 cuando quieras.
               </p>
@@ -495,7 +482,7 @@ export function MatchLiveController({
           </div>
 
           {/* Editor de Marcador */}
-          <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+          <div className="flex items-center justify-center pt-2 border-t border-muted">
             <MatchScoreEditor
               match={match}
               onScoreChange={handleScoreChange}
@@ -566,7 +553,7 @@ export function MatchLiveController({
         )}
 
         {/* Editor de Marcador */}
-        <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+        <div className="flex items-center justify-center pt-2 border-t border-muted">
           <MatchScoreEditor
             match={match}
             onScoreChange={handleScoreChange}
@@ -575,7 +562,7 @@ export function MatchLiveController({
         </div>
 
         {/* Botón para Enviar Notificaciones Push */}
-        <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+        <div className="flex items-center justify-center pt-2 border-t border-muted">
           <Button
             onClick={() => setIsNotificationModalOpen(true)}
             variant="outline"
