@@ -72,16 +72,8 @@ export class PushNotificationService {
   /**
    * Envía una notificación push a través de la API
    */
-  async sendNotification(params: SendNotificationParams): Promise<void> {
+  async sendNotification(params: SendNotificationParams): Promise<{ messageId?: string }> {
     try {
-      console.log('📤 PushNotificationService - Enviando notificación:', {
-        topic: params.topic,
-        title: params.title,
-        body: params.body,
-        eventType: params.eventType,
-        data: params.data,
-      });
-
       const response = await fetch('/api/push-notifications/send', {
         method: 'POST',
         headers: {
@@ -91,16 +83,12 @@ export class PushNotificationService {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        console.error('❌ Error en respuesta de API:', error);
-        throw new Error(error.error || 'Error al enviar la notificación');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al enviar la notificación');
       }
 
-      const result = await response.json();
-      console.log('✅ PushNotificationService - Notificación enviada exitosamente:', result);
-      return result;
-    } catch (error: any) {
-      console.error('❌ Error en PushNotificationService:', error);
+      return await response.json();
+    } catch (error: unknown) {
       throw error;
     }
   }
@@ -115,44 +103,27 @@ export class PushNotificationService {
     notification: Omit<SendNotificationParams, 'topic'>
   ): Promise<Array<{ topic: string; success: boolean; messageId?: string; error?: string }>> {
     if (topics.length === 0) {
-      console.error('❌ No hay topics para enviar');
       return [];
     }
 
-    console.log(`📤 Enviando notificación a ${topics.length} topic(s):`, topics);
-    console.log('📋 Contenido de la notificación:', {
-      title: notification.title,
-      body: notification.body,
-      eventType: notification.eventType,
-      dataKeys: Object.keys(notification.data || {}),
-    });
-    
     const results = [];
 
     // Enviar a cada topic secuencialmente para mejor control de errores
     for (const topic of topics) {
       try {
-        console.log(`📤 Enviando a topic: ${topic}`);
         const result = await this.sendNotification({
           ...notification,
           topic,
         });
         results.push({ topic, success: true, messageId: result?.messageId });
-        console.log(`✅ Notificación enviada exitosamente a topic: ${topic}`, result);
-      } catch (error: any) {
-        console.error(`❌ Error enviando a topic ${topic}:`, {
-          error: error.message,
-          stack: error.stack,
-          topic,
-        });
-        results.push({ topic, success: false, error: error.message });
+      } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        results.push({ topic, success: false, error: errMsg });
         // Continuar con el siguiente topic aunque uno falle
       }
     }
 
     const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
-    console.log(`📊 Resumen: ${successCount} exitosas, ${failCount} fallidas de ${topics.length} totales`);
 
     // Si todas fallaron, lanzar error
     if (successCount === 0 && topics.length > 0) {
@@ -178,19 +149,8 @@ export class PushNotificationService {
     const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
-      console.error('❌ Error en sendGoalNotification:', errorMsg);
-      throw new Error(errorMsg);
+      throw new Error(`No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}`);
     }
-
-    console.log('⚽ Enviando notificación de gol:', {
-      scoringTeam: teamCode,
-      topics,
-      matchId: normalizedMatch.id,
-      equipoLocalId: normalizedMatch.equipoLocalId,
-      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
-      originalMatchId: match.id,
-    });
 
     const teamName = getTeamFullName(teamCode);
     const localName = normalizedMatch.equipoLocalId ? getTeamFullName(normalizedMatch.equipoLocalId) : 'Local';
@@ -238,17 +198,8 @@ export class PushNotificationService {
     const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
-      console.error('❌ Error en sendMatchStartNotification:', errorMsg);
-      throw new Error(errorMsg);
+      throw new Error(`No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}`);
     }
-
-    console.log('🎯 Enviando notificación de inicio de partido:', {
-      topics,
-      matchId: normalizedMatch.id,
-      equipoLocalId: normalizedMatch.equipoLocalId,
-      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
-    });
 
     const localName = normalizedMatch.equipoLocalId ? getTeamFullName(normalizedMatch.equipoLocalId) : 'Local';
     const visitorName = normalizedMatch.equipoVisitanteId ? getTeamFullName(normalizedMatch.equipoVisitanteId) : 'Visitante';
@@ -287,17 +238,8 @@ export class PushNotificationService {
     const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
-      console.error('❌ Error en sendMatchEndNotification:', errorMsg);
-      throw new Error(errorMsg);
+      throw new Error(`No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}`);
     }
-
-    console.log('⏱️ Enviando notificación de resultado final:', {
-      topics,
-      matchId: normalizedMatch.id,
-      equipoLocalId: normalizedMatch.equipoLocalId,
-      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
-    });
 
     const localName = normalizedMatch.equipoLocalId ? getTeamFullName(normalizedMatch.equipoLocalId) : 'Local';
     const visitorName = normalizedMatch.equipoVisitanteId ? getTeamFullName(normalizedMatch.equipoVisitanteId) : 'Visitante';
@@ -317,7 +259,7 @@ export class PushNotificationService {
     };
 
     // Enviar a ambos equipos con mensajes personalizados según el resultado
-    const promises: Promise<any>[] = [];
+    const promises: Promise<{ messageId?: string }>[] = [];
 
     for (const topic of topics) {
       // Determinar si este topic es del equipo local o visitante
@@ -386,18 +328,8 @@ export class PushNotificationService {
     const topics = getTopicsForMatch(normalizedMatch);
     
     if (topics.length === 0) {
-      const errorMsg = `No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}, Local: ${match.equipoLocalId}, Visitante: ${match.equipoVisitanteId}`;
-      console.error('❌ Error en sendRedCardNotification:', errorMsg);
-      throw new Error(errorMsg);
+      throw new Error(`No se encontraron topics válidos para los equipos del partido. Match ID: ${match.id}`);
     }
-
-    console.log('🟥 Enviando notificación de tarjeta roja:', {
-      affectedTeam: teamCode,
-      topics,
-      matchId: normalizedMatch.id,
-      equipoLocalId: normalizedMatch.equipoLocalId,
-      equipoVisitanteId: normalizedMatch.equipoVisitanteId,
-    });
 
     const teamName = getTeamFullName(teamCode);
     const minute = getMatchElapsedMinutes(normalizedMatch);

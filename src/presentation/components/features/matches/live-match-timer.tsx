@@ -91,7 +91,7 @@ export function LiveMatchTimer({
   if (match.enDescanso) {
     return (
       <div className="flex flex-col items-center gap-1">
-        <div className="text-5xl font-bold text-[#344767]">
+        <div className="text-5xl font-bold text-accent-foreground">
           {formatTime(45 * 60)}
         </div>
         <div className="text-base font-semibold text-yellow-600">Descanso</div>
@@ -107,11 +107,11 @@ export function LiveMatchTimer({
     if (minutosTranscurridos < 45 && tiempoAgregadoPrimeraParte > 0) {
       return (
         <div className="flex items-center gap-2">
-          <div className="text-5xl font-bold text-[#344767]">
+          <div className="text-5xl font-bold text-accent-foreground">
             {formatTime(totalSeconds)}
           </div>
           {showAddedTime && (
-            <div className="text-3xl font-semibold text-[#67748e]">
+            <div className="text-3xl font-semibold text-foreground">
               [+{tiempoAgregadoPrimeraParte}]
             </div>
           )}
@@ -130,11 +130,11 @@ export function LiveMatchTimer({
         <div className="flex flex-col items-center gap-2">
           {/* Línea superior: 45:00 [+4] */}
           <div className="flex items-center gap-2">
-            <div className="text-5xl font-bold text-[#344767]">
+            <div className="text-5xl font-bold text-accent-foreground">
               {formatTime(45 * 60)}
             </div>
             {showAddedTime && (
-              <div className="text-3xl font-semibold text-[#67748e]">
+              <div className="text-3xl font-semibold text-foreground">
                 [+{tiempoAgregadoPrimeraParte}]
               </div>
             )}
@@ -142,7 +142,7 @@ export function LiveMatchTimer({
           {/* Línea inferior: 1:10 (progreso de adicionales) */}
           {showAddedTime && (
             <div className="flex items-center gap-2">
-              <div className="text-3xl font-bold text-[#344767]">
+              <div className="text-3xl font-bold text-accent-foreground">
                 {formatTime(segundosAdicionales)}
               </div>
             </div>
@@ -153,7 +153,7 @@ export function LiveMatchTimer({
 
     // Antes de los 45 minutos - mostrar timer normal
     return (
-      <div className="text-5xl font-bold text-[#344767]">
+      <div className="text-5xl font-bold text-accent-foreground">
         {formatTime(totalSeconds)}
       </div>
     );
@@ -172,11 +172,11 @@ export function LiveMatchTimer({
 
     return (
       <div className="flex items-center gap-2">
-        <div className="text-5xl font-bold text-[#344767]">
+        <div className="text-5xl font-bold text-accent-foreground">
           {formatTime(minutosDisplay * 60 + segundosDisplay)}
         </div>
         {showAddedTime && (
-          <div className="text-3xl font-semibold text-[#67748e]">
+          <div className="text-3xl font-semibold text-foreground">
             [+{tiempoAgregadoSegundo}]
           </div>
         )}
@@ -201,11 +201,11 @@ export function LiveMatchTimer({
       <div className="flex flex-col items-center gap-2">
         {/* Línea superior: 90:00 [+6] */}
         <div className="flex items-center gap-2">
-          <div className="text-5xl font-bold text-[#344767]">
+          <div className="text-5xl font-bold text-accent-foreground">
             {formatTime(90 * 60)}
           </div>
           {showAddedTime && (
-            <div className="text-3xl font-semibold text-[#67748e]">
+            <div className="text-3xl font-semibold text-foreground">
               [+{tiempoAgregadoSegundo}]
             </div>
           )}
@@ -213,7 +213,7 @@ export function LiveMatchTimer({
         {/* Línea inferior: 6:00 (progreso de adicionales, limitado al máximo) */}
         {showAddedTime && (
           <div className="flex items-center gap-2">
-            <div className="text-3xl font-bold text-[#344767]">
+            <div className="text-3xl font-bold text-accent-foreground">
               {formatTime(segundosAdicionalesLimitados)}
             </div>
           </div>
@@ -227,7 +227,7 @@ export function LiveMatchTimer({
   const segundosDisplay = segundosSegundaParte % 60;
 
   return (
-    <div className="text-5xl font-bold text-[#344767]">
+    <div className="text-5xl font-bold text-accent-foreground">
       {formatTime(minutosDisplay * 60 + segundosDisplay)}
     </div>
   );

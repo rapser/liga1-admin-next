@@ -40,13 +40,11 @@ export default function NoticiasPage() {
     try {
       setLoading(true);
       setError(null);
-      console.log('Cargando noticias desde Firestore...');
       const data = await newsRepository.fetchAllNews();
-      console.log(`Noticias cargadas: ${data.length}`);
       setNews(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error al cargar noticias:', error);
-      setError(error?.message || 'Error desconocido al cargar noticias');
+      setError(error instanceof Error ? error.message : 'Error desconocido al cargar noticias');
     } finally {
       setLoading(false);
     }
@@ -79,15 +77,19 @@ export default function NoticiasPage() {
         urlExterna: formData.url,
       };
       
-      await newsRepository.createNews(newNews);
+      const newId = await newsRepository.createNews(newNews);
       toast.success('Noticia creada exitosamente');
       setOpenDialog(false);
-      
-      // Recargar noticias
-      await loadNews();
-    } catch (error: any) {
+
+      // Actualización optimista: agregar la noticia al estado local sin recargar todo
+      const createdNews: NewsItem = {
+        id: newId,
+        ...newNews,
+      };
+      setNews(prev => [createdNews, ...prev]);
+    } catch (error: unknown) {
       console.error('Error al crear noticia:', error);
-      toast.error('Error al crear la noticia: ' + (error?.message || 'Error desconocido'));
+      toast.error('Error al crear la noticia: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     } finally {
       setIsCreating(false);
     }
@@ -117,12 +119,16 @@ export default function NoticiasPage() {
       toast.success('Noticia actualizada exitosamente');
       setOpenEditDialog(false);
       setEditingNews(null);
-      
-      // Recargar noticias
-      await loadNews();
-    } catch (error: any) {
+
+      // Actualización optimista: merge local sin recargar todo
+      setNews(prev =>
+        prev.map(n =>
+          n.id === newsId ? { ...n, ...updates } : n
+        )
+      );
+    } catch (error: unknown) {
       console.error('Error al actualizar noticia:', error);
-      toast.error('Error al actualizar la noticia: ' + (error?.message || 'Error desconocido'));
+      toast.error('Error al actualizar la noticia: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     } finally {
       setIsUpdating(false);
     }
@@ -139,7 +145,7 @@ export default function NoticiasPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-[#67748e]">Cargando noticias...</p>
+            <p className="text-foreground">Cargando noticias...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -208,7 +214,7 @@ export default function NoticiasPage() {
             <div className="text-center text-red-600">
               <p className="font-semibold">Error al cargar noticias</p>
               <p className="text-sm mt-1">{error}</p>
-              <p className="text-xs mt-2 text-[#67748e]">Revisa la consola del navegador para más detalles</p>
+              <p className="text-xs mt-2 text-foreground">Revisa la consola del navegador para más detalles</p>
             </div>
           </CardContent>
         </Card>
@@ -218,7 +224,7 @@ export default function NoticiasPage() {
       {news.length === 0 && !loading ? (
         <Card className="shadow-soft border-0">
           <CardContent className="py-12">
-            <div className="text-center text-[#67748e]">
+            <div className="text-center text-foreground">
               <Newspaper className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No hay noticias disponibles</p>
               {!error && (
@@ -291,19 +297,19 @@ function NewsCard({ news, onEdit }: NewsCardProps) {
                 onEdit(news);
               }}
             >
-              <Pencil className="h-4 w-4 text-[#344767]" />
+              <Pencil className="h-4 w-4 text-accent-foreground" />
             </Button>
           </div>
         </div>
       )}
 
       <div className="flex flex-col flex-1 px-6 pt-2 pb-4 justify-between">
-        <CardTitle className="text-[#344767] line-clamp-3">
+        <CardTitle className="text-accent-foreground line-clamp-3">
           {news.titulo}
         </CardTitle>
         
         {/* Meta Info - Fija en la parte inferior */}
-        <div className="flex items-center gap-2 text-xs text-[#67748e] mt-auto pt-2">
+        <div className="flex items-center gap-2 text-xs text-foreground mt-auto pt-2">
           <Clock className="h-4 w-4" />
           <span>{format(news.fechaPublicacion, "dd MMM yyyy 'a las' HH:mm", { locale: es })}</span>
         </div>

@@ -81,29 +81,15 @@ export const getTopicsForMatch = (match: {
     const localTopic = getTeamTopic(localCode);
     if (localTopic) {
       topics.push(localTopic);
-    } else {
-      console.warn(`⚠️ No se encontró topic para equipo local: ${localCode}`);
     }
   }
-  
+
   // Obtener topic del equipo visitante
   if (visitorCode) {
     const visitorTopic = getTeamTopic(visitorCode);
     if (visitorTopic) {
       topics.push(visitorTopic);
-    } else {
-      console.warn(`⚠️ No se encontró topic para equipo visitante: ${visitorCode}`);
     }
-  }
-  
-  if (topics.length === 0) {
-    console.error('❌ No se pudieron obtener topics para el partido:', {
-      matchId: match.id,
-      equipoLocalId: match.equipoLocalId,
-      equipoVisitanteId: match.equipoVisitanteId,
-      localCode,
-      visitorCode,
-    });
   }
   
   return topics;

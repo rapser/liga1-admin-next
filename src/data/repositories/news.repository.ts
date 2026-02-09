@@ -47,8 +47,6 @@ export class NewsRepository implements INewsRepository {
           snapshot = await getDocs(q);
         } catch {
           // Si ambos fallan, obtener sin ordenar y ordenar en memoria
-          const errorMessage = orderByError instanceof Error ? orderByError.message : String(orderByError);
-          console.warn('orderBy falló, obteniendo sin ordenar:', errorMessage);
           snapshot = await getDocs(newsRef);
         }
       }
@@ -57,11 +55,6 @@ export class NewsRepository implements INewsRepository {
         .map((doc) => {
           try {
             const docData = doc.data();
-            console.log(`Mapeando noticia ${doc.id}:`, { 
-              titulo: docData.titulo, 
-              fechaPublicacion: docData.fechaPublicacion,
-              tipoFecha: typeof docData.fechaPublicacion 
-            });
             return NewsMapper.toDomain(doc.id, docData as NewsDTO);
           } catch (mapperError) {
             console.error(`Error al mapear noticia ${doc.id}:`, mapperError, doc.data());

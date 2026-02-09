@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Team } from '@/domain/entities/team.entity';
 import { TeamRepository } from '@/data/repositories/team.repository';
 import { compareTeams } from '@/domain/entities/team.entity';
-import { Trophy, TrendingUp, TrendingDown } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
 const teamRepository = new TeamRepository();
 
@@ -26,28 +26,32 @@ export default function PosicionesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadTables = async () => {
+    if (authLoading) return;
+
+    // Carga inicial
+    const loadInitial = async () => {
       try {
         setLoading(true);
-
-        // Solo cargar tabla de apertura (clausura y acumulado no se cargan todavía)
         const apertura = await teamRepository.fetchStandings('apertura');
-
-        // Ordenar equipos por posición
         setAperturaTeams([...apertura].sort(compareTeams));
-        // Clausura y acumulado se mantienen vacíos (empty view)
         setClausuraTeams([]);
         setAcumuladoTeams([]);
-      } catch (error) {
-        console.error('Error al cargar las tablas:', error);
+      } catch {
+        // Error silencioso en carga inicial
       } finally {
         setLoading(false);
       }
     };
 
-    if (!authLoading) {
-      loadTables();
-    }
+    loadInitial();
+
+    // Suscripción en tiempo real: actualiza la tabla automáticamente
+    // cuando cambian estadísticas de equipos (ej: durante partidos en vivo)
+    const unsubscribe = teamRepository.observeStandings('apertura', (teams) => {
+      setAperturaTeams([...teams].sort(compareTeams));
+    });
+
+    return () => unsubscribe();
   }, [authLoading]);
 
   if (authLoading || loading) {
@@ -56,7 +60,7 @@ export default function PosicionesPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-[#67748e]">Cargando tablas de posiciones...</p>
+            <p className="text-foreground">Cargando tablas de posiciones...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -103,7 +107,7 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
     return (
       <Card className="shadow-soft border-0">
         <CardContent className="py-12">
-          <div className="text-center text-[#67748e]">
+          <div className="text-center text-foreground">
             <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No hay datos disponibles para {title}</p>
           </div>
@@ -115,41 +119,41 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
   return (
     <Card className="shadow-soft border-0">
       <CardHeader>
-        <CardTitle className="text-[#344767]">{title}</CardTitle>
+        <CardTitle className="text-accent-foreground">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#e9ecef]">
-                <th className="text-left py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+              <tr className="border-b border-muted">
+                <th className="text-left py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   Pos
                 </th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-left py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   Equipo
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   PJ
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   PG
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   PE
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   PP
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   GF
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   GC
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   DG
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-[#67748e] uppercase tracking-wider">
+                <th className="text-center py-3 px-4 text-xs font-semibold text-foreground uppercase tracking-wider">
                   Pts
                 </th>
               </tr>
@@ -162,7 +166,7 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
                 return (
                   <tr
                     key={team.id}
-                    className="border-b border-[#e9ecef] hover:bg-[#f8f9fa] transition-colors"
+                    className="border-b border-muted hover:bg-background transition-colors"
                   >
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
@@ -170,33 +174,33 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
                           className={`flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${
                             isChampion
                               ? 'bg-gradient-success text-white'
-                              : 'bg-[#e9ecef] text-[#67748e]'
+                              : 'bg-muted text-foreground'
                           }`}
                         >
                           {position}
                         </span>
-                        {isChampion && <Trophy className="h-4 w-4 text-[#fbc400]" />}
+                        {isChampion && <Trophy className="h-4 w-4 text-trophy-gold" />}
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="font-semibold text-[#344767]">{team.nombre}</span>
+                      <span className="font-semibold text-accent-foreground">{team.nombre}</span>
                     </td>
-                    <td className="py-4 px-4 text-center text-[#67748e]">
+                    <td className="py-4 px-4 text-center text-foreground">
                       {team.partidosJugados}
                     </td>
-                    <td className="py-4 px-4 text-center text-[#67748e]">
+                    <td className="py-4 px-4 text-center text-foreground">
                       {team.partidosGanados}
                     </td>
-                    <td className="py-4 px-4 text-center text-[#67748e]">
+                    <td className="py-4 px-4 text-center text-foreground">
                       {team.partidosEmpatados}
                     </td>
-                    <td className="py-4 px-4 text-center text-[#67748e]">
+                    <td className="py-4 px-4 text-center text-foreground">
                       {team.partidosPerdidos}
                     </td>
-                    <td className="py-4 px-4 text-center text-[#67748e]">
+                    <td className="py-4 px-4 text-center text-foreground">
                       {team.golesFavor}
                     </td>
-                    <td className="py-4 px-4 text-center text-[#67748e]">
+                    <td className="py-4 px-4 text-center text-foreground">
                       {team.golesContra}
                     </td>
                     <td className="py-4 px-4 text-center">
@@ -206,7 +210,7 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
                             ? 'text-success'
                             : team.diferenciaGoles < 0
                             ? 'text-destructive'
-                            : 'text-[#67748e]'
+                            : 'text-foreground'
                         }`}
                       >
                         {team.diferenciaGoles > 0 ? '+' : ''}
@@ -214,7 +218,7 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span className="font-bold text-[#344767] text-lg">
+                      <span className="font-bold text-accent-foreground text-lg">
                         {team.puntos}
                       </span>
                     </td>
@@ -229,15 +233,15 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
         <div className="mt-6 flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 rounded bg-gradient-success"></div>
-            <span className="text-[#67748e]">Clasificación directa</span>
+            <span className="text-foreground">Clasificación directa</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 rounded bg-gradient-info"></div>
-            <span className="text-[#67748e]">Playoff</span>
+            <span className="text-foreground">Playoff</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 rounded bg-gradient-error"></div>
-            <span className="text-[#67748e]">Descenso</span>
+            <span className="text-foreground">Descenso</span>
           </div>
         </div>
       </CardContent>

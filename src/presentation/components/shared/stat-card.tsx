@@ -51,10 +51,10 @@ export function StatCard({
       <div className="relative flex items-start justify-between">
         <div className="flex-1">
           {/* Title */}
-          <p className="text-sm font-medium text-[#67748e] mb-1">{title}</p>
+          <p className="text-sm font-medium text-foreground mb-1">{title}</p>
 
           {/* Value */}
-          <h3 className="text-3xl font-bold text-[#344767] mb-2">{value}</h3>
+          <h3 className="text-3xl font-bold text-accent-foreground mb-2">{value}</h3>
 
           {/* Subtitle & Trend */}
           <div className="flex items-center gap-2">
@@ -70,7 +70,7 @@ export function StatCard({
               </span>
             )}
             {subtitle && (
-              <span className="text-xs text-[#67748e]">{subtitle}</span>
+              <span className="text-xs text-foreground">{subtitle}</span>
             )}
           </div>
         </div>

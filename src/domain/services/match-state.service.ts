@@ -10,7 +10,9 @@ import {
   canFinishMatch,
   getMatchElapsedMinutes,
   shouldEnterHalftime,
+  isMatchAlreadyPlayed,
 } from "../entities/match.entity";
+import { Team } from "../entities/team.entity";
 import { IMatchRepository } from "../repositories/match.repository.interface";
 import { ITeamRepository } from "../repositories/team.repository.interface";
 import { TorneoType } from "@/core/config/firestore-constants";
@@ -44,17 +46,45 @@ export class MatchStateService {
       );
     }
 
+    // Detectar si el partido ya se jugó en la vida real
+    const yaSeJugo = isMatchAlreadyPlayed(match);
+
     // Preparar actualizaciones
     const ahora = new Date();
-    const updates: Partial<Match> = {
-      estado: "envivo",
-      horaInicio: ahora,
-      primeraParte: true,
-      tiempoAgregado: 0,
-      tiempoAgregadoPrimeraParte: 0,
-      enDescanso: false,
-      // No incluir horaInicioSegundaParte si es undefined
-    };
+
+    let updates: Partial<Match>;
+
+    if (yaSeJugo) {
+      // MODO RÁPIDO: El partido ya se jugó en la vida real
+      // Colocamos horaInicio 46 min en el pasado y horaInicioSegundaParte 46 min en el pasado
+      // para que el cronómetro marque 90+ minutos inmediatamente
+      // y el admin solo necesite cargar el marcador y finalizar
+      const horaInicioPasado = new Date(ahora.getTime() - 46 * 60 * 1000);
+      const horaInicioSegundaPartePasado = new Date(
+        ahora.getTime() - 46 * 60 * 1000,
+      );
+
+      updates = {
+        estado: "envivo",
+        horaInicio: horaInicioPasado,
+        primeraParte: false,
+        tiempoAgregado: 1, // 1 minuto agregado para permitir finalizar inmediatamente
+        tiempoAgregadoPrimeraParte: 0,
+        enDescanso: false,
+        horaInicioSegundaParte: horaInicioSegundaPartePasado,
+      };
+
+    } else {
+      // MODO NORMAL: Partido en tiempo real
+      updates = {
+        estado: "envivo",
+        horaInicio: ahora,
+        primeraParte: true,
+        tiempoAgregado: 0,
+        tiempoAgregadoPrimeraParte: 0,
+        enDescanso: false,
+      };
+    }
 
     // Si el marcador no está establecido, inicializar a 0-0
     const finalLocalScore = match.golesEquipoLocal ?? 0;
@@ -80,8 +110,8 @@ export class MatchStateService {
     if (!match.equipoLocalId || !match.equipoVisitanteId) {
       const parts = matchId.split("_");
       if (parts.length >= 2) {
-        match.equipoLocalId = parts[0];
-        match.equipoVisitanteId = parts[1];
+        match.equipoLocalId = parts[0] ?? null;
+        match.equipoVisitanteId = parts[1] ?? null;
       }
     }
 
@@ -97,6 +127,8 @@ export class MatchStateService {
 
       if (equipoLocal && equipoVisitante) {
         // Incrementar solo matchesPlayed (una sola vez, cuando inicia el partido)
+        // NO actualizar puntos/goles aquí: se aplican en updateMatchScore al cambiar el marcador
+        // o en finishMatch si el partido termina 0-0 (para evitar doble conteo por lecturas obsoletas)
         await Promise.all([
           this.teamRepository.updateTeamStats(torneo, match.equipoLocalId, {
             partidosJugados: equipoLocal.partidosJugados + 1,
@@ -105,40 +137,7 @@ export class MatchStateService {
             partidosJugados: equipoVisitante.partidosJugados + 1,
           }),
         ]);
-        console.log("✅ Partidos jugados incrementados al iniciar el partido");
       }
-
-      // IMPORTANTE: Actualizar la tabla de posiciones con el marcador inicial (0-0)
-      // Esto asegura que todos los campos (goles, puntos, etc.) se inicialicen correctamente
-      // incluso si el partido nunca cambia de marcador o el primer cambio no se detecta correctamente
-      const marcadorInicialLocal =
-        updates.golesEquipoLocal ?? match.golesEquipoLocal ?? 0;
-      const marcadorInicialVisitante =
-        updates.golesEquipoVisitante ?? match.golesEquipoVisitante ?? 0;
-
-      console.log(
-        "🔵 Inicializando tabla de posiciones con marcador inicial:",
-        {
-          matchId,
-          marcador: `${marcadorInicialLocal}-${marcadorInicialVisitante}`,
-          equipoLocalId: match.equipoLocalId,
-          equipoVisitanteId: match.equipoVisitanteId,
-          torneo,
-        },
-      );
-
-      await this.updateStandingsScore(
-        {
-          ...match,
-          ...updates,
-          golesEquipoLocal: marcadorInicialLocal,
-          golesEquipoVisitante: marcadorInicialVisitante,
-        },
-        torneo,
-        0, // previousLocalScore = 0 (marcador anterior antes de iniciar)
-        0, // previousVisitorScore = 0 (marcador anterior antes de iniciar)
-      );
-      console.log("✅ Tabla de posiciones inicializada al iniciar el partido");
     }
   }
 
@@ -181,16 +180,6 @@ export class MatchStateService {
     const previousLocalScore = match.golesEquipoLocal || 0;
     const previousVisitorScore = match.golesEquipoVisitante || 0;
 
-    console.log("🔄 updateMatchScore:", {
-      jornadaId,
-      matchId,
-      torneo,
-      marcadorAnterior: `${previousLocalScore}-${previousVisitorScore}`,
-      marcadorNuevo: `${localScore}-${visitorScore}`,
-      equipoLocalId: match.equipoLocalId,
-      equipoVisitanteId: match.equipoVisitanteId,
-    });
-
     // Actualizar el marcador en Firestore
     await this.matchRepository.updateMatchScore(
       jornadaId,
@@ -198,11 +187,9 @@ export class MatchStateService {
       localScore,
       visitorScore,
     );
-    console.log("✅ Marcador actualizado en Firestore (jornadas)");
 
     // Actualizar tabla de posiciones en tiempo real
     // Pasamos el marcador anterior para calcular solo la diferencia
-    console.log("🔵 Llamando a updateStandingsScore...");
     await this.updateStandingsScore(
       {
         ...match,
@@ -213,7 +200,6 @@ export class MatchStateService {
       previousLocalScore,
       previousVisitorScore,
     );
-    console.log("✅ updateMatchScore completado");
   }
 
   /**
@@ -303,7 +289,9 @@ export class MatchStateService {
     }
 
     if (!match.primeraParte || match.enDescanso) {
-      throw new Error("El partido no está en primera parte");
+      // No es un error: el partido ya avanzó a segunda parte (modo rápido)
+      // o ya está en descanso por otra llamada concurrente. Simplemente ignorar.
+      return;
     }
 
     // Si no tiene tiempo agregado configurado, establecerlo en 0 y poner en descanso
@@ -348,22 +336,21 @@ export class MatchStateService {
   /**
    * Finaliza un partido (cambia de "envivo" a "finalizado")
    * Valida que hayan transcurrido mínimo 90 minutos + tiempo agregado
-   * NOTA: NO actualiza la tabla de posiciones porque ya se actualiza en tiempo real
-   * durante el partido mediante updateStandingsScore cada vez que cambia el marcador
+   * NO vuelve a actualizar la tabla: ya se actualizó en tiempo real en updateMatchScore.
+   * Si el partido terminó 0-0, la tabla tendrá PJ+1 pero 0 puntos hasta que se llame
+   * updateMatchScore(0,0) o se pueda aplicar el 0-0 al finalizar (ver comentario abajo).
    */
   async finishMatch(
     jornadaId: string,
     matchId: string,
     torneo: TorneoType,
   ): Promise<void> {
-    // Obtener el partido actual
     const match = await this.matchRepository.fetchMatchById(jornadaId, matchId);
 
     if (!match) {
       throw new Error("Partido no encontrado");
     }
 
-    // Validar que se pueda finalizar
     if (!canFinishMatch(match)) {
       const minutosTranscurridos = getMatchElapsedMinutes(match);
       throw new Error(
@@ -372,15 +359,16 @@ export class MatchStateService {
       );
     }
 
-    // Solo actualizar el estado a finalizado
-    // La tabla de posiciones ya está actualizada en tiempo real durante el partido
-    // mediante updateStandingsScore que se llama cada vez que cambia el marcador
+    // Si el partido terminó 0-0, nunca se llamó updateMatchScore; aplicar 1 punto a cada uno
+    const local = match.golesEquipoLocal ?? 0;
+    const visitante = match.golesEquipoVisitante ?? 0;
+    if (local === 0 && visitante === 0) {
+      await this.updateStandingsScore(match, torneo, 0, 0);
+    }
+
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       estado: "finalizado",
     });
-    console.log(
-      "✅ Partido finalizado. La tabla de posiciones ya está actualizada en tiempo real.",
-    );
   }
 
   /**
@@ -412,17 +400,6 @@ export class MatchStateService {
       }
     }
 
-    console.log("🔵 updateStandingsScore llamado:", {
-      matchId: match.id,
-      equipoLocalId,
-      equipoVisitanteId,
-      torneo,
-      golesEquipoLocal: match.golesEquipoLocal,
-      golesEquipoVisitante: match.golesEquipoVisitante,
-      previousLocalScore,
-      previousVisitorScore,
-    });
-
     if (
       !equipoLocalId ||
       !equipoVisitanteId ||
@@ -453,11 +430,6 @@ export class MatchStateService {
     );
 
     if (!equipoLocal || !equipoVisitante) {
-      console.error(
-        `❌ Equipos no encontrados en apertura: local=${equipoLocalId}, visitante=${equipoVisitanteId}`,
-      );
-      console.error("⚠️ Intentando buscar equipos en la colección...");
-
       // Intentar desde la colección del torneo si no están en apertura
       if (!equipoLocal) {
         equipoLocal = await this.teamRepository.fetchTeamById(
@@ -473,27 +445,11 @@ export class MatchStateService {
       }
 
       if (!equipoLocal || !equipoVisitante) {
-        console.error(
-          `❌ Equipos definitivamente no encontrados. Local existe: ${!!equipoLocal}, Visitante existe: ${!!equipoVisitante}`,
-        );
         throw new Error(
           `Equipos no encontrados en Firestore: local=${equipoLocalId}, visitante=${equipoVisitanteId}`,
         );
       }
     }
-
-    console.log("✅ Equipos encontrados:", {
-      local: {
-        id: equipoLocalId,
-        golesFavor: equipoLocal.golesFavor,
-        puntos: equipoLocal.puntos,
-      },
-      visitante: {
-        id: equipoVisitanteId,
-        golesFavor: equipoVisitante.golesFavor,
-        puntos: equipoVisitante.puntos,
-      },
-    });
 
     // Calcular la diferencia de goles (nuevo - anterior)
     // Esto evita sumar múltiples veces los mismos goles
@@ -615,54 +571,14 @@ export class MatchStateService {
       puntos: newPuntosVisitante,
     };
 
-    console.log("🔄 Actualizando tabla en tiempo real:", {
-      torneo,
-      partido: `${equipoLocalId} ${previousLocalScore}-${previousVisitorScore} → ${golesEquipoLocal}-${golesEquipoVisitante} ${equipoVisitanteId}`,
-      diferencia: { local: diffGolesLocal, visitante: diffGolesVisitante },
-      local: {
-        id: equipoLocalId,
-        antes: { goles: equipoLocal.golesFavor, puntos: equipoLocal.puntos },
-        nuevo: newStatsLocal,
-      },
-      visitante: {
-        id: equipoVisitanteId,
-        antes: {
-          goles: equipoVisitante.golesFavor,
-          puntos: equipoVisitante.puntos,
-        },
-        nuevo: newStatsVisitante,
-      },
-    });
-
-    try {
-      // Actualizar la colección del torneo correspondiente (apertura o clausura)
-      // NOTA: 'acumulado' NUNCA existe como colección en Firestore
-      // 'acumulado' solo se usa para cálculos locales combinando apertura + clausura
-      console.log(`🔄 Actualizando colección ${torneo}...`);
-      await Promise.all([
-        this.teamRepository.updateTeamStats(
-          torneo,
-          equipoLocalId,
-          newStatsLocal,
-        ),
-        this.teamRepository.updateTeamStats(
-          torneo,
-          equipoVisitanteId,
-          newStatsVisitante,
-        ),
-      ]);
-      console.log(`✅ Tabla ${torneo} actualizada correctamente`);
-    } catch (error: any) {
-      console.error("❌ Error al actualizar tabla:", error);
-      console.error("Detalles del error:", {
-        message: error.message,
-        stack: error.stack,
-        equipoLocalId,
-        equipoVisitanteId,
-        torneo,
-      });
-      throw error;
-    }
+    // Actualizar la colección del torneo correspondiente (apertura o clausura)
+    // NOTA: 'acumulado' NUNCA existe como colección en Firestore
+    // 'acumulado' solo se usa para cálculos locales combinando apertura + clausura
+    // Usar batch write para actualizar ambos equipos en un solo round-trip atómico
+    await this.teamRepository.batchWriteTeamStats([
+      { torneo, teamId: equipoLocalId, stats: newStatsLocal },
+      { torneo, teamId: equipoVisitanteId, stats: newStatsVisitante },
+    ]);
   }
 
   /**
@@ -675,7 +591,6 @@ export class MatchStateService {
     torneo: TorneoType,
   ): Promise<void> {
     if (!match.equipoLocalId || !match.equipoVisitanteId) {
-      console.warn("Partido sin equipos definidos, no se actualiza la tabla");
       return;
     }
 
@@ -704,15 +619,7 @@ export class MatchStateService {
     }
 
     if (!equipoLocal || !equipoVisitante) {
-      const errorMsg = `Equipos no encontrados: local=${match.equipoLocalId || "N/A"}, visitante=${match.equipoVisitanteId || "N/A"}`;
-      console.error(errorMsg, {
-        torneo,
-        equiposExistentes: {
-          local: !!equipoLocal,
-          visitante: !!equipoVisitante,
-        },
-      });
-      throw new Error(errorMsg);
+      throw new Error(`Equipos no encontrados: local=${match.equipoLocalId || "N/A"}, visitante=${match.equipoVisitanteId || "N/A"}`);
     }
 
     // Calcular resultado
@@ -774,53 +681,13 @@ export class MatchStateService {
       puntos: newPuntosVisitante,
     };
 
-    console.log("🔄 Actualizando tabla de posiciones al finalizar partido:", {
-      torneo,
-      partido: `${match.equipoLocalId} ${golesEquipoLocal}-${golesEquipoVisitante} ${match.equipoVisitanteId}`,
-      resultado: ganaLocal
-        ? "Victoria Local"
-        : ganaVisitante
-          ? "Victoria Visitante"
-          : "Empate",
-      local: {
-        id: match.equipoLocalId,
-        antes: {
-          partidosJugados: equipoLocal.partidosJugados,
-          partidosGanados: equipoLocal.partidosGanados,
-          golesFavor: equipoLocal.golesFavor,
-          puntos: equipoLocal.puntos,
-        },
-        nuevo: newStatsLocal,
-      },
-      visitante: {
-        id: match.equipoVisitanteId,
-        antes: {
-          partidosJugados: equipoVisitante.partidosJugados,
-          partidosGanados: equipoVisitante.partidosGanados,
-          golesFavor: equipoVisitante.golesFavor,
-          puntos: equipoVisitante.puntos,
-        },
-        nuevo: newStatsVisitante,
-      },
-    });
-
     // Actualizar en Firestore (solo apertura o clausura)
     // NOTA: 'acumulado' NUNCA existe como colección en Firestore
     // 'acumulado' solo se usa para cálculos locales combinando apertura + clausura
-    await Promise.all([
-      this.teamRepository.updateTeamStats(
-        torneo,
-        match.equipoLocalId,
-        newStatsLocal,
-      ),
-      this.teamRepository.updateTeamStats(
-        torneo,
-        match.equipoVisitanteId,
-        newStatsVisitante,
-      ),
+    // Usar batch write para actualizar ambos equipos en un solo round-trip atómico
+    await this.teamRepository.batchWriteTeamStats([
+      { torneo, teamId: match.equipoLocalId, stats: newStatsLocal },
+      { torneo, teamId: match.equipoVisitanteId, stats: newStatsVisitante },
     ]);
-    console.log(
-      `✅ Tabla ${torneo} actualizada correctamente al finalizar el partido`,
-    );
   }
 }

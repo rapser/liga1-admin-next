@@ -37,6 +37,13 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-badge-warning-bg: var(--badge-warning-bg);
+  --color-badge-warning-text: var(--badge-warning-text);
+  --color-badge-warning-border: var(--badge-warning-border);
+  --color-badge-suspended-text: var(--badge-suspended-text);
+  --color-badge-finalized-bg: var(--badge-finalized-bg);
+  --color-badge-finalized-border: var(--badge-finalized-border);
+  --color-trophy-gold: var(--trophy-gold);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -62,8 +69,8 @@
   --popover: #ffffff;
   --popover-foreground: #67748e;
 
-  /* Primary - Azul Liga 1 personalizado */
-  --primary: #0047BB;
+  /* Primary - Rojo Material Design (Red 300) */
+  --primary: #f84f4f;
   --primary-foreground: #ffffff;
 
   /* Secondary - Soft UI */
@@ -94,10 +101,19 @@
   --info: #17c1e8;
   --info-foreground: #ffffff;
 
+  /* Badge Status Colors */
+  --badge-warning-bg: #fef5d3;
+  --badge-warning-text: #d97706;
+  --badge-warning-border: #fbc400;
+  --badge-suspended-text: #fbc400;
+  --badge-finalized-bg: #8097bf;
+  --badge-finalized-border: #8097bf;
+  --trophy-gold: #fbc400;
+
   /* Borders */
   --border: #dee2e6;
   --input: #d2d6da;
-  --ring: #17c1e8;
+  --ring: #f84f4f;
 
   /* Charts */
   --chart-1: #17c1e8; /* Info */
@@ -109,12 +125,12 @@
   /* Sidebar - Soft UI */
   --sidebar: #ffffff;
   --sidebar-foreground: #67748e;
-  --sidebar-primary: #0047BB;
+  --sidebar-primary: #f84f4f;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f8f9fa;
   --sidebar-accent-foreground: #344767;
   --sidebar-border: #e9ecef;
-  --sidebar-ring: #17c1e8;
+  --sidebar-ring: #f84f4f;
 }
 
 .dark {
@@ -199,8 +215,8 @@
     background: linear-gradient(195deg, #344767, #3a416f);
   }
 
-  /* Liga 1 - Gradiente personalizado */
+  /* Liga 1 Max - Gradiente personalizado (rojo material) */
   .bg-gradient-liga1 {
-    background: linear-gradient(195deg, #0047BB, #003D9E);
+    background: linear-gradient(195deg, #f84f4f, #dd0e0e);
   }
 }
