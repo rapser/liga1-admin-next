@@ -30,12 +30,34 @@ export interface ITeamRepository {
   ): Promise<Team | null>;
 
   /**
-   * Actualiza las estadísticas de un equipo
+   * Actualiza las estadísticas de un equipo (lee el equipo actual y hace merge)
    */
   updateTeamStats(
     torneo: TorneoType | 'acumulado',
     teamId: string,
     stats: Partial<Team>
+  ): Promise<void>;
+
+  /**
+   * Escribe estadísticas directamente sin leer primero
+   * Usa cuando el caller ya calculó todos los campos necesarios
+   */
+  writeTeamStats(
+    torneo: TorneoType | 'acumulado',
+    teamId: string,
+    stats: Partial<Team>
+  ): Promise<void>;
+
+  /**
+   * Escribe estadísticas de múltiples equipos en un solo batch atómico
+   * Más eficiente que múltiples writeTeamStats individuales
+   */
+  batchWriteTeamStats(
+    operations: Array<{
+      torneo: TorneoType | 'acumulado';
+      teamId: string;
+      stats: Partial<Team>;
+    }>
   ): Promise<void>;
 
   /**

@@ -5,9 +5,10 @@
 
 'use client';
 
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { usePathname } from 'next/navigation';
-import { Bell, Search, ChevronRight, LogOut, User, Settings } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Bell, Search, ChevronRight, LogOut, User, Settings, Loader2 } from 'lucide-react';
 import { useAuth } from '@/presentation/providers/auth-provider';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -36,16 +37,21 @@ const routeMap: Record<string, string[]> = {
 
 export function Navbar({ className }: NavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, adminUser, isAdmin, logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Generar breadcrumbs desde pathname
   const breadcrumbs = routeMap[pathname] || ['Dashboard'];
 
   const handleLogout = async () => {
     try {
+      setIsLoggingOut(true);
       await logout();
+      router.push('/login');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -69,8 +75,8 @@ export function Navbar({ className }: NavbarProps) {
                   className={cn(
                     'text-sm',
                     index === breadcrumbs.length - 1
-                      ? 'font-semibold text-[#344767]'
-                      : 'text-[#67748e]'
+                      ? 'font-semibold text-accent-foreground'
+                      : 'text-foreground'
                   )}
                 >
                   {crumb}
@@ -83,18 +89,18 @@ export function Navbar({ className }: NavbarProps) {
         {/* Right Section: Search, Notifications, User */}
         <div className="flex items-center gap-4">
           {/* Search Bar */}
-          <div className="hidden md:flex items-center gap-2 rounded-lg bg-[#f8f9fa] px-4 py-2 w-64">
-            <Search className="h-4 w-4 text-[#67748e]" />
+          <div className="hidden md:flex items-center gap-2 rounded-lg bg-background px-4 py-2 w-64">
+            <Search className="h-4 w-4 text-foreground" />
             <input
               type="text"
               placeholder="Buscar..."
-              className="w-full bg-transparent text-sm text-[#344767] placeholder:text-[#67748e] focus:outline-none"
+              className="w-full bg-transparent text-sm text-accent-foreground placeholder:text-foreground focus:outline-none"
             />
           </div>
 
           {/* Notifications */}
           <button className="relative flex h-10 w-10 items-center justify-center rounded-lg hover:bg-accent transition-colors">
-            <Bell className="h-5 w-5 text-[#67748e]" />
+            <Bell className="h-5 w-5 text-foreground" />
             <span className="absolute right-2 top-2 flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-info opacity-75"></span>
               <span className="relative inline-flex h-2 w-2 rounded-full bg-info"></span>
@@ -106,10 +112,10 @@ export function Navbar({ className }: NavbarProps) {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent transition-colors">
                 <div className="hidden md:block text-right">
-                  <p className="text-sm font-semibold text-[#344767]">
+                  <p className="text-sm font-semibold text-accent-foreground">
                     {user?.displayName || 'Usuario'}
                   </p>
-                  <p className="text-xs text-[#67748e]">
+                  <p className="text-xs text-foreground">
                     {adminUser?.role === 'admin' ? 'Administrador' : 'Viewer'}
                   </p>
                 </div>
@@ -124,10 +130,10 @@ export function Navbar({ className }: NavbarProps) {
             <DropdownMenuContent align="end" className="w-56 shadow-soft">
               <DropdownMenuLabel>
                 <div className="flex flex-col gap-1">
-                  <p className="text-sm font-semibold text-[#344767]">
+                  <p className="text-sm font-semibold text-accent-foreground">
                     {user?.displayName || 'Usuario'}
                   </p>
-                  <p className="text-xs text-[#67748e] font-normal">
+                  <p className="text-xs text-foreground font-normal">
                     {user?.email}
                   </p>
                   {adminUser && (
@@ -155,15 +161,35 @@ export function Navbar({ className }: NavbarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={handleLogout}
+                disabled={isLoggingOut}
                 className="cursor-pointer text-destructive focus:text-destructive"
               >
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Cerrar sesión</span>
+                {isLoggingOut ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <span>Cerrando sesión...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Cerrar sesión</span>
+                  </>
+                )}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Overlay de cierre de sesión */}
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-foreground font-medium">Cerrando sesión...</p>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

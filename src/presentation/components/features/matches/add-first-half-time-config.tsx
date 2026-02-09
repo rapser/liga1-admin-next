@@ -59,12 +59,8 @@ export function AddFirstHalfTimeConfig({
       toast.success(`Minutos adicionales actualizados: +${newTotal}`);
       setDeltaTime(0);
       onTimeUpdated?.();
-    } catch (error: any) {
-      console.error(
-        "Error al actualizar tiempo agregado del primer tiempo:",
-        error,
-      );
-      toast.error(error?.message || "Error al actualizar minutos adicionales");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Error al actualizar minutos adicionales");
     } finally {
       setIsUpdating(false);
     }
@@ -72,7 +68,7 @@ export function AddFirstHalfTimeConfig({
 
   return (
     <div className="flex items-center justify-center gap-2">
-      <div className="text-2xl font-semibold text-[#67748e]">[</div>
+      <div className="text-2xl font-semibold text-foreground">[</div>
       <Input
         type="number"
         min="0"
@@ -83,7 +79,7 @@ export function AddFirstHalfTimeConfig({
         disabled={isUpdating}
         placeholder="0"
       />
-      <div className="text-2xl font-semibold text-[#67748e]">]</div>
+      <div className="text-2xl font-semibold text-foreground">]</div>
       <Button
         onClick={handleUpdate}
         disabled={isUpdating || deltaTime === 0}

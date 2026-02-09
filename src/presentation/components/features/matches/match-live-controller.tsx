@@ -10,6 +10,7 @@ import {
   Match,
   canFinishMatch,
   getMatchElapsedMinutes,
+  isMatchAlreadyPlayed,
 } from "@/domain/entities/match.entity";
 import { MatchStateService } from "@/domain/services/match-state.service";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { AddTimeConfig } from "./add-time-config";
 import { AddFirstHalfTimeConfig } from "./add-first-half-time-config";
 import { PushNotificationModal } from "./push-notification-modal";
 import { useMatchTimer } from "@/presentation/hooks/use-match-timer";
-import { Play, Square, Loader2, Bell, PlayCircle } from "lucide-react";
+import { Play, Square, Loader2, Bell, PlayCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { TorneoType } from "@/core/config/firestore-constants";
 
@@ -28,7 +29,7 @@ interface MatchLiveControllerProps {
   jornadaId: string;
   torneo: TorneoType;
   matchStateService: MatchStateService;
-  onStateChange?: () => void;
+  onStateChange?: (updates?: Partial<Match>) => void;
 }
 
 /**
@@ -122,32 +123,12 @@ export function MatchLiveController({
 }: MatchLiveControllerProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Log inicial para verificar que el componente se está renderizando
-  console.log(
-    "[MatchLiveController] Componente renderizado, estado:",
-    match.estado,
-  );
 
   // Usar el hook useMatchTimer que actualiza cada segundo
   // El hook fuerza re-renders cada segundo porque actualiza currentTime internamente
+  // No se necesita un segundo setInterval — el hook ya maneja las actualizaciones periódicas
   const { minutoActual, primeraParte, tiempoAgregado, tiempoAgregadoPrimera } =
     useMatchTimer(match.estado === "envivo" ? match : null, 1000);
-
-  // Forzar re-render cada segundo cuando el partido está en vivo
-  // Esto asegura que getMatchElapsedMinutes se recalcule y los componentes condicionales se muestren
-  useEffect(() => {
-    if (match.estado !== "envivo") {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [match.estado]);
 
   const handleStartMatch = async () => {
     if (match.estado !== "pendiente") {
@@ -155,14 +136,25 @@ export function MatchLiveController({
       return;
     }
 
+    // Detectar si el partido ya se jugó en la vida real
+    const yaSeJugo = isMatchAlreadyPlayed(match);
+
     setIsProcessing(true);
     try {
       await matchStateService.startMatch(jornadaId, match.id, torneo);
-      toast.success("Partido iniciado exitosamente");
-      onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al iniciar partido:", error);
-      toast.error(error?.message || "Error al iniciar el partido");
+
+      if (yaSeJugo) {
+        toast.success(
+          "⚡ Modo rápido: Partido ya jugado. Cronómetro en 90+. Actualiza el marcador y finaliza.",
+          { duration: 6000 },
+        );
+      } else {
+        toast.success("Partido iniciado exitosamente");
+      }
+
+      onStateChange?.({ estado: "envivo" });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al iniciar el partido");
     } finally {
       setIsProcessing(false);
     }
@@ -183,10 +175,9 @@ export function MatchLiveController({
     try {
       await matchStateService.finishMatch(jornadaId, match.id, torneo);
       toast.success("Partido finalizado exitosamente");
-      onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al finalizar partido:", error);
-      toast.error(error?.message || "Error al finalizar el partido");
+      onStateChange?.({ estado: "finalizado" });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al finalizar el partido");
     } finally {
       setIsProcessing(false);
     }
@@ -201,10 +192,9 @@ export function MatchLiveController({
         visitor,
         torneo,
       );
-      onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al actualizar marcador:", error);
-      toast.error(error?.message || "Error al actualizar el marcador");
+      onStateChange?.({ golesEquipoLocal: local, golesEquipoVisitante: visitor });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al actualizar el marcador");
       throw error;
     }
   };
@@ -219,44 +209,15 @@ export function MatchLiveController({
     try {
       await matchStateService.resumeSecondHalf(jornadaId, match.id);
       toast.success("Segunda parte iniciada");
-      onStateChange?.();
-    } catch (error: any) {
-      console.error("Error al reanudar segunda parte:", error);
-      toast.error(error?.message || "Error al reanudar la segunda parte");
+      onStateChange?.({ enDescanso: false, primeraParte: false, horaInicioSegundaParte: new Date() });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message :"Error al reanudar la segunda parte");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Auto-reanudar segundo tiempo:
-  // - A los 15 minutos: se muestra el botón
-  // - Si pasan 5 minutos más sin intervención: se reanuda automáticamente (20 min total)
-  useEffect(() => {
-    if (match.estado !== "envivo" || !match.enDescanso) {
-      return;
-    }
-
-    const checkAutoResume = async () => {
-      const segundosDescanso = getHalftimeElapsedSeconds(match);
-      if (segundosDescanso >= 20 * 60) {
-        try {
-          await matchStateService.resumeSecondHalf(jornadaId, match.id);
-          toast.info(
-            "Segundo tiempo iniciado automáticamente tras 20 minutos de descanso",
-          );
-          onStateChange?.();
-        } catch (error: any) {
-          console.error(
-            "Error al reanudar automáticamente el segundo tiempo:",
-            error,
-          );
-        }
-      }
-    };
-
-    const interval = setInterval(checkAutoResume, 5000);
-    return () => clearInterval(interval);
-  }, [match, jornadaId, matchStateService, onStateChange]);
+  // El segundo tiempo solo se inicia manualmente al presionar "Continuar con Segundo Tiempo"
 
   // Detectar cuando se completan los 45 + minutos adicionales y poner en descanso automáticamente
   useEffect(() => {
@@ -269,9 +230,9 @@ export function MatchLiveController({
         if (tiempoAgregadoPrimera === 0 && minutosTranscurridos >= 45) {
           try {
             await matchStateService.finishFirstHalf(jornadaId, match.id);
-            onStateChange?.();
-          } catch (error: any) {
-            console.error("Error al poner partido en descanso:", error);
+            onStateChange?.({ enDescanso: true });
+          } catch {
+            // Error silencioso - se reintentará en el siguiente intervalo
           }
         }
         // Si ya se configuraron minutos adicionales y se completaron los 45 + minutos adicionales
@@ -281,9 +242,9 @@ export function MatchLiveController({
         ) {
           try {
             await matchStateService.finishFirstHalf(jornadaId, match.id);
-            onStateChange?.();
-          } catch (error: any) {
-            console.error("Error al poner partido en descanso:", error);
+            onStateChange?.({ enDescanso: true });
+          } catch {
+            // Error silencioso - se reintentará en el siguiente intervalo
           }
         }
       };
@@ -336,12 +297,9 @@ export function MatchLiveController({
                   toast.info(
                     "Partido finalizado automáticamente después de consumir los minutos adicionales",
                   );
-                  onStateChange?.();
-                } catch (error: any) {
-                  console.error(
-                    "Error al finalizar partido automáticamente:",
-                    error,
-                  );
+                  onStateChange?.({ estado: "finalizado" });
+                } catch {
+                  // Error silencioso - se reintentará en el siguiente intervalo
                 }
               }
             }
@@ -356,18 +314,29 @@ export function MatchLiveController({
 
   // Estado: Pendiente - Mostrar botón para iniciar
   if (match.estado === "pendiente") {
+    const yaSeJugo = isMatchAlreadyPlayed(match);
+
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col items-start gap-2">
         <Button
           onClick={handleStartMatch}
           disabled={isProcessing}
-          className="bg-gradient-liga1 hover:opacity-90"
+          className={
+            yaSeJugo
+              ? "bg-gradient-liga1 hover:opacity-90"
+              : "bg-gradient-liga1 hover:opacity-90"
+          }
           size="sm"
         >
           {isProcessing ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Iniciando...
+            </>
+          ) : yaSeJugo ? (
+            <>
+              <Zap className="h-4 w-4 mr-2" />
+              Cargar Resultado
             </>
           ) : (
             <>
@@ -376,6 +345,11 @@ export function MatchLiveController({
             </>
           )}
         </Button>
+        {yaSeJugo && (
+          <span className="text-xs text-amber-600 font-medium">
+            ⚡ Partido ya jugado — irá directo al min. 90
+          </span>
+        )}
       </div>
     );
   }
@@ -456,8 +430,7 @@ export function MatchLiveController({
     if (match.enDescanso) {
       const segundosDescanso = getHalftimeElapsedSeconds(match);
       const minutosDescanso = Math.floor(segundosDescanso / 60);
-      // Mostrar botón recién a los 15 minutos (descanso reglamentario)
-      const puedeContinuar = minutosDescanso >= 15;
+      const descansoReglamentario = minutosDescanso >= 15;
 
       return (
         <div className="flex flex-col gap-4">
@@ -466,32 +439,36 @@ export function MatchLiveController({
             <LiveMatchTimer match={match} showAddedTime={false} />
           </div>
 
-          {/* Botón para continuar - solo después de 15 minutos */}
-          {puedeContinuar && (
-            <div className="flex items-center justify-center">
-              <Button
-                onClick={handleResumeSecondHalf}
-                disabled={isProcessing}
-                className="bg-gradient-liga1 hover:opacity-90 w-full"
-                size="lg"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Reanudando...
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="h-5 w-5 mr-2" />
-                    Continuar con Segundo Tiempo
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+          {/* Botón para iniciar segundo tiempo manualmente - siempre visible en descanso */}
+          <div className="flex flex-col items-center gap-2">
+            {!descansoReglamentario && (
+              <p className="text-sm text-foreground">
+                Descanso reglamentario: 15 min. Puedes continuar manualmente
+                cuando quieras.
+              </p>
+            )}
+            <Button
+              onClick={handleResumeSecondHalf}
+              disabled={isProcessing}
+              className="bg-gradient-liga1 hover:opacity-90 w-full"
+              size="lg"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Reanudando...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-5 w-5 mr-2" />
+                  Continuar con Segundo Tiempo
+                </>
+              )}
+            </Button>
+          </div>
 
           {/* Editor de Marcador */}
-          <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+          <div className="flex items-center justify-center pt-2 border-t border-muted">
             <MatchScoreEditor
               match={match}
               onScoreChange={handleScoreChange}
@@ -517,7 +494,7 @@ export function MatchLiveController({
               matchId={match.id}
               currentAddedTime={tiempoAgregadoPrimera}
               matchStateService={matchStateService}
-              onTimeUpdated={onStateChange}
+              onTimeUpdated={() => onStateChange?.()}
             />
           </div>
         )}
@@ -531,7 +508,7 @@ export function MatchLiveController({
               matchId={match.id}
               currentAddedTime={tiempoAgregado}
               matchStateService={matchStateService}
-              onTimeUpdated={onStateChange}
+              onTimeUpdated={() => onStateChange?.()}
             />
           </div>
         )}
@@ -562,7 +539,7 @@ export function MatchLiveController({
         )}
 
         {/* Editor de Marcador */}
-        <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+        <div className="flex items-center justify-center pt-2 border-t border-muted">
           <MatchScoreEditor
             match={match}
             onScoreChange={handleScoreChange}
@@ -571,7 +548,7 @@ export function MatchLiveController({
         </div>
 
         {/* Botón para Enviar Notificaciones Push */}
-        <div className="flex items-center justify-center pt-2 border-t border-[#e9ecef]">
+        <div className="flex items-center justify-center pt-2 border-t border-muted">
           <Button
             onClick={() => setIsNotificationModalOpen(true)}
             variant="outline"

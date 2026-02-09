@@ -82,7 +82,7 @@ export function Sidebar({ className }: SidebarProps) {
               <Trophy className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-[#344767]">Liga 1</h1>
+              <h1 className="text-lg font-bold text-accent-foreground">Liga 1</h1>
               <p className="text-xs text-muted-foreground">Admin Panel</p>
             </div>
           </div>
@@ -124,7 +124,7 @@ export function Sidebar({ className }: SidebarProps) {
                 'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all',
                 isActive
                   ? 'bg-gradient-liga1 text-white shadow-soft'
-                  : 'text-[#67748e] hover:bg-accent hover:text-[#344767]',
+                  : 'text-foreground hover:bg-accent hover:text-accent-foreground',
                 isCollapsed && 'justify-center px-2'
               )}
             >
@@ -138,11 +138,11 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Footer */}
       {!isCollapsed && (
         <div className="absolute bottom-0 left-0 right-0 border-t border-border/50 p-4">
-          <div className="rounded-xl bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4">
-            <p className="text-xs font-semibold text-[#344767] mb-1">
+          <div className="rounded-xl bg-gradient-to-br from-background to-muted p-4">
+            <p className="text-xs font-semibold text-accent-foreground mb-1">
               Soft UI Design
             </p>
-            <p className="text-xs text-[#67748e]">
+            <p className="text-xs text-foreground">
               v1.0 • Liga 1 Admin
             </p>
           </div>

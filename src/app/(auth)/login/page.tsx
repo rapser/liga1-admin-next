@@ -91,7 +91,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-[#67748e]">
+          <p className="text-foreground">
             {isRedirecting ? 'Redirigiendo al dashboard...' : 'Verificando sesión...'}
           </p>
         </div>
@@ -114,15 +114,15 @@ export default function LoginPage() {
                       <Trophy className="h-7 w-7 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-2xl font-bold text-[#344767]">Liga 1 Admin</h1>
-                      <p className="text-xs text-[#67748e]">Panel de Administración</p>
+                      <h1 className="text-2xl font-bold text-accent-foreground">Liga 1 Admin</h1>
+                      <p className="text-xs text-foreground">Panel de Administración</p>
                     </div>
                   </div>
 
-                  <h2 className="text-3xl font-bold text-[#344767] mb-2 bg-gradient-to-r from-[#0047BB] to-[#17c1e8] bg-clip-text text-transparent">
+                  <h2 className="text-3xl font-bold text-accent-foreground mb-2 bg-gradient-to-r from-[#f84f4f] to-[#ff8f8f] bg-clip-text text-transparent">
                     Bienvenido
                   </h2>
-                  <p className="text-sm text-[#67748e]">
+                  <p className="text-sm text-foreground">
                     Inicia sesión para acceder al panel de administración
                   </p>
                 </div>
@@ -139,11 +139,11 @@ export default function LoginPage() {
                 <form onSubmit={handleEmailLogin} className="space-y-4">
                   {/* Email Field */}
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-semibold text-[#344767]">
+                    <Label htmlFor="email" className="text-sm font-semibold text-accent-foreground">
                       Email
                     </Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#67748e]" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-foreground" />
                       <Input
                         id="email"
                         type="email"
@@ -151,18 +151,18 @@ export default function LoginPage() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={isSigningIn}
-                        className="pl-10 h-12 border-[#dee2e6] focus:border-primary text-base [&::placeholder]:text-base"
+                        className="pl-10 h-12 border-border focus:border-primary text-base [&::placeholder]:text-base"
                       />
                     </div>
                   </div>
 
                   {/* Password Field */}
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-semibold text-[#344767]">
+                    <Label htmlFor="password" className="text-sm font-semibold text-accent-foreground">
                       Contraseña
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#67748e] z-10" />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-foreground z-10" />
                       <Input
                         id="password"
                         type={showPassword ? 'text' : 'password'}
@@ -170,7 +170,7 @@ export default function LoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={isSigningIn}
-                        className="pl-10 pr-10 h-12 border-[#dee2e6] focus:border-primary [&::placeholder]:text-base"
+                        className="pl-10 pr-10 h-12 border-border focus:border-primary [&::placeholder]:text-base"
                         style={
                           !showPassword && password
                             ? {
@@ -185,7 +185,7 @@ export default function LoginPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         disabled={isSigningIn}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#67748e] hover:text-[#344767] transition-colors focus:outline-none"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground hover:text-accent-foreground transition-colors focus:outline-none"
                         aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       >
                         {showPassword ? (
@@ -213,23 +213,22 @@ export default function LoginPage() {
                     )}
                   </Button>
 
-                  {/* Divider */}
-                  <div className="relative my-6">
+                  {/* TODO: Descomentar para habilitar login con Google */}
+                  {/* <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-[#dee2e6]"></div>
+                      <div className="w-full border-t border-border"></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
-                      <span className="px-4 bg-white text-[#67748e]">O continúa con</span>
+                      <span className="px-4 bg-white text-foreground">O continúa con</span>
                     </div>
                   </div>
 
-                  {/* Google Sign In Button */}
                   <Button
                     type="button"
                     onClick={handleGoogleLogin}
                     disabled={isSigningIn}
                     variant="outline"
-                    className="w-full h-12 text-base font-semibold border-[#dee2e6] hover:bg-[#f8f9fa]"
+                    className="w-full h-12 text-base font-semibold border-border hover:bg-background"
                   >
                     <svg
                       className="w-5 h-5 mr-2"
@@ -242,14 +241,14 @@ export default function LoginPage() {
                       <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                     </svg>
                     Iniciar sesión con Google
-                  </Button>
+                  </Button> */}
 
                   {/* Info Text */}
                   <div className="text-center space-y-2 pt-4">
-                    <p className="text-xs text-[#8392ab]">
+                    <p className="text-xs text-secondary">
                       Solo usuarios autorizados pueden acceder
                     </p>
-                    <p className="text-xs text-[#8392ab]">
+                    <p className="text-xs text-secondary">
                       Contacta al administrador si necesitas acceso
                     </p>
                   </div>
