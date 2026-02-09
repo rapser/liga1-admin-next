@@ -46,30 +46,34 @@ export default function DashboardPage() {
         const jornadas = await jornadaRepository.fetchVisibleJornadas();
         setJornadasCount(jornadas.length);
 
-        // Obtener todos los partidos de todas las jornadas
+        // Obtener todos los partidos de todas las jornadas en paralelo
         const allMatches: UpcomingMatch[] = [];
         const now = new Date();
         // Resetear horas para comparar solo fechas (día/mes/año)
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
+
         // Normalizar fecha de hoy
         const todayKey = normalizeDate(today);
 
-        for (const jornada of jornadas) {
-          try {
-            const matches = await matchRepository.fetchMatches(jornada.id);
-            matches.forEach(match => {
-              // Solo incluir partidos pendientes
-              if (match.estado === 'pendiente') {
-                allMatches.push({
-                  ...match,
-                  jornadaId: jornada.id,
-                });
-              }
-            });
-          } catch (error) {
-            console.error(`Error al cargar partidos de jornada ${jornada.id}:`, error);
-          }
+        // Cargar partidos de todas las jornadas en paralelo (antes era secuencial)
+        const matchesPerJornada = await Promise.all(
+          jornadas.map(jornada =>
+            matchRepository.fetchMatches(jornada.id)
+              .then(matches => ({ jornadaId: jornada.id, matches }))
+              .catch(() => ({ jornadaId: jornada.id, matches: [] as Match[] }))
+          )
+        );
+
+        for (const { jornadaId, matches } of matchesPerJornada) {
+          matches.forEach(match => {
+            // Solo incluir partidos pendientes
+            if (match.estado === 'pendiente') {
+              allMatches.push({
+                ...match,
+                jornadaId,
+              });
+            }
+          });
         }
 
         if (allMatches.length === 0) {

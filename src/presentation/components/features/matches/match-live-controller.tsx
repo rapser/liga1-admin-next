@@ -29,7 +29,7 @@ interface MatchLiveControllerProps {
   jornadaId: string;
   torneo: TorneoType;
   matchStateService: MatchStateService;
-  onStateChange?: () => void;
+  onStateChange?: (updates?: Partial<Match>) => void;
 }
 
 /**
@@ -123,26 +123,12 @@ export function MatchLiveController({
 }: MatchLiveControllerProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Usar el hook useMatchTimer que actualiza cada segundo
   // El hook fuerza re-renders cada segundo porque actualiza currentTime internamente
+  // No se necesita un segundo setInterval — el hook ya maneja las actualizaciones periódicas
   const { minutoActual, primeraParte, tiempoAgregado, tiempoAgregadoPrimera } =
     useMatchTimer(match.estado === "envivo" ? match : null, 1000);
-
-  // Forzar re-render cada segundo cuando el partido está en vivo
-  // Esto asegura que getMatchElapsedMinutes se recalcule y los componentes condicionales se muestren
-  useEffect(() => {
-    if (match.estado !== "envivo") {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [match.estado]);
 
   const handleStartMatch = async () => {
     if (match.estado !== "pendiente") {
@@ -166,7 +152,7 @@ export function MatchLiveController({
         toast.success("Partido iniciado exitosamente");
       }
 
-      onStateChange?.();
+      onStateChange?.({ estado: "envivo" });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message :"Error al iniciar el partido");
     } finally {
@@ -189,7 +175,7 @@ export function MatchLiveController({
     try {
       await matchStateService.finishMatch(jornadaId, match.id, torneo);
       toast.success("Partido finalizado exitosamente");
-      onStateChange?.();
+      onStateChange?.({ estado: "finalizado" });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message :"Error al finalizar el partido");
     } finally {
@@ -206,7 +192,7 @@ export function MatchLiveController({
         visitor,
         torneo,
       );
-      onStateChange?.();
+      onStateChange?.({ golesEquipoLocal: local, golesEquipoVisitante: visitor });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message :"Error al actualizar el marcador");
       throw error;
@@ -223,7 +209,7 @@ export function MatchLiveController({
     try {
       await matchStateService.resumeSecondHalf(jornadaId, match.id);
       toast.success("Segunda parte iniciada");
-      onStateChange?.();
+      onStateChange?.({ enDescanso: false, primeraParte: false, horaInicioSegundaParte: new Date() });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message :"Error al reanudar la segunda parte");
     } finally {
@@ -244,7 +230,7 @@ export function MatchLiveController({
         if (tiempoAgregadoPrimera === 0 && minutosTranscurridos >= 45) {
           try {
             await matchStateService.finishFirstHalf(jornadaId, match.id);
-            onStateChange?.();
+            onStateChange?.({ enDescanso: true });
           } catch {
             // Error silencioso - se reintentará en el siguiente intervalo
           }
@@ -256,7 +242,7 @@ export function MatchLiveController({
         ) {
           try {
             await matchStateService.finishFirstHalf(jornadaId, match.id);
-            onStateChange?.();
+            onStateChange?.({ enDescanso: true });
           } catch {
             // Error silencioso - se reintentará en el siguiente intervalo
           }
@@ -311,7 +297,7 @@ export function MatchLiveController({
                   toast.info(
                     "Partido finalizado automáticamente después de consumir los minutos adicionales",
                   );
-                  onStateChange?.();
+                  onStateChange?.({ estado: "finalizado" });
                 } catch {
                   // Error silencioso - se reintentará en el siguiente intervalo
                 }
@@ -508,7 +494,7 @@ export function MatchLiveController({
               matchId={match.id}
               currentAddedTime={tiempoAgregadoPrimera}
               matchStateService={matchStateService}
-              onTimeUpdated={onStateChange}
+              onTimeUpdated={() => onStateChange?.()}
             />
           </div>
         )}
@@ -522,7 +508,7 @@ export function MatchLiveController({
               matchId={match.id}
               currentAddedTime={tiempoAgregado}
               matchStateService={matchStateService}
-              onTimeUpdated={onStateChange}
+              onTimeUpdated={() => onStateChange?.()}
             />
           </div>
         )}

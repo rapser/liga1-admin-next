@@ -147,7 +147,21 @@ export default function JornadasPage() {
   }, [authLoading]);
 
   useEffect(() => {
+    if (!selectedJornada) return;
+
+    // Carga inicial
     loadMatches();
+
+    // Suscripción en tiempo real: actualiza partidos automáticamente
+    // cuando cambian marcadores, estados, etc. (incluso desde onTimeUpdated)
+    const unsubscribe = matchRepository.observeMatches(selectedJornada, (updatedMatches) => {
+      const sorted = [...updatedMatches].sort(
+        (a, b) => a.fecha.getTime() - b.fecha.getTime(),
+      );
+      setMatches(sorted);
+    });
+
+    return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJornada]);
 
@@ -285,7 +299,19 @@ export default function JornadasPage() {
                           torneo={getTorneoTypeFromJornadaId(
                             selectedJornadaData.id,
                           )}
-                          onMatchChange={loadMatches}
+                          onMatchChange={(matchId, updates) => {
+                            if (updates) {
+                              // Actualización optimista: merge local sin recargar
+                              setMatches(prev =>
+                                prev.map(m =>
+                                  m.id === matchId ? { ...m, ...updates } : m
+                                )
+                              );
+                            } else {
+                              // Fallback: recargar todos los partidos
+                              loadMatches();
+                            }
+                          }}
                         />
                       ))}
                     </div>
@@ -304,7 +330,7 @@ interface MatchCardProps {
   match: Match;
   jornadaId: string;
   torneo: TorneoType;
-  onMatchChange: () => void;
+  onMatchChange: (matchId: string, updates?: Partial<Match>) => void;
 }
 
 function MatchCard({
@@ -453,7 +479,7 @@ function MatchCard({
           jornadaId={jornadaId}
           torneo={torneo}
           matchStateService={matchStateService}
-          onStateChange={onMatchChange}
+          onStateChange={(updates) => onMatchChange(match.id, updates)}
         />
       </div>
     </div>

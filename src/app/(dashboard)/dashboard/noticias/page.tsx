@@ -77,12 +77,16 @@ export default function NoticiasPage() {
         urlExterna: formData.url,
       };
       
-      await newsRepository.createNews(newNews);
+      const newId = await newsRepository.createNews(newNews);
       toast.success('Noticia creada exitosamente');
       setOpenDialog(false);
-      
-      // Recargar noticias
-      await loadNews();
+
+      // Actualización optimista: agregar la noticia al estado local sin recargar todo
+      const createdNews: NewsItem = {
+        id: newId,
+        ...newNews,
+      };
+      setNews(prev => [createdNews, ...prev]);
     } catch (error: unknown) {
       console.error('Error al crear noticia:', error);
       toast.error('Error al crear la noticia: ' + (error instanceof Error ? error.message : 'Error desconocido'));
@@ -115,9 +119,13 @@ export default function NoticiasPage() {
       toast.success('Noticia actualizada exitosamente');
       setOpenEditDialog(false);
       setEditingNews(null);
-      
-      // Recargar noticias
-      await loadNews();
+
+      // Actualización optimista: merge local sin recargar todo
+      setNews(prev =>
+        prev.map(n =>
+          n.id === newsId ? { ...n, ...updates } : n
+        )
+      );
     } catch (error: unknown) {
       console.error('Error al actualizar noticia:', error);
       toast.error('Error al actualizar la noticia: ' + (error instanceof Error ? error.message : 'Error desconocido'));

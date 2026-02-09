@@ -26,28 +26,32 @@ export default function PosicionesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadTables = async () => {
+    if (authLoading) return;
+
+    // Carga inicial
+    const loadInitial = async () => {
       try {
         setLoading(true);
-
-        // Solo cargar tabla de apertura (clausura y acumulado no se cargan todavía)
         const apertura = await teamRepository.fetchStandings('apertura');
-
-        // Ordenar equipos por posición
         setAperturaTeams([...apertura].sort(compareTeams));
-        // Clausura y acumulado se mantienen vacíos (empty view)
         setClausuraTeams([]);
         setAcumuladoTeams([]);
-      } catch (error) {
-        console.error('Error al cargar las tablas:', error);
+      } catch {
+        // Error silencioso en carga inicial
       } finally {
         setLoading(false);
       }
     };
 
-    if (!authLoading) {
-      loadTables();
-    }
+    loadInitial();
+
+    // Suscripción en tiempo real: actualiza la tabla automáticamente
+    // cuando cambian estadísticas de equipos (ej: durante partidos en vivo)
+    const unsubscribe = teamRepository.observeStandings('apertura', (teams) => {
+      setAperturaTeams([...teams].sort(compareTeams));
+    });
+
+    return () => unsubscribe();
   }, [authLoading]);
 
   if (authLoading || loading) {

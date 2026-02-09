@@ -138,6 +138,77 @@ export class TeamRepository implements ITeamRepository {
   }
 
   /**
+   * Escribe estadísticas directamente sin leer primero (evita read redundante)
+   * Mapea campos del dominio (partidosGanados, etc.) a Firestore (matchesWon, etc.)
+   */
+  async writeTeamStats(
+    torneo: TorneoType | 'acumulado',
+    teamId: string,
+    stats: Partial<Team>
+  ): Promise<void> {
+    const collectionName =
+      torneo === 'apertura'
+        ? FIRESTORE_COLLECTIONS.APERTURA
+        : torneo === 'clausura'
+        ? FIRESTORE_COLLECTIONS.CLAUSURA
+        : FIRESTORE_COLLECTIONS.ACUMULADO;
+
+    const teamRef = doc(db, collectionName, teamId);
+
+    // Mapear campos del dominio a campos de Firestore directamente
+    const updateData: Record<string, unknown> = {};
+    if (stats.partidosJugados !== undefined) updateData.matchesPlayed = stats.partidosJugados;
+    if (stats.partidosGanados !== undefined) updateData.matchesWon = stats.partidosGanados;
+    if (stats.partidosEmpatados !== undefined) updateData.matchesDrawn = stats.partidosEmpatados;
+    if (stats.partidosPerdidos !== undefined) updateData.matchesLost = stats.partidosPerdidos;
+    if (stats.golesFavor !== undefined) updateData.goalsScored = stats.golesFavor;
+    if (stats.golesContra !== undefined) updateData.goalsAgainst = stats.golesContra;
+    if (stats.diferenciaGoles !== undefined) updateData.goalDifference = stats.diferenciaGoles;
+    if (stats.puntos !== undefined) updateData.points = stats.puntos;
+
+    await updateDoc(teamRef, updateData);
+  }
+
+  /**
+   * Escribe estadísticas de múltiples equipos en un solo batch atómico
+   * Reduce múltiples round-trips a uno solo
+   */
+  async batchWriteTeamStats(
+    operations: Array<{
+      torneo: TorneoType | 'acumulado';
+      teamId: string;
+      stats: Partial<Team>;
+    }>
+  ): Promise<void> {
+    const batch = writeBatch(db);
+
+    for (const op of operations) {
+      const collectionName =
+        op.torneo === 'apertura'
+          ? FIRESTORE_COLLECTIONS.APERTURA
+          : op.torneo === 'clausura'
+          ? FIRESTORE_COLLECTIONS.CLAUSURA
+          : FIRESTORE_COLLECTIONS.ACUMULADO;
+
+      const teamRef = doc(db, collectionName, op.teamId);
+
+      const updateData: Record<string, unknown> = {};
+      if (op.stats.partidosJugados !== undefined) updateData.matchesPlayed = op.stats.partidosJugados;
+      if (op.stats.partidosGanados !== undefined) updateData.matchesWon = op.stats.partidosGanados;
+      if (op.stats.partidosEmpatados !== undefined) updateData.matchesDrawn = op.stats.partidosEmpatados;
+      if (op.stats.partidosPerdidos !== undefined) updateData.matchesLost = op.stats.partidosPerdidos;
+      if (op.stats.golesFavor !== undefined) updateData.goalsScored = op.stats.golesFavor;
+      if (op.stats.golesContra !== undefined) updateData.goalsAgainst = op.stats.golesContra;
+      if (op.stats.diferenciaGoles !== undefined) updateData.goalDifference = op.stats.diferenciaGoles;
+      if (op.stats.puntos !== undefined) updateData.points = op.stats.puntos;
+
+      batch.update(teamRef, updateData);
+    }
+
+    await batch.commit();
+  }
+
+  /**
    * Resetea las estadísticas de todos los equipos en un torneo
    * Útil al iniciar un nuevo torneo
    */

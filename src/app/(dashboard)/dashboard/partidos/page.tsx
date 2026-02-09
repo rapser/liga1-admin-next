@@ -50,33 +50,52 @@ export default function PartidosPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadMatches = async () => {
+    if (authLoading) return;
+
+    const unsubscribes: (() => void)[] = [];
+
+    const loadAndObserve = async () => {
       try {
         setLoading(true);
-        // Obtener solo las jornadas con mostrar = true
         const jornadas = await jornadaRepository.fetchVisibleJornadas();
 
-        // Obtener partidos de las jornadas visibles
-        const matchesPromises = jornadas.map((j) =>
-          matchRepository.fetchMatches(j.id),
+        // Carga inicial en paralelo
+        const matchesArrays = await Promise.all(
+          jornadas.map((j) => matchRepository.fetchMatches(j.id)),
         );
-        const matchesArrays = await Promise.all(matchesPromises);
 
-        // Aplanar el array y ordenar por fecha
         const matches = matchesArrays
           .flat()
           .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
         setAllMatches(matches);
-      } catch (error) {
-        console.error("Error al cargar partidos:", error);
+
+        // Suscripción en tiempo real por cada jornada visible
+        // Cuando un partido cambia estado/marcador, se actualiza automáticamente
+        for (const jornada of jornadas) {
+          const unsub = matchRepository.observeMatches(jornada.id, (updatedMatches) => {
+            setAllMatches(prev => {
+              // Reemplazar los partidos de esta jornada con los actualizados
+              const otherJornadaMatches = prev.filter(
+                m => !updatedMatches.some(um => um.id === m.id)
+              );
+              return [...otherJornadaMatches, ...updatedMatches]
+                .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+            });
+          });
+          unsubscribes.push(unsub);
+        }
+      } catch {
+        // Error silencioso
       } finally {
         setLoading(false);
       }
     };
 
-    if (!authLoading) {
-      loadMatches();
-    }
+    loadAndObserve();
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
   }, [authLoading]);
 
   if (authLoading || loading) {

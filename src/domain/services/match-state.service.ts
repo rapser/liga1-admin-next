@@ -571,25 +571,14 @@ export class MatchStateService {
       puntos: newPuntosVisitante,
     };
 
-    try {
-      // Actualizar la colección del torneo correspondiente (apertura o clausura)
-      // NOTA: 'acumulado' NUNCA existe como colección en Firestore
-      // 'acumulado' solo se usa para cálculos locales combinando apertura + clausura
-      await Promise.all([
-        this.teamRepository.updateTeamStats(
-          torneo,
-          equipoLocalId,
-          newStatsLocal,
-        ),
-        this.teamRepository.updateTeamStats(
-          torneo,
-          equipoVisitanteId,
-          newStatsVisitante,
-        ),
-      ]);
-    } catch (error: unknown) {
-      throw error;
-    }
+    // Actualizar la colección del torneo correspondiente (apertura o clausura)
+    // NOTA: 'acumulado' NUNCA existe como colección en Firestore
+    // 'acumulado' solo se usa para cálculos locales combinando apertura + clausura
+    // Usar batch write para actualizar ambos equipos en un solo round-trip atómico
+    await this.teamRepository.batchWriteTeamStats([
+      { torneo, teamId: equipoLocalId, stats: newStatsLocal },
+      { torneo, teamId: equipoVisitanteId, stats: newStatsVisitante },
+    ]);
   }
 
   /**
@@ -695,17 +684,10 @@ export class MatchStateService {
     // Actualizar en Firestore (solo apertura o clausura)
     // NOTA: 'acumulado' NUNCA existe como colección en Firestore
     // 'acumulado' solo se usa para cálculos locales combinando apertura + clausura
-    await Promise.all([
-      this.teamRepository.updateTeamStats(
-        torneo,
-        match.equipoLocalId,
-        newStatsLocal,
-      ),
-      this.teamRepository.updateTeamStats(
-        torneo,
-        match.equipoVisitanteId,
-        newStatsVisitante,
-      ),
+    // Usar batch write para actualizar ambos equipos en un solo round-trip atómico
+    await this.teamRepository.batchWriteTeamStats([
+      { torneo, teamId: match.equipoLocalId, stats: newStatsLocal },
+      { torneo, teamId: match.equipoVisitanteId, stats: newStatsVisitante },
     ]);
   }
 }
