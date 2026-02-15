@@ -8,7 +8,7 @@
 import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
 import { Navbar } from './navbar';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -16,13 +16,18 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, className }: DashboardLayoutProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
     <div className="relative min-h-screen bg-background">
       {/* Sidebar - Fixed Left */}
-      <Sidebar />
+      <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
 
       {/* Main Content Area */}
-      <div className="ml-64 transition-all duration-300">
+      <div className={cn(
+        'transition-all duration-300',
+        isCollapsed ? 'ml-20' : 'ml-64'
+      )}>
         {/* Navbar - Sticky Top */}
         <Navbar />
 

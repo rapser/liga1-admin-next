@@ -17,7 +17,6 @@ import {
   ChevronLeft,
   LayoutDashboard,
 } from 'lucide-react';
-import { useState } from 'react';
 
 interface NavItem {
   label: string;
@@ -60,11 +59,12 @@ const navItems: NavItem[] = [
 
 interface SidebarProps {
   className?: string;
+  isCollapsed: boolean;
+  setIsCollapsed: (value: boolean) => void;
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, isCollapsed, setIsCollapsed }: SidebarProps) {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
     <aside
