@@ -4,6 +4,7 @@
  */
 
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+import { getAuth, Auth } from 'firebase-admin/auth';
 import { getMessaging, Messaging } from 'firebase-admin/messaging';
 
 // Configuración de Firebase Admin desde variables de entorno
@@ -23,6 +24,7 @@ if (!firebaseAdminConfig.projectId || !firebaseAdminConfig.clientEmail || !fireb
 // Inicializar Firebase Admin solo una vez
 let adminApp: App;
 let messaging: Messaging;
+let adminAuth: Auth;
 
 if (getApps().length === 0) {
   adminApp = initializeApp({
@@ -32,10 +34,12 @@ if (getApps().length === 0) {
       privateKey: firebaseAdminConfig.privateKey,
     }),
   });
+  adminAuth = getAuth(adminApp);
   messaging = getMessaging(adminApp);
 } else {
   adminApp = getApps()[0]!;
+  adminAuth = getAuth(adminApp);
   messaging = getMessaging(adminApp);
 }
 
-export { adminApp, messaging };
+export { adminApp, adminAuth, messaging };

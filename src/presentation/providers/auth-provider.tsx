@@ -70,19 +70,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
           );
 
           if (isAuthorized) {
-            // Crear AdminUser con datos de Firebase Authentication
-            const admin: AdminUser = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName || undefined,
-              photoURL: firebaseUser.photoURL || undefined,
-              role: 'admin', // Por ahora todos son admin
-              createdAt: new Date(),
-            };
-            setAdminUser(admin);
-
             // Registrar el login (por ahora no hace nada)
             await adminRepository.recordUserLogin(firebaseUser.uid);
+
+            // Cookie de sesión primero: el proxy solo deja pasar /dashboard si existe la cookie.
+            // Si redirigimos antes de que esté lista, el proxy manda de vuelta a login y se queda en "Redirigiendo...".
+            let sessionOk = false;
+            try {
+              const idToken = await firebaseUser.getIdToken();
+              const res = await fetch('/api/auth/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken }),
+              });
+              sessionOk = res.ok;
+            } catch {
+              // seguir sin adminUser para no redirigir sin cookie
+            }
+
+            if (sessionOk) {
+              const admin: AdminUser = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                displayName: firebaseUser.displayName || undefined,
+                photoURL: firebaseUser.photoURL || undefined,
+                role: 'admin', // Por ahora todos son admin
+                createdAt: new Date(),
+              };
+              setAdminUser(admin);
+            } else {
+              // Cookie no se pudo crear: dejar de considerar al usuario logueado para no redirigir sin cookie
+              await firebaseSignOut(auth);
+            }
           } else {
             // Usuario no autorizado, cerrar sesión
             setAdminUser(null);
@@ -94,6 +113,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } else {
         setAdminUser(null);
+        // Limpiar cookie de sesión al cerrar sesión (u otro tab)
+        try {
+          await fetch('/api/auth/logout', { method: 'POST' });
+        } catch {
+          // ignorar
+        }
       }
 
       setLoading(false);
@@ -168,6 +193,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
       await firebaseSignOut(auth);
       setUser(null);
       setAdminUser(null);

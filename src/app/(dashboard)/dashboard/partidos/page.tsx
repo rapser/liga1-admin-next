@@ -6,6 +6,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
 import { PageHeader, StatCard } from "@/presentation/components/shared";
 import {
@@ -43,59 +44,47 @@ const getTeamsFromMatchId = (
   };
 };
 
+async function fetchPartidosInitial() {
+  const jornadas = await jornadaRepository.fetchVisibleJornadas();
+  const matchesArrays = await Promise.all(
+    jornadas.map((j) => matchRepository.fetchMatches(j.id)),
+  );
+  const matches = matchesArrays
+    .flat()
+    .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+  return { jornadas, matches };
+}
+
 export default function PartidosPage() {
   const { loading: authLoading } = useRequireAuth();
+  const { data, isLoading: queryLoading } = useQuery({
+    queryKey: ["partidos", "all"],
+    queryFn: fetchPartidosInitial,
+    enabled: !authLoading,
+  });
   const [allMatches, setAllMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
+  const displayMatches = allMatches.length > 0 ? allMatches : (data?.matches ?? []);
+  const loading = queryLoading;
 
   useEffect(() => {
-    if (authLoading) return;
-
+    if (!data) return;
+    setAllMatches(data.matches);
     const unsubscribes: (() => void)[] = [];
-
-    const loadAndObserve = async () => {
-      try {
-        setLoading(true);
-        const jornadas = await jornadaRepository.fetchVisibleJornadas();
-
-        // Carga inicial en paralelo
-        const matchesArrays = await Promise.all(
-          jornadas.map((j) => matchRepository.fetchMatches(j.id)),
-        );
-
-        const matches = matchesArrays
-          .flat()
-          .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-        setAllMatches(matches);
-
-        // Suscripción en tiempo real por cada jornada visible
-        // Cuando un partido cambia estado/marcador, se actualiza automáticamente
-        for (const jornada of jornadas) {
-          const unsub = matchRepository.observeMatches(jornada.id, (updatedMatches) => {
-            setAllMatches(prev => {
-              // Reemplazar los partidos de esta jornada con los actualizados
-              const otherJornadaMatches = prev.filter(
-                m => !updatedMatches.some(um => um.id === m.id)
-              );
-              return [...otherJornadaMatches, ...updatedMatches]
-                .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-            });
-          });
-          unsubscribes.push(unsub);
-        }
-      } catch {
-        // Error silencioso
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadAndObserve();
-
-    return () => {
-      unsubscribes.forEach(unsub => unsub());
-    };
-  }, [authLoading]);
+    for (const jornada of data.jornadas) {
+      const unsub = matchRepository.observeMatches(jornada.id, (updatedMatches) => {
+        setAllMatches((prev) => {
+          const otherJornadaMatches = prev.filter(
+            (m) => !updatedMatches.some((um) => um.id === m.id),
+          );
+          return [...otherJornadaMatches, ...updatedMatches].sort(
+            (a, b) => a.fecha.getTime() - b.fecha.getTime(),
+          );
+        });
+      });
+      unsubscribes.push(unsub);
+    }
+    return () => unsubscribes.forEach((unsub) => unsub());
+  }, [data]);
 
   if (authLoading || loading) {
     return (
@@ -108,16 +97,16 @@ export default function PartidosPage() {
     );
   }
 
-  const enVivoMatches = allMatches.filter(
+  const enVivoMatches = displayMatches.filter(
     (m) => m.estado === "envivo" && !m.suspendido,
   );
-  const proximosMatches = allMatches.filter(
+  const proximosMatches = displayMatches.filter(
     (m) => m.estado === "pendiente" && !m.suspendido,
   );
-  const finalizadosMatches = allMatches.filter(
+  const finalizadosMatches = displayMatches.filter(
     (m) => m.estado === "finalizado",
   );
-  const suspendidosMatches = allMatches.filter((m) => m.suspendido);
+  const suspendidosMatches = displayMatches.filter((m) => m.suspendido);
 
   return (
     <>

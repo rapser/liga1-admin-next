@@ -5,7 +5,8 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
 import { PageHeader, StatCard } from '@/presentation/components/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,34 +27,18 @@ const newsRepository = new NewsRepository();
 
 export default function NoticiasPage() {
   const { loading: authLoading } = useRequireAuth();
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: news = [], isLoading: loading, error: queryError } = useQuery({
+    queryKey: ['noticias', 'all'],
+    queryFn: () => newsRepository.fetchAllNews(),
+    enabled: !authLoading,
+  });
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Error al cargar noticias') : null;
   const [openDialog, setOpenDialog] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingNews, setEditingNews] = useState<NewsItem | null>(null);
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  const loadNews = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await newsRepository.fetchAllNews();
-      setNews(data);
-    } catch (error: unknown) {
-      console.error('Error al cargar noticias:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido al cargar noticias');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!authLoading) {
-      loadNews();
-    }
-  }, [authLoading]);
 
   const handleCreateNews = async (formData: {
     title: string;
@@ -81,11 +66,10 @@ export default function NoticiasPage() {
       setOpenDialog(false);
 
       // Actualización optimista: agregar la noticia al estado local sin recargar todo
-      const createdNews: NewsItem = {
-        id: newId,
-        ...newNews,
-      };
-      setNews(prev => [createdNews, ...prev]);
+      queryClient.setQueryData<NewsItem[]>(['noticias', 'all'], (prev) => {
+        const createdNews: NewsItem = { id: newId, ...newNews };
+        return prev ? [createdNews, ...prev] : [createdNews];
+      });
     } catch (error: unknown) {
       console.error('Error al crear noticia:', error);
       toast.error('Error al crear la noticia: ' + (error instanceof Error ? error.message : 'Error desconocido'));
@@ -119,11 +103,8 @@ export default function NoticiasPage() {
       setOpenEditDialog(false);
       setEditingNews(null);
 
-      // Actualización optimista: merge local sin recargar todo
-      setNews(prev =>
-        prev.map(n =>
-          n.id === newsId ? { ...n, ...updates } : n
-        )
+      queryClient.setQueryData<NewsItem[]>(['noticias', 'all'], (prev) =>
+        prev ? prev.map((n) => (n.id === newsId ? { ...n, ...updates } : n)) : prev
       );
     } catch (error: unknown) {
       console.error('Error al actualizar noticia:', error);

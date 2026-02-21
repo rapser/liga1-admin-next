@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
 import { PageHeader } from '@/presentation/components/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,39 +20,32 @@ const teamRepository = new TeamRepository();
 
 export default function PosicionesPage() {
   const { loading: authLoading } = useRequireAuth();
-  const [aperturaTeams, setAperturaTeams] = useState<Team[]>([]);
+  const { data: aperturaData = [], isLoading: loading } = useQuery({
+    queryKey: ['posiciones', 'apertura'],
+    queryFn: async () => {
+      const data = await teamRepository.fetchStandings('apertura');
+      return [...data].sort(compareTeams);
+    },
+    enabled: !authLoading,
+  });
+  const [aperturaTeams, setAperturaTeams] = useState<Team[]>(aperturaData);
   const [clausuraTeams, setClausuraTeams] = useState<Team[]>([]);
   const [acumuladoTeams, setAcumuladoTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (aperturaData.length > 0) {
+      setAperturaTeams(aperturaData);
+    }
+  }, [aperturaData]);
 
-    // Carga inicial
-    const loadInitial = async () => {
-      try {
-        setLoading(true);
-        const apertura = await teamRepository.fetchStandings('apertura');
-        setAperturaTeams([...apertura].sort(compareTeams));
-        setClausuraTeams([]);
-        setAcumuladoTeams([]);
-      } catch {
-        // Error silencioso en carga inicial
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitial();
-
-    // Suscripción en tiempo real: actualiza la tabla automáticamente
-    // cuando cambian estadísticas de equipos (ej: durante partidos en vivo)
-    const unsubscribe = teamRepository.observeStandings('apertura', (teams) => {
-      setAperturaTeams([...teams].sort(compareTeams));
-    });
-
-    return () => unsubscribe();
-  }, [authLoading]);
+  useEffect(() => {
+    if (!authLoading && aperturaData.length >= 0) {
+      const unsubscribe = teamRepository.observeStandings('apertura', (teams) => {
+        setAperturaTeams([...teams].sort(compareTeams));
+      });
+      return () => unsubscribe();
+    }
+  }, [authLoading, aperturaData.length]);
 
   if (authLoading || loading) {
     return (
