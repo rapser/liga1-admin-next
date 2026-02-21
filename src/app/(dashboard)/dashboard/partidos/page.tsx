@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from "react";
 import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
-import { DashboardLayout } from "@/presentation/components/layout";
 import { PageHeader, StatCard } from "@/presentation/components/shared";
 import {
   Card,
@@ -100,14 +99,12 @@ export default function PartidosPage() {
 
   if (authLoading || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground">Cargando partidos...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground">Cargando partidos...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
@@ -123,7 +120,7 @@ export default function PartidosPage() {
   const suspendidosMatches = allMatches.filter((m) => m.suspendido);
 
   return (
-    <DashboardLayout>
+    <>
       <PageHeader
         title="Partidos"
         description="Gestión de partidos de la Liga 1"
@@ -206,7 +203,7 @@ export default function PartidosPage() {
           />
         </TabsContent>
       </Tabs>
-    </DashboardLayout>
+    </>
   );
 }
 

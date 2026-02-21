@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
-import { DashboardLayout } from '@/presentation/components/layout';
 import { PageHeader } from '@/presentation/components/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -56,19 +55,17 @@ export default function PosicionesPage() {
 
   if (authLoading || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground">Cargando tablas de posiciones...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground">Cargando tablas de posiciones...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <PageHeader
         title="Tabla de Posiciones"
         description="Posiciones de la Liga 1 - Temporada 2026"
@@ -93,7 +90,7 @@ export default function PosicionesPage() {
           <StandingsTable teams={acumuladoTeams} title="Tabla Acumulada" />
         </TabsContent>
       </Tabs>
-    </DashboardLayout>
+    </>
   );
 }
 

@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from "react";
 import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
-import { DashboardLayout } from "@/presentation/components/layout";
 import { PageHeader } from "@/presentation/components/shared";
 import {
   Card,
@@ -167,21 +166,19 @@ export default function JornadasPage() {
 
   if (authLoading || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground">Cargando jornadas...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground">Cargando jornadas...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   const selectedJornadaData = jornadas.find((j) => j.id === selectedJornada);
 
   return (
-    <DashboardLayout>
+    <>
       <PageHeader
         title={
           selectedJornadaData
@@ -322,7 +319,7 @@ export default function JornadasPage() {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

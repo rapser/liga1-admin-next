@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
-import { DashboardLayout } from '@/presentation/components/layout';
 import { PageHeader, StatCard } from '@/presentation/components/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -141,14 +140,12 @@ export default function NoticiasPage() {
 
   if (authLoading || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground">Cargando noticias...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground">Cargando noticias...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
@@ -156,7 +153,7 @@ export default function NoticiasPage() {
   const draftNews = news.filter(n => !n.publicada);
 
   return (
-    <DashboardLayout>
+    <>
       <PageHeader
         title="Noticias"
         description="Gestión de noticias de la Liga 1"
@@ -259,7 +256,7 @@ export default function NoticiasPage() {
           </Dialog>
         </>
       )}
-    </DashboardLayout>
+    </>
   );
 }
 
