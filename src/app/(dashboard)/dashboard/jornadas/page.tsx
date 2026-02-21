@@ -6,8 +6,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
-import { DashboardLayout } from "@/presentation/components/layout";
 import { PageHeader } from "@/presentation/components/shared";
 import {
   Card,
@@ -96,11 +96,24 @@ const getTeamsFromMatchId = (
 
 export default function JornadasPage() {
   const { loading: authLoading } = useRequireAuth();
-  const [jornadas, setJornadas] = useState<Jornada[]>([]);
+  const { data: jornadasData = [], isLoading: loading } = useQuery({
+    queryKey: ["jornadas", "list"],
+    queryFn: async () => {
+      const data = await jornadaRepository.fetchVisibleJornadas();
+      return [...data].sort((a, b) => a.numero - b.numero);
+    },
+    enabled: !authLoading,
+  });
+  const jornadas = jornadasData;
   const [selectedJornada, setSelectedJornada] = useState<string | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
   const [loadingMatches, setLoadingMatches] = useState(false);
+
+  useEffect(() => {
+    if (jornadas.length > 0 && jornadas[0] && !selectedJornada) {
+      setSelectedJornada(jornadas[0].id);
+    }
+  }, [jornadas, selectedJornada]);
 
   const loadMatches = async () => {
     if (!selectedJornada) return;
@@ -119,32 +132,6 @@ export default function JornadasPage() {
       setLoadingMatches(false);
     }
   };
-
-  useEffect(() => {
-    const loadJornadas = async () => {
-      try {
-        setLoading(true);
-        // Obtener solo las jornadas con mostrar = true
-        const data = await jornadaRepository.fetchVisibleJornadas();
-        // Ordenar por número de jornada
-        const sorted = [...data].sort((a, b) => a.numero - b.numero);
-        setJornadas(sorted);
-
-        // Seleccionar la primera jornada visible por defecto
-        if (sorted.length > 0 && sorted[0]) {
-          setSelectedJornada(sorted[0].id);
-        }
-      } catch (error) {
-        console.error("Error al cargar jornadas:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (!authLoading) {
-      loadJornadas();
-    }
-  }, [authLoading]);
 
   useEffect(() => {
     if (!selectedJornada) return;
@@ -167,21 +154,19 @@ export default function JornadasPage() {
 
   if (authLoading || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground">Cargando jornadas...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground">Cargando jornadas...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   const selectedJornadaData = jornadas.find((j) => j.id === selectedJornada);
 
   return (
-    <DashboardLayout>
+    <>
       <PageHeader
         title={
           selectedJornadaData
@@ -322,7 +307,7 @@ export default function JornadasPage() {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

@@ -6,8 +6,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
-import { DashboardLayout } from '@/presentation/components/layout';
 import { PageHeader } from '@/presentation/components/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,55 +20,46 @@ const teamRepository = new TeamRepository();
 
 export default function PosicionesPage() {
   const { loading: authLoading } = useRequireAuth();
-  const [aperturaTeams, setAperturaTeams] = useState<Team[]>([]);
+  const { data: aperturaData = [], isLoading: loading } = useQuery({
+    queryKey: ['posiciones', 'apertura'],
+    queryFn: async () => {
+      const data = await teamRepository.fetchStandings('apertura');
+      return [...data].sort(compareTeams);
+    },
+    enabled: !authLoading,
+  });
+  const [aperturaTeams, setAperturaTeams] = useState<Team[]>(aperturaData);
   const [clausuraTeams, setClausuraTeams] = useState<Team[]>([]);
   const [acumuladoTeams, setAcumuladoTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (aperturaData.length > 0) {
+      setAperturaTeams(aperturaData);
+    }
+  }, [aperturaData]);
 
-    // Carga inicial
-    const loadInitial = async () => {
-      try {
-        setLoading(true);
-        const apertura = await teamRepository.fetchStandings('apertura');
-        setAperturaTeams([...apertura].sort(compareTeams));
-        setClausuraTeams([]);
-        setAcumuladoTeams([]);
-      } catch {
-        // Error silencioso en carga inicial
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitial();
-
-    // Suscripción en tiempo real: actualiza la tabla automáticamente
-    // cuando cambian estadísticas de equipos (ej: durante partidos en vivo)
-    const unsubscribe = teamRepository.observeStandings('apertura', (teams) => {
-      setAperturaTeams([...teams].sort(compareTeams));
-    });
-
-    return () => unsubscribe();
-  }, [authLoading]);
+  useEffect(() => {
+    if (!authLoading && aperturaData.length >= 0) {
+      const unsubscribe = teamRepository.observeStandings('apertura', (teams) => {
+        setAperturaTeams([...teams].sort(compareTeams));
+      });
+      return () => unsubscribe();
+    }
+  }, [authLoading, aperturaData.length]);
 
   if (authLoading || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground">Cargando tablas de posiciones...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground">Cargando tablas de posiciones...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <PageHeader
         title="Tabla de Posiciones"
         description="Posiciones de la Liga 1 - Temporada 2026"
@@ -93,7 +84,7 @@ export default function PosicionesPage() {
           <StandingsTable teams={acumuladoTeams} title="Tabla Acumulada" />
         </TabsContent>
       </Tabs>
-    </DashboardLayout>
+    </>
   );
 }
 
