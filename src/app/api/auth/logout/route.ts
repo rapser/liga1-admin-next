@@ -1,6 +1,6 @@
 /**
  * Limpia la cookie de sesión.
- * El cliente debe llamar tras cerrar sesión en Firebase para que el middleware deje de considerar la sesión activa.
+ * El cliente debe llamar tras cerrar sesión en Firebase para que el proxy deje de considerar la sesión activa.
  */
 
 import { NextResponse } from 'next/server';

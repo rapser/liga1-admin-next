@@ -1,6 +1,6 @@
 /**
  * Crea la cookie de sesión a partir del ID token de Firebase.
- * El cliente debe llamar a este endpoint tras iniciar sesión para que el middleware pueda proteger rutas.
+ * El cliente debe llamar a este endpoint tras iniciar sesión para que el proxy pueda proteger rutas.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
