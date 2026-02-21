@@ -7,7 +7,6 @@
 
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
 import { useAuth } from '@/presentation/providers/auth-provider';
-import { DashboardLayout } from '@/presentation/components/layout';
 import { PageHeader } from '@/presentation/components/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,19 +32,17 @@ export default function ConfiguracionPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-foreground">Cargando configuración...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-foreground">Cargando configuración...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <PageHeader
         title="Configuración"
         description="Gestiona tu perfil y preferencias del sistema"
@@ -244,6 +241,6 @@ export default function ConfiguracionPage() {
           </Card>
         )}
       </div>
-    </DashboardLayout>
+    </>
   );
 }

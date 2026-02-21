@@ -5,9 +5,8 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
-import { DashboardLayout } from '@/presentation/components/layout';
 import { StatCard } from '@/presentation/components/shared';
 import { PageHeader } from '@/presentation/components/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,147 +26,122 @@ interface UpcomingMatch extends Match {
   jornadaId: string;
 }
 
+interface DashboardData {
+  jornadasCount: number;
+  currentFecha: number | null;
+  currentTorneo: string | null;
+  upcomingMatches: UpcomingMatch[];
+  nextMatchDate: Date | null;
+}
+
+async function fetchDashboardData(): Promise<DashboardData> {
+  const jornadas = await jornadaRepository.fetchVisibleJornadas();
+  const allMatches: UpcomingMatch[] = [];
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayKey = normalizeDate(today);
+
+  const matchesPerJornada = await Promise.all(
+    jornadas.map(jornada =>
+      matchRepository.fetchMatches(jornada.id)
+        .then(matches => ({ jornadaId: jornada.id, matches }))
+        .catch(() => ({ jornadaId: jornada.id, matches: [] as Match[] }))
+    )
+  );
+
+  for (const { jornadaId, matches } of matchesPerJornada) {
+    matches.forEach(match => {
+      if (match.estado === 'pendiente') {
+        allMatches.push({ ...match, jornadaId });
+      }
+    });
+  }
+
+  if (allMatches.length === 0) {
+    return {
+      jornadasCount: jornadas.length,
+      currentFecha: null,
+      currentTorneo: null,
+      upcomingMatches: [],
+      nextMatchDate: null,
+    };
+  }
+
+  const matchesByDate = new Map<string, UpcomingMatch[]>();
+  allMatches.forEach(match => {
+    const dateKey = normalizeDate(match.fecha);
+    if (dateKey >= todayKey) {
+      if (!matchesByDate.has(dateKey)) matchesByDate.set(dateKey, []);
+      matchesByDate.get(dateKey)!.push(match);
+    }
+  });
+
+  if (matchesByDate.size === 0) {
+    return {
+      jornadasCount: jornadas.length,
+      currentFecha: null,
+      currentTorneo: null,
+      upcomingMatches: [],
+      nextMatchDate: null,
+    };
+  }
+
+  const sortedDateKeys = Array.from(matchesByDate.keys()).sort();
+  const nextDateKey = sortedDateKeys[0]!;
+  const matchesOnNextDate = matchesByDate.get(nextDateKey) || [];
+  const filteredMatches = matchesOnNextDate.filter(match =>
+    normalizeDate(match.fecha) === nextDateKey
+  );
+
+  const [year = 0, month = 1, day = 1] = nextDateKey.split('-').map(Number);
+  const nextMatchDate = new Date(year, month - 1, day);
+
+  filteredMatches.sort((a, b) => {
+    const fechaA = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
+    const fechaB = b.fecha instanceof Date ? b.fecha : new Date(b.fecha);
+    return fechaA.getTime() - fechaB.getTime();
+  });
+
+  let currentFecha: number | null = null;
+  let currentTorneo: string | null = null;
+  if (filteredMatches.length > 0) {
+    const parts = filteredMatches[0]!.jornadaId.split('_');
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      currentFecha = parseInt(parts[1], 10);
+      currentTorneo = parts[0];
+    }
+  }
+
+  return {
+    jornadasCount: jornadas.length,
+    currentFecha,
+    currentTorneo,
+    upcomingMatches: filteredMatches,
+    nextMatchDate,
+  };
+}
+
 export default function DashboardPage() {
   const { loading } = useRequireAuth();
-  const [jornadasCount, setJornadasCount] = useState(0);
-  const [currentFecha, setCurrentFecha] = useState<number | null>(null);
-  const [currentTorneo, setCurrentTorneo] = useState<string | null>(null);
-  const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
-  const [nextMatchDate, setNextMatchDate] = useState<Date | null>(null);
-  const [loadingData, setLoadingData] = useState(true);
+  const {
+    data,
+    isLoading: loadingData,
+  } = useQuery({
+    queryKey: ['dashboard', 'home'],
+    queryFn: fetchDashboardData,
+    enabled: !loading,
+    refetchInterval: 60 * 60 * 1000, // 1 hora (solo cuando la pestaña está activa)
+  });
 
-  useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setLoadingData(true);
-        
-        // IMPORTANTE: Solo obtener jornadas con mostrar = true
-        // Las jornadas con mostrar = false no se consideran
-        const jornadas = await jornadaRepository.fetchVisibleJornadas();
-        setJornadasCount(jornadas.length);
-
-        // Obtener todos los partidos de todas las jornadas en paralelo
-        const allMatches: UpcomingMatch[] = [];
-        const now = new Date();
-        // Resetear horas para comparar solo fechas (día/mes/año)
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-        // Normalizar fecha de hoy
-        const todayKey = normalizeDate(today);
-
-        // Cargar partidos de todas las jornadas en paralelo (antes era secuencial)
-        const matchesPerJornada = await Promise.all(
-          jornadas.map(jornada =>
-            matchRepository.fetchMatches(jornada.id)
-              .then(matches => ({ jornadaId: jornada.id, matches }))
-              .catch(() => ({ jornadaId: jornada.id, matches: [] as Match[] }))
-          )
-        );
-
-        for (const { jornadaId, matches } of matchesPerJornada) {
-          matches.forEach(match => {
-            // Solo incluir partidos pendientes
-            if (match.estado === 'pendiente') {
-              allMatches.push({
-                ...match,
-                jornadaId,
-              });
-            }
-          });
-        }
-
-        if (allMatches.length === 0) {
-          setUpcomingMatches([]);
-          setNextMatchDate(null);
-          return;
-        }
-
-        // Agrupar partidos por fecha normalizada (solo fechas >= hoy)
-        const matchesByDate = new Map<string, UpcomingMatch[]>();
-        
-        allMatches.forEach(match => {
-          const dateKey = normalizeDate(match.fecha);
-          // Solo incluir partidos de hoy o futuros (no días pasados)
-          if (dateKey >= todayKey) {
-            if (!matchesByDate.has(dateKey)) {
-              matchesByDate.set(dateKey, []);
-            }
-            matchesByDate.get(dateKey)!.push(match);
-          }
-        });
-
-        if (matchesByDate.size === 0) {
-          setUpcomingMatches([]);
-          setNextMatchDate(null);
-          return;
-        }
-
-        // Obtener todas las fechas futuras y ordenarlas (la más próxima primero)
-        const sortedDateKeys = Array.from(matchesByDate.keys()).sort();
-
-        // IMPORTANTE: Buscar la fecha más próxima que tenga partidos
-        // Puede ser hoy, mañana, o cualquier día futuro (ej: 30 de enero si hoy es 19)
-        // Pero solo mostrar los partidos de ESA fecha, no de otras fechas
-        const nextDateKey = sortedDateKeys[0]!;
-        const matchesOnNextDate = matchesByDate.get(nextDateKey) || [];
-
-        // Validación: asegurarse de que solo tenemos partidos de la fecha más próxima
-        const filteredMatches = matchesOnNextDate.filter(match =>
-          normalizeDate(match.fecha) === nextDateKey
-        );
-
-        // Convertir nextDateKey a Date para mostrar
-        const [year = 0, month = 1, day = 1] = nextDateKey.split('-').map(Number);
-        const nextDate = new Date(year, month - 1, day);
-        setNextMatchDate(nextDate);
-
-        // Ordenar por hora del partido (más próximo primero, de arriba hacia abajo)
-        filteredMatches.sort((a, b) => {
-          const fechaA = a.fecha instanceof Date ? a.fecha : new Date(a.fecha);
-          const fechaB = b.fecha instanceof Date ? b.fecha : new Date(b.fecha);
-          return fechaA.getTime() - fechaB.getTime();
-        });
-
-        // Obtener la fecha (jornada) del primer partido próximo
-        // Extraemos el número y torneo directamente del jornadaId (ej: "apertura_02" → 2, "apertura")
-        if (filteredMatches.length > 0) {
-          const firstMatch = filteredMatches[0]!;
-          const parts = firstMatch.jornadaId.split('_');
-          if (parts.length >= 2 && parts[0] && parts[1]) {
-            setCurrentFecha(parseInt(parts[1], 10));
-            setCurrentTorneo(parts[0]);
-          }
-        }
-
-        // Asegurarse de que solo se establezcan los partidos filtrados
-        if (filteredMatches.length > 0) {
-          setUpcomingMatches(filteredMatches);
-        } else {
-          setUpcomingMatches([]);
-        }
-      } catch (error) {
-        console.error('Error al cargar datos del dashboard:', error);
-      } finally {
-        setLoadingData(false);
-      }
-    };
-
-    if (!loading) {
-      loadDashboardData();
-      
-      // Actualizar automáticamente cada hora para detectar cuando cambia el día
-      // y mostrar la siguiente fecha próxima
-      const interval = setInterval(() => {
-        loadDashboardData();
-      }, 60 * 60 * 1000); // Cada hora
-
-      return () => clearInterval(interval);
-    }
-  }, [loading]);
+  const jornadasCount = data?.jornadasCount ?? 0;
+  const currentFecha = data?.currentFecha ?? null;
+  const currentTorneo = data?.currentTorneo ?? null;
+  const upcomingMatches = data?.upcomingMatches ?? [];
+  const nextMatchDate = data?.nextMatchDate ?? null;
 
   if (loading || loadingData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-foreground">Cargando dashboard...</p>
@@ -199,7 +173,7 @@ export default function DashboardPage() {
     : 'No hay partidos programados';
 
   return (
-    <DashboardLayout>
+    <>
       {/* Page Header */}
       <PageHeader
         title="Dashboard"
@@ -335,6 +309,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
