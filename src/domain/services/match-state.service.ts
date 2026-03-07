@@ -76,9 +76,19 @@ export class MatchStateService {
 
     } else {
       // MODO NORMAL: Partido en tiempo real
+      const fechaPartido =
+        match.fecha instanceof Date ? match.fecha : new Date(match.fecha);
+      const elapsedMs = ahora.getTime() - fechaPartido.getTime();
+
+      // Si el partido ya debería haber empezado (hora programada en el pasado),
+      // usar la hora programada como horaInicio para que el minutero refleje
+      // el tiempo real transcurrido (ej: 30' si se inició 30 min tarde).
+      // Si todavía no ha llegado la hora programada, usar la hora actual (0 min).
+      const horaInicio = elapsedMs > 0 ? fechaPartido : ahora;
+
       updates = {
         estado: "envivo",
-        horaInicio: ahora,
+        horaInicio,
         primeraParte: true,
         tiempoAgregado: 0,
         tiempoAgregadoPrimeraParte: 0,

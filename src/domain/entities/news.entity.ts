@@ -19,14 +19,14 @@ export interface NewsItem {
   /** Fecha de publicación */
   fechaPublicacion: Date;
 
-  /** Indica si la noticia está publicada y visible */
+  /** Indica si la noticia está publicada y visible al público (vs borrador) */
   publicada: boolean;
 
   /** Autor de la noticia */
   autor?: string;
 
   /** Categoría de la noticia */
-  categoria?: 'resultado' | 'fixture' | 'tabla' | 'general' | 'comunicado';
+  categoria?: 'general' | 'resultado' | 'fixture' | 'comunicado' | 'destacado' | 'partidos' | 'fichajes' | 'equipos' | 'jugadores' | 'tabla' | 'estadisticas';
 
   /** Tags relacionados con la noticia */
   tags?: string[];
@@ -41,7 +41,7 @@ export interface NewsItem {
 export const createNewsItem = (
   titulo: string,
   contenido: string,
-  categoria: NewsItem['categoria'] = 'general'
+  categoria: NewsItem['categoria'] = 'general',
 ): Omit<NewsItem, 'id'> => ({
   titulo,
   contenido,
@@ -82,11 +82,17 @@ export const formatNewsCategory = (categoria: NewsItem['categoria']): string => 
   if (!categoria) return 'General';
 
   const categoriaMap: Record<NonNullable<NewsItem['categoria']>, string> = {
+    general: 'General',
     resultado: 'Resultado',
     fixture: 'Fixture',
-    tabla: 'Tabla de Posiciones',
-    general: 'General',
     comunicado: 'Comunicado Oficial',
+    destacado: 'Destacado',
+    partidos: 'Partidos',
+    fichajes: 'Fichajes',
+    equipos: 'Equipos',
+    jugadores: 'Jugadores',
+    tabla: 'Tabla de Posiciones',
+    estadisticas: 'Estadísticas',
   };
 
   return categoriaMap[categoria];

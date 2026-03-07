@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { NewsItem } from '@/domain/entities/news.entity';
 import { NewsRepository } from '@/data/repositories/news.repository';
-import { Newspaper, Eye, Clock, CheckCircle2, Plus, Pencil } from 'lucide-react';
+import { Newspaper, Clock, CheckCircle2, Plus, Pencil, Globe, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -40,11 +40,27 @@ export default function NoticiasPage() {
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const handleTogglePublication = async (newsItem: NewsItem) => {
+    const newState = !newsItem.publicada;
+    queryClient.setQueryData<NewsItem[]>(['noticias', 'all'], (prev) =>
+      prev ? prev.map((n) => (n.id === newsItem.id ? { ...n, publicada: newState } : n)) : prev
+    );
+    try {
+      await newsRepository.toggleNewsPublication(newsItem.id, newState);
+      toast.success(newState ? 'Noticia publicada' : 'Noticia guardada como borrador');
+    } catch {
+      queryClient.setQueryData<NewsItem[]>(['noticias', 'all'], (prev) =>
+        prev ? prev.map((n) => (n.id === newsItem.id ? { ...n, publicada: !newState } : n)) : prev
+      );
+      toast.error('Error al cambiar el estado de la noticia');
+    }
+  };
+
   const handleCreateNews = async (formData: {
     title: string;
     image?: string;
     categoria?: NewsItem['categoria'];
-    destacada: boolean;
+    publicada: boolean;
     periodico?: string;
     url?: string;
   }) => {
@@ -52,11 +68,11 @@ export default function NoticiasPage() {
       setIsCreating(true);
       const newNews: Omit<NewsItem, 'id'> = {
         titulo: formData.title,
-        contenido: formData.title, // Usar el título como contenido por defecto
+        contenido: formData.title,
         imagenUrl: formData.image,
         categoria: formData.categoria || 'general',
-        fechaPublicacion: new Date(), // Fecha actual
-        publicada: formData.destacada,
+        fechaPublicacion: new Date(),
+        publicada: formData.publicada,
         autor: formData.periodico,
         urlExterna: formData.url,
       };
@@ -82,7 +98,7 @@ export default function NoticiasPage() {
     title: string;
     image?: string;
     categoria?: NewsItem['categoria'];
-    destacada: boolean;
+    publicada: boolean;
     periodico?: string;
     url?: string;
   }) => {
@@ -90,10 +106,10 @@ export default function NoticiasPage() {
       setIsUpdating(true);
       const updates: Partial<NewsItem> = {
         titulo: formData.title,
-        contenido: formData.title, // Usar el título como contenido
+        contenido: formData.title,
         imagenUrl: formData.image,
         categoria: formData.categoria || 'general',
-        publicada: formData.destacada,
+        publicada: formData.publicada,
         autor: formData.periodico,
         urlExterna: formData.url,
       };
@@ -215,7 +231,7 @@ export default function NoticiasPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {news.map((item) => (
-              <NewsCard key={item.id} news={item} onEdit={handleEditClick} />
+              <NewsCard key={item.id} news={item} onEdit={handleEditClick} onTogglePublication={handleTogglePublication} />
             ))}
           </div>
 
@@ -244,9 +260,10 @@ export default function NoticiasPage() {
 interface NewsCardProps {
   news: NewsItem;
   onEdit: (news: NewsItem) => void;
+  onTogglePublication: (news: NewsItem) => void;
 }
 
-function NewsCard({ news, onEdit }: NewsCardProps) {
+function NewsCard({ news, onEdit, onTogglePublication }: NewsCardProps) {
   return (
     <Card className="shadow-soft border-0 hover:shadow-soft-lg transition-shadow overflow-hidden p-0 h-[350px] flex flex-col">
       {/* Image Header */}
@@ -257,11 +274,16 @@ function NewsCard({ news, onEdit }: NewsCardProps) {
             alt={news.titulo}
             className="w-full h-full object-cover rounded-t-xl"
           />
-          <div className="absolute top-4 left-4">
+          <div className="absolute top-4 left-4 flex gap-2">
             <Badge
               variant={news.publicada ? 'default' : 'secondary'}
-              className={news.publicada ? 'bg-gradient-success border-0 shadow-soft' : ''}
+              className={`cursor-pointer select-none ${news.publicada ? 'bg-gradient-success border-0 shadow-soft' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePublication(news);
+              }}
             >
+              {news.publicada ? <Globe className="h-3 w-3 mr-1" /> : <FileText className="h-3 w-3 mr-1" />}
               {news.publicada ? 'Publicada' : 'Borrador'}
             </Badge>
           </div>
@@ -296,12 +318,26 @@ function NewsCard({ news, onEdit }: NewsCardProps) {
   );
 }
 
+const CATEGORIAS: { value: NewsItem['categoria']; label: string }[] = [
+  { value: 'general', label: 'General' },
+  { value: 'resultado', label: 'Resultado' },
+  { value: 'fixture', label: 'Fixture' },
+  { value: 'comunicado', label: 'Comunicado Oficial' },
+  { value: 'destacado', label: 'Destacado' },
+  { value: 'partidos', label: 'Partidos' },
+  { value: 'fichajes', label: 'Fichajes' },
+  { value: 'equipos', label: 'Equipos' },
+  { value: 'jugadores', label: 'Jugadores' },
+  { value: 'tabla', label: 'Tabla de Posiciones' },
+  { value: 'estadisticas', label: 'Estadísticas' },
+];
+
 interface CreateNewsFormProps {
   onSubmit: (data: {
     title: string;
     image?: string;
     categoria?: NewsItem['categoria'];
-    destacada: boolean;
+    publicada: boolean;
     periodico?: string;
     url?: string;
   }) => void;
@@ -313,7 +349,7 @@ function CreateNewsForm({ onSubmit, isSubmitting }: CreateNewsFormProps) {
     title: '',
     image: '',
     categoria: 'general' as NewsItem['categoria'],
-    destacada: false,
+    publicada: false,
     periodico: '',
     url: '',
   });
@@ -361,11 +397,9 @@ function CreateNewsForm({ onSubmit, isSubmitting }: CreateNewsFormProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="general">General</SelectItem>
-            <SelectItem value="resultado">Resultado</SelectItem>
-            <SelectItem value="fixture">Fixture</SelectItem>
-            <SelectItem value="tabla">Tabla de Posiciones</SelectItem>
-            <SelectItem value="comunicado">Comunicado Oficial</SelectItem>
+            {CATEGORIAS.map((c) => (
+              <SelectItem key={c.value} value={c.value as string}>{c.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -394,13 +428,13 @@ function CreateNewsForm({ onSubmit, isSubmitting }: CreateNewsFormProps) {
       <div className="flex items-center space-x-2">
         <input
           type="checkbox"
-          id="destacada"
-          checked={formData.destacada}
-          onChange={(e) => setFormData({ ...formData, destacada: e.target.checked })}
+          id="publicada"
+          checked={formData.publicada}
+          onChange={(e) => setFormData({ ...formData, publicada: e.target.checked })}
           className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
         />
-        <Label htmlFor="destacada" className="cursor-pointer">
-          Noticia destacada (publicada)
+        <Label htmlFor="publicada" className="cursor-pointer">
+          Publicada (visible al público)
         </Label>
       </div>
 
@@ -413,7 +447,7 @@ function CreateNewsForm({ onSubmit, isSubmitting }: CreateNewsFormProps) {
               title: '',
               image: '',
               categoria: 'general',
-              destacada: false,
+              publicada: false,
               periodico: '',
               url: '',
             });
@@ -436,7 +470,7 @@ interface EditNewsFormProps {
     title: string;
     image?: string;
     categoria?: NewsItem['categoria'];
-    destacada: boolean;
+    publicada: boolean;
     periodico?: string;
     url?: string;
   }) => void;
@@ -448,7 +482,7 @@ function EditNewsForm({ news, onSubmit, isSubmitting }: EditNewsFormProps) {
     title: news.titulo || '',
     image: news.imagenUrl || '',
     categoria: news.categoria || 'general' as NewsItem['categoria'],
-    destacada: news.publicada || false,
+    publicada: news.publicada || false,
     periodico: news.autor || '',
     url: news.urlExterna || '',
   });
@@ -496,11 +530,9 @@ function EditNewsForm({ news, onSubmit, isSubmitting }: EditNewsFormProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="general">General</SelectItem>
-            <SelectItem value="resultado">Resultado</SelectItem>
-            <SelectItem value="fixture">Fixture</SelectItem>
-            <SelectItem value="tabla">Tabla de Posiciones</SelectItem>
-            <SelectItem value="comunicado">Comunicado Oficial</SelectItem>
+            {CATEGORIAS.map((c) => (
+              <SelectItem key={c.value} value={c.value as string}>{c.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -529,13 +561,13 @@ function EditNewsForm({ news, onSubmit, isSubmitting }: EditNewsFormProps) {
       <div className="flex items-center space-x-2">
         <input
           type="checkbox"
-          id="edit-destacada"
-          checked={formData.destacada}
-          onChange={(e) => setFormData({ ...formData, destacada: e.target.checked })}
+          id="edit-publicada"
+          checked={formData.publicada}
+          onChange={(e) => setFormData({ ...formData, publicada: e.target.checked })}
           className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
         />
-        <Label htmlFor="edit-destacada" className="cursor-pointer">
-          Noticia destacada (publicada)
+        <Label htmlFor="edit-publicada" className="cursor-pointer">
+          Publicada (visible al público)
         </Label>
       </div>
 
@@ -548,7 +580,7 @@ function EditNewsForm({ news, onSubmit, isSubmitting }: EditNewsFormProps) {
               title: news.titulo || '',
               image: news.imagenUrl || '',
               categoria: news.categoria || 'general',
-              destacada: news.publicada || false,
+              publicada: news.publicada || false,
               periodico: news.autor || '',
               url: news.urlExterna || '',
             });

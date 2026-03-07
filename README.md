@@ -42,8 +42,8 @@ El proyecto está alineado con las convenciones de Next.js 16 para no introducir
 - **Protección de rutas con proxy (Next 16)**  
   En lugar de middleware clásico se usa la convención **proxy**: `src/proxy.ts` redirige a `/login` si no hay cookie de sesión en rutas `/dashboard/*`. La sesión se crea en el servidor vía API (`/api/auth/session`) con Firebase Admin; el cliente solo redirige cuando la cookie está lista.
 
-- **API Routes para lógica de servidor**  
-  `POST /api/auth/session` (crear cookie de sesión), `POST /api/auth/logout` (borrar cookie) y `/api/push-notifications/send` para notificaciones. Firebase Admin solo se usa en servidor (API routes y proxy).
+- **API Routes para lógica de servidor**
+  `POST /api/auth/session` (crear cookie de sesión), `POST /api/auth/logout` (borrar cookie), `/api/push-notifications/send` para notificaciones y `GET /api/stats/users` para el conteo real de usuarios registrados. Firebase Admin solo se usa en servidor (API routes y proxy).
 
 - **Turbopack**  
   Desarrollo y build con Turbopack por defecto; no hay configuración webpack custom.
@@ -212,7 +212,7 @@ src/
 ├── app/                    # Next.js App Router
 │   ├── (auth)/             # Login y rutas públicas
 │   ├── (dashboard)/        # Dashboard y subrutas (partidos, jornadas, noticias, posiciones, config)
-│   ├── api/                # API Routes (auth/session, auth/logout, push-notifications)
+│   ├── api/                # API Routes (auth/session, auth/logout, push-notifications, stats/users)
 │   ├── layout.tsx, loading.tsx, error.tsx, not-found.tsx
 │   └── page.tsx            # Página raíz
 ├── core/config/             # Firebase (cliente + admin), constantes Firestore/FCM
@@ -252,12 +252,12 @@ Cada sección del panel tiene un propósito claro. Así la persona que lea el RE
 | Sección | Ruta | Para qué sirve |
 |--------|------|-----------------|
 | **Login** | `/login` | Entrada al panel. Solo usuarios autorizados (registrados en Firestore en `admins`) pueden iniciar sesión con email y contraseña. Tras el login se crea la cookie de sesión y se redirige al dashboard. |
-| **Dashboard (inicio)** | `/dashboard` | Página principal una vez dentro. Muestra un resumen: tarjetas con información general, partidos del día y enlaces rápidos a Partidos, Jornadas, Noticias, Posiciones y Configuración. Sirve como “home” del administrador. |
-| **Partidos** | `/dashboard/partidos` | Ver y gestionar partidos. Lista los partidos por jornada; permite iniciar un partido (pendiente → en vivo), ver el timer en vivo, actualizar el marcador, configurar tiempo agregado (1.ª y 2.ª parte) y finalizar el partido. Los datos vienen de la subcolección `matches` de cada jornada. |
+| **Dashboard (inicio)** | `/dashboard` | Página principal una vez dentro. Muestra un resumen: partidos del día/próximos, jornada actual, total real de usuarios registrados en la app móvil (consultado vía Firebase Admin Auth) y funcionalidades disponibles. |
+| **Partidos** | `/dashboard/partidos` | Ver y gestionar partidos. Muestra tabs: En Vivo, Próximos, Finalizados y Suspendidos. Finalizados incluye partidos de **todas** las jornadas (independiente de si `mostrar` es true/false); Próximos y En Vivo solo muestran partidos de jornadas visibles (`mostrar: true`) con actualización en tiempo real. Permite iniciar, actualizar marcador, configurar tiempo agregado y finalizar partidos. |
 | **Jornadas** | `/dashboard/jornadas` | Ver y gestionar jornadas del torneo (Apertura/Clausura). Lista jornadas con sus partidos; desde aquí se puede abrir una jornada para iniciar partidos o ver el estado. Las fechas de inicio/fin y si la jornada se muestra en la app se gestionan con los datos de la colección `jornadas`. |
-| **Noticias** | `/dashboard/noticias` | Gestionar las noticias que consume la app (u otro canal). Crear, editar y listar noticias: título, imagen, categoría, medio, URL, estado (publicada/borrador), destacada. Los datos están en la colección `news`. |
-| **Posiciones** | `/dashboard/posiciones` | Ver la tabla de posiciones (Apertura, Clausura o Acumulado). Muestra por equipo: partidos jugados, ganados, empatados, perdidos, goles a favor/en contra, diferencia y puntos. Se actualiza en tiempo real según los partidos; los datos vienen de las colecciones `apertura`, `clausura` y opcionalmente `acumulado`. |
-| **Configuración** | `/dashboard/configuracion` | Página de ajustes del panel. Sirve para opciones de administración que no pertenecen a una sección concreta (por ejemplo preferencias o parámetros globales). La estructura está preparada para ampliarse según necesidades. |
+| **Noticias** | `/dashboard/noticias` | Gestionar las noticias que consume la app (u otro canal). Crear, editar y listar noticias: título, imagen, categoría unificada (general, resultado, fixture, comunicado, destacado, partidos, fichajes, equipos, jugadores, tabla, estadísticas), medio, URL y estado (publicada/borrador). Los datos están en la colección `news`. |
+| **Posiciones** | `/dashboard/posiciones` | Ver la tabla de posiciones (Apertura, Clausura o Acumulado). Muestra por equipo: partidos jugados, ganados, empatados, perdidos, goles a favor/en contra, diferencia y puntos. Se actualiza en tiempo real según los partidos; los datos vienen de las colecciones `apertura`, `clausura` y `acumulado`. |
+| **Configuración** | `/dashboard/configuracion` | Ajustes del panel y del perfil de usuario. Permite editar el nombre (actualiza Firebase Auth), gestionar seguridad (reset de contraseña por email o info de cuenta Google), y ver información de la cuenta. Sección de configuración del sistema solo visible para administradores. |
 
 Todas las secciones bajo `/dashboard/*` comparten el mismo layout: sidebar a la izquierda con enlaces a estas rutas, barra superior (navbar) y área de contenido a la derecha.
 
@@ -358,13 +358,16 @@ La tabla se ordena por: partidos jugados (desc), puntos (desc), diferencia de go
 
 ## Funcionalidades principales
 
-- **Autenticación**: Login email/contraseña; sesión con cookie; proxy que protege `/dashboard`; verificación de usuarios autorizados en Firestore; roles admin/viewer.
-- **Dashboard**: Resumen, navegación a partidos, jornadas, noticias, posiciones y configuración.
-- **Partidos y jornadas**: Listado de jornadas y partidos; iniciar partido (pendiente → en vivo); timer en vivo; actualización de marcador; tiempo agregado; finalizar partido.
-- **Posiciones**: Tabla de posiciones actualizada según partidos (desde Firestore).
-- **Noticias**: Listado, crear y editar noticias (datos en Firestore).
-- **Configuración**: Página de configuración.
-- **APIs**: Sesión, logout y envío de notificaciones push (servidor con Firebase Admin).
+- **Autenticación**: Login email/contraseña y Google; sesión con cookie segura; proxy que protege `/dashboard`; verificación de usuarios autorizados en Firestore; roles admin/viewer.
+- **Dashboard**: Resumen con partidos próximos o del día, jornada actual, contador real de usuarios registrados en la app móvil (vía `GET /api/stats/users` con Firebase Admin Auth).
+- **Menú de usuario (navbar)**: Botón "Perfil" abre un modal con avatar, nombre, email, rol y último acceso. Botón "Configuración" navega a la página de configuración.
+- **Partidos**: Tabs En Vivo, Próximos, Finalizados y Suspendidos. Finalizados abarca **todas** las jornadas (historial completo); Próximos y En Vivo solo jornadas visibles con suscripciones en tiempo real (`onSnapshot`). Iniciar partido, actualizar marcador, tiempo agregado y finalizar.
+- **Jornadas**: Listado de jornadas y sus partidos; gestión de visibilidad (`mostrar`) y jornada activa (`esActiva`).
+- **Posiciones**: Tabla de posiciones (Apertura, Clausura y Acumulado) actualizada según los partidos.
+- **Noticias**: Crear, editar y listar noticias con campo `categoria` unificado (11 valores: general, resultado, fixture, comunicado, destacado, partidos, fichajes, equipos, jugadores, tabla, estadísticas).
+- **Configuración de cuenta**: Editar nombre (actualiza Firebase Auth con `updateProfile`); reset de contraseña por email (`sendPasswordResetEmail`) o información de cuenta Google; dialogs para notificaciones y apariencia.
+- **Notificaciones push**: Envío por FCM a tópicos de equipos (`team_*`) o al canal general (`liga1_all`).
+- **APIs de servidor**: `/api/auth/session`, `/api/auth/logout`, `/api/push-notifications/send`, `/api/stats/users` — todas usando Firebase Admin SDK.
 
 ---
 
