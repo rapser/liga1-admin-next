@@ -34,6 +34,18 @@ interface DashboardData {
   nextMatchDate: Date | null;
 }
 
+async function fetchMobileUserCount(): Promise<number> {
+  const res = await fetch('/api/stats/users');
+  if (!res.ok) return 0;
+  const data = await res.json();
+  return data.total ?? 0;
+}
+
+function formatUserCount(count: number): string {
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return count.toString();
+}
+
 async function fetchDashboardData(): Promise<DashboardData> {
   const jornadas = await jornadaRepository.fetchVisibleJornadas();
   const allMatches: UpcomingMatch[] = [];
@@ -130,7 +142,13 @@ export default function DashboardPage() {
     queryKey: ['dashboard', 'home'],
     queryFn: fetchDashboardData,
     enabled: !loading,
-    refetchInterval: 60 * 60 * 1000, // 1 hora (solo cuando la pestaña está activa)
+    refetchInterval: 60 * 60 * 1000,
+  });
+  const { data: userCountData } = useQuery({
+    queryKey: ['stats', 'users'],
+    queryFn: fetchMobileUserCount,
+    enabled: !loading,
+    staleTime: 60 * 60 * 1000, // cachear 1 hora
   });
 
   const jornadasCount = data?.jornadasCount ?? 0;
@@ -204,12 +222,11 @@ export default function DashboardPage() {
           variant="success"
         />
         <StatCard
-          title="Actividad"
-          value="1.2k"
+          title="Usuarios"
+          value={userCountData !== undefined ? formatUserCount(userCountData) : '...'}
           icon={Activity}
-          subtitle="Usuarios activos"
+          subtitle="Registrados en la app"
           variant="warning"
-          trend={{ value: 8, isPositive: true }}
         />
       </div>
 
