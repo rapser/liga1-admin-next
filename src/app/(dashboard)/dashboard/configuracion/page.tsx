@@ -5,6 +5,10 @@
 
 'use client';
 
+import { useState } from 'react';
+import { updateProfile, sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '@/core/config/firebase';
+import { toast } from 'sonner';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
 import { useAuth } from '@/presentation/providers/auth-provider';
 import { PageHeader } from '@/presentation/components/shared';
@@ -12,6 +16,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   User,
   Mail,
@@ -29,6 +42,47 @@ import { es } from 'date-fns/locale';
 export default function ConfiguracionPage() {
   const { loading } = useRequireAuth();
   const { user, adminUser, isAdmin, logout } = useAuth();
+  const [openDialog, setOpenDialog] = useState<string | null>(null);
+
+  // Estado del formulario de información personal
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [savingName, setSavingName] = useState(false);
+
+  // Estado del botón de reset de contraseña
+  const [sendingReset, setSendingReset] = useState(false);
+
+  const closeDialog = () => setOpenDialog(null);
+
+  const handleSaveName = async () => {
+    if (!auth.currentUser || !displayName.trim()) return;
+    setSavingName(true);
+    try {
+      await updateProfile(auth.currentUser, { displayName: displayName.trim() });
+      toast.success('Nombre actualizado correctamente');
+      closeDialog();
+    } catch {
+      toast.error('Error al actualizar el nombre');
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleSendPasswordReset = async () => {
+    if (!user?.email) return;
+    setSendingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      toast.success('Email de restablecimiento enviado a ' + user.email);
+      closeDialog();
+    } catch {
+      toast.error('Error al enviar el email de restablecimiento');
+    } finally {
+      setSendingReset(false);
+    }
+  };
+
+  // Detectar si el usuario usa Google
+  const isGoogleProvider = user?.providerData?.some((p) => p.providerId === 'google.com');
 
   if (loading) {
     return (
@@ -124,7 +178,10 @@ export default function ConfiguracionPage() {
                       <p className="text-sm text-foreground">Nombre, email y foto de perfil</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setDisplayName(user?.displayName || '');
+                    setOpenDialog('personal');
+                  }}>
                     Editar
                   </Button>
                 </div>
@@ -142,7 +199,7 @@ export default function ConfiguracionPage() {
                       <p className="text-sm text-foreground">Contraseña y autenticación</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => setOpenDialog('seguridad')}>
                     Gestionar
                   </Button>
                 </div>
@@ -160,7 +217,7 @@ export default function ConfiguracionPage() {
                       <p className="text-sm text-foreground">Preferencias de alertas y emails</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => setOpenDialog('notificaciones')}>
                     Configurar
                   </Button>
                 </div>
@@ -178,7 +235,7 @@ export default function ConfiguracionPage() {
                       <p className="text-sm text-foreground">Tema y preferencias visuales</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => setOpenDialog('apariencia')}>
                     Personalizar
                   </Button>
                 </div>
@@ -241,6 +298,137 @@ export default function ConfiguracionPage() {
           </Card>
         )}
       </div>
+
+      {/* Dialog: Información Personal */}
+      <Dialog open={openDialog === 'personal'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground">Información Personal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="displayName">Nombre</Label>
+              <Input
+                id="displayName"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Tu nombre"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email" className="flex items-center gap-2">
+                <Mail className="h-3 w-3" />
+                Email
+              </Label>
+              <Input
+                id="email"
+                value={user?.email || ''}
+                readOnly
+                className="bg-muted cursor-not-allowed"
+              />
+              <p className="text-xs text-foreground">El email no se puede cambiar desde aquí.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
+            <Button
+              className="bg-gradient-liga1 border-0 text-white"
+              onClick={handleSaveName}
+              disabled={savingName || !displayName.trim()}
+            >
+              {savingName ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Seguridad */}
+      <Dialog open={openDialog === 'seguridad'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground">Seguridad</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            {isGoogleProvider ? (
+              <div className="p-4 rounded-xl bg-background space-y-2">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-foreground" />
+                  <p className="font-semibold text-accent-foreground">Cuenta de Google</p>
+                </div>
+                <p className="text-sm text-foreground">
+                  Tu cuenta está vinculada con Google. La contraseña y seguridad se gestionan desde tu cuenta de Google.
+                </p>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-background space-y-3">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-foreground" />
+                  <p className="font-semibold text-accent-foreground">Restablecer contraseña</p>
+                </div>
+                <p className="text-sm text-foreground">
+                  Te enviaremos un email a <strong>{user?.email}</strong> con instrucciones para cambiar tu contraseña.
+                </p>
+                <Button
+                  className="w-full bg-gradient-liga1 border-0 text-white"
+                  onClick={handleSendPasswordReset}
+                  disabled={sendingReset}
+                >
+                  {sendingReset ? 'Enviando...' : 'Enviar email de restablecimiento'}
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Notificaciones */}
+      <Dialog open={openDialog === 'notificaciones'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground">Notificaciones</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <div className="p-4 rounded-xl bg-background">
+              <div className="flex items-center gap-2 mb-2">
+                <Bell className="h-4 w-4 text-foreground" />
+                <p className="font-semibold text-accent-foreground">En desarrollo</p>
+              </div>
+              <p className="text-sm text-foreground">
+                Las preferencias de notificaciones del sistema están en desarrollo y estarán disponibles próximamente.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Apariencia */}
+      <Dialog open={openDialog === 'apariencia'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground">Apariencia</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <div className="p-4 rounded-xl bg-background">
+              <div className="flex items-center gap-2 mb-2">
+                <Palette className="h-4 w-4 text-foreground" />
+                <p className="font-semibold text-accent-foreground">Próximamente</p>
+              </div>
+              <p className="text-sm text-foreground">
+                Las opciones de personalización de apariencia (tema claro/oscuro y preferencias visuales) estarán disponibles en una próxima actualización.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
