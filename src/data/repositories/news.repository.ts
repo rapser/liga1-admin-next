@@ -81,7 +81,7 @@ export class NewsRepository implements INewsRepository {
     const q = query(
       newsRef,
       where('publicada', '==', true),
-      orderBy('fechaPublicacion', 'desc')
+      orderBy('fecha', 'desc')
     );
 
     const snapshot = await getDocs(q);
@@ -116,13 +116,13 @@ export class NewsRepository implements INewsRepository {
   ): Unsubscribe {
     const newsRef = collection(db, FIRESTORE_COLLECTIONS.NEWS);
 
-    let q = query(newsRef, orderBy('fechaPublicacion', 'desc'));
+    let q = query(newsRef, orderBy('fecha', 'desc'));
 
     if (onlyPublished) {
       q = query(
         newsRef,
         where('publicada', '==', true),
-        orderBy('fechaPublicacion', 'desc')
+        orderBy('fecha', 'desc')
       );
     }
 
@@ -138,7 +138,7 @@ export class NewsRepository implements INewsRepository {
 
   /**
    * Crea una nueva noticia
-   * Usa el formato real de Firestore: title, image, fecha, categoria, destacada, periodico, url
+   * Usa el formato real de Firestore: title, image, fecha, categoria, periodico, url
    */
   async createNews(news: Omit<NewsItem, 'id'>): Promise<string> {
     const newsRef = collection(db, FIRESTORE_COLLECTIONS.NEWS);
@@ -151,7 +151,7 @@ export class NewsRepository implements INewsRepository {
 
   /**
    * Actualiza una noticia existente
-   * Convierte los campos al formato real de Firestore: title, image, fecha, categoria, destacada, periodico, url
+   * Convierte los campos al formato real de Firestore: title, image, fecha, categoria, periodico, url
    */
   async updateNews(
     newsId: string,
@@ -164,7 +164,7 @@ export class NewsRepository implements INewsRepository {
     
     if (updates.titulo !== undefined) updateData.title = updates.titulo;
     if (updates.imagenUrl !== undefined) updateData.image = updates.imagenUrl || '';
-    if (updates.publicada !== undefined) updateData.destacada = updates.publicada;
+    if (updates.publicada !== undefined) updateData.publicada = updates.publicada;
     if (updates.autor !== undefined) updateData.periodico = updates.autor || '';
     if (updates.urlExterna !== undefined) updateData.url = updates.urlExterna || '';
     if (updates.categoria !== undefined) updateData.categoria = updates.categoria || 'general';
@@ -206,7 +206,7 @@ export class NewsRepository implements INewsRepository {
     const q = query(
       newsRef,
       where('categoria', '==', categoria),
-      orderBy('fechaPublicacion', 'desc')
+      orderBy('fecha', 'desc')
     );
 
     const snapshot = await getDocs(q);
@@ -226,7 +226,7 @@ export class NewsRepository implements INewsRepository {
     const q = query(
       newsRef,
       where('publicada', '==', true),
-      orderBy('fechaPublicacion', 'desc'),
+      orderBy('fecha', 'desc'),
       limit(limitCount)
     );
 

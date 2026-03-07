@@ -14,7 +14,6 @@ type RawNewsData = {
   image?: string;
   fecha?: Timestamp | Date | string | number;
   categoria?: string;
-  destacada?: boolean;
   periodico?: string;
   url?: string;
   // Campos antiguos (compatibilidad)
@@ -36,8 +35,6 @@ export class NewsMapper {
    */
   static toDomain(id: string, dto: NewsDTO | RawNewsData): NewsItem {
     // Mapear campos reales de Firestore a campos del dominio
-    // Los campos en Firestore son: title, image, fecha, categoria, destacada, periodico, url
-    
     // Título: usar 'title' (campo real) o 'titulo' (compatibilidad)
     const titulo = (dto as RawNewsData).title || (dto as RawNewsData).titulo || 'Sin título';
     
@@ -50,9 +47,9 @@ export class NewsMapper {
     // Fecha: usar 'fecha' (campo real) o 'fechaPublicacion' (compatibilidad)
     const fechaRaw = (dto as RawNewsData).fecha || (dto as RawNewsData).fechaPublicacion;
     
-    // Estado publicado: usar 'destacada' (campo real) o 'publicada' (compatibilidad)
-    const publicada = (dto as RawNewsData).destacada ?? (dto as RawNewsData).publicada ?? false;
-    
+    // Estado publicado: usar 'publicada' (nuevo campo real) con fallback true para docs existentes
+    const publicada = (dto as RawNewsData).publicada ?? true;
+
     // Autor: usar 'periodico' (campo real) o 'autor' (compatibilidad)
     const autor = (dto as RawNewsData).periodico || (dto as RawNewsData).autor;
     
@@ -109,15 +106,13 @@ export class NewsMapper {
 
   /**
    * Convierte una entidad NewsItem del dominio a un NewsDTO para Firestore
-   * Usa la estructura real de Firestore: title, image, fecha, categoria, destacada, periodico, url
    */
   static toDTO(news: Omit<NewsItem, 'id'>): NewsDTO {
-    // Retornar estructura compatible con el DTO pero también mapear a campos reales
     return {
       titulo: news.titulo,
       contenido: news.contenido,
       imagenUrl: news.imagenUrl,
-      fechaPublicacion: Timestamp.fromDate(news.fechaPublicacion), // Date → Timestamp
+      fechaPublicacion: Timestamp.fromDate(news.fechaPublicacion),
       publicada: news.publicada,
       autor: news.autor,
       categoria: news.categoria,
@@ -128,7 +123,7 @@ export class NewsMapper {
 
   /**
    * Convierte una entidad NewsItem a la estructura real de Firestore
-   * Usa los campos: title, image, fecha, categoria, destacada, periodico, url
+   * Usa los campos: title, image, fecha, categoria, periodico, url
    */
   static toFirestoreFormat(news: Omit<NewsItem, 'id'>): Record<string, unknown> {
     return {
@@ -136,7 +131,7 @@ export class NewsMapper {
       image: news.imagenUrl || '',
       fecha: Timestamp.fromDate(news.fechaPublicacion),
       categoria: news.categoria || 'general',
-      destacada: news.publicada,
+      publicada: news.publicada,
       periodico: news.autor || '',
       url: news.urlExterna || '',
     };
