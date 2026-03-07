@@ -18,14 +18,14 @@ export interface NewsDTO {
   /** Fecha de publicación como Timestamp */
   fechaPublicacion: Timestamp;
 
-  /** Estado de publicación */
+  /** Estado de publicación (publicada vs borrador) */
   publicada: boolean;
 
   /** Autor */
   autor?: string;
 
   /** Categoría */
-  categoria?: 'resultado' | 'fixture' | 'tabla' | 'general' | 'comunicado';
+  categoria?: 'general' | 'resultado' | 'fixture' | 'comunicado' | 'destacado' | 'partidos' | 'fichajes' | 'equipos' | 'jugadores' | 'tabla' | 'estadisticas';
 
   /** Tags */
   tags?: string[];

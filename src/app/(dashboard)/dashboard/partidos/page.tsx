@@ -45,14 +45,32 @@ const getTeamsFromMatchId = (
 };
 
 async function fetchPartidosInitial() {
-  const jornadas = await jornadaRepository.fetchVisibleJornadas();
-  const matchesArrays = await Promise.all(
-    jornadas.map((j) => matchRepository.fetchMatches(j.id)),
+  const [visibleJornadas, allJornadas] = await Promise.all([
+    jornadaRepository.fetchVisibleJornadas(),
+    jornadaRepository.fetchJornadas(),
+  ]);
+
+  // Cargar matches de todas las jornadas marcando visibilidad y jornadaId
+  const matchesByJornada = await Promise.all(
+    allJornadas.map(async (j) => ({
+      jornadaId: j.id,
+      isVisible: j.mostrar,
+      matches: await matchRepository.fetchMatches(j.id),
+    })),
   );
-  const matches = matchesArrays
-    .flat()
+
+  const matches = matchesByJornada
+    .flatMap((x) => x.matches)
     .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-  return { jornadas, matches };
+
+  // Matches de jornadas visibles agrupados por jornadaId (para updates de suscripciones)
+  const visibleMatchesByJornada: Record<string, Match[]> = {};
+  for (const item of matchesByJornada.filter((x) => x.isVisible)) {
+    visibleMatchesByJornada[item.jornadaId] = item.matches;
+  }
+
+  // visibleJornadas → usadas para suscripciones real-time (fechas activas/próximas)
+  return { jornadas: visibleJornadas, matches, visibleMatchesByJornada };
 }
 
 export default function PartidosPage() {
@@ -62,24 +80,33 @@ export default function PartidosPage() {
     queryFn: fetchPartidosInitial,
     enabled: !authLoading,
   });
-  const [allMatches, setAllMatches] = useState<Match[]>([]);
-  const displayMatches = allMatches.length > 0 ? allMatches : (data?.matches ?? []);
+  // allMatchesState: todas las jornadas, solo para Finalizados
+  const [allMatchesState, setAllMatchesState] = useState<Match[]>([]);
+  // visibleByJornada: matches de jornadas visibles, keyed by jornadaId para updates precisos
+  const [visibleByJornada, setVisibleByJornada] = useState<Record<string, Match[]>>({});
+
+  const allMatches = allMatchesState.length > 0 ? allMatchesState : (data?.matches ?? []);
+  const visibleMatches =
+    Object.keys(visibleByJornada).length > 0
+      ? Object.values(visibleByJornada)
+          .flat()
+          .sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
+      : Object.values(data?.visibleMatchesByJornada ?? {})
+          .flat()
+          .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
   const loading = queryLoading;
 
   useEffect(() => {
     if (!data) return;
-    setAllMatches(data.matches);
+    setAllMatchesState(data.matches);
+    setVisibleByJornada(data.visibleMatchesByJornada);
+
     const unsubscribes: (() => void)[] = [];
     for (const jornada of data.jornadas) {
-      const unsub = matchRepository.observeMatches(jornada.id, (updatedMatches) => {
-        setAllMatches((prev) => {
-          const otherJornadaMatches = prev.filter(
-            (m) => !updatedMatches.some((um) => um.id === m.id),
-          );
-          return [...otherJornadaMatches, ...updatedMatches].sort(
-            (a, b) => a.fecha.getTime() - b.fecha.getTime(),
-          );
-        });
+      const jornadaId = jornada.id;
+      const unsub = matchRepository.observeMatches(jornadaId, (updatedMatches) => {
+        // Reemplaza exactamente los matches de esta jornada
+        setVisibleByJornada((prev) => ({ ...prev, [jornadaId]: updatedMatches }));
       });
       unsubscribes.push(unsub);
     }
@@ -97,16 +124,18 @@ export default function PartidosPage() {
     );
   }
 
-  const enVivoMatches = displayMatches.filter(
+  // En Vivo, Próximos y Suspendidos: solo jornadas visibles (real-time)
+  const enVivoMatches = visibleMatches.filter(
     (m) => m.estado === "envivo" && !m.suspendido,
   );
-  const proximosMatches = displayMatches.filter(
+  const proximosMatches = visibleMatches.filter(
     (m) => m.estado === "pendiente" && !m.suspendido,
   );
-  const finalizadosMatches = displayMatches.filter(
-    (m) => m.estado === "finalizado",
-  );
-  const suspendidosMatches = displayMatches.filter((m) => m.suspendido);
+  // Finalizados: todas las jornadas (sin filtro de visibilidad), orden descendente
+  const finalizadosMatches = allMatches
+    .filter((m) => m.estado === "finalizado")
+    .sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
+  const suspendidosMatches = visibleMatches.filter((m) => m.suspendido);
 
   return (
     <>

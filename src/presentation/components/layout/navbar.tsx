@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Search, ChevronRight, LogOut, User, Settings, Loader2 } from 'lucide-react';
+import { Bell, Search, ChevronRight, LogOut, User, Settings, Loader2, Shield, Calendar } from 'lucide-react';
 import { useAuth } from '@/presentation/providers/auth-provider';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -20,6 +20,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface NavbarProps {
   className?: string;
@@ -40,6 +49,7 @@ export function Navbar({ className }: NavbarProps) {
   const router = useRouter();
   const { user, adminUser, isAdmin, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showPerfil, setShowPerfil] = useState(false);
 
   // Generar breadcrumbs desde pathname
   const breadcrumbs = routeMap[pathname] || ['Dashboard'];
@@ -150,11 +160,17 @@ export function Navbar({ className }: NavbarProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => setShowPerfil(true)}
+              >
                 <User className="mr-2 h-4 w-4" />
                 <span>Perfil</span>
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => router.push('/dashboard/configuracion')}
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Configuración</span>
               </DropdownMenuItem>
@@ -180,6 +196,57 @@ export function Navbar({ className }: NavbarProps) {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Dialog de Perfil */}
+      <Dialog open={showPerfil} onOpenChange={setShowPerfil}>
+        <DialogContent className="shadow-soft border-0 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground">Mi Perfil</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center text-center space-y-4 py-2">
+            <Avatar className="h-20 w-20 border-4 border-white shadow-soft-lg">
+              <AvatarImage src={user?.photoURL || undefined} />
+              <AvatarFallback className="bg-gradient-liga1 text-white text-2xl font-bold">
+                {user?.displayName?.charAt(0) || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="text-lg font-bold text-accent-foreground">
+                {user?.displayName || 'Usuario'}
+              </h3>
+              <p className="text-sm text-foreground">{user?.email}</p>
+            </div>
+            <Badge
+              variant={isAdmin ? 'default' : 'secondary'}
+              className={cn('w-fit', isAdmin && 'bg-gradient-liga1 border-0')}
+            >
+              <Shield className="h-3 w-3 mr-1" />
+              {isAdmin ? 'Administrador' : 'Viewer'}
+            </Badge>
+            {adminUser?.lastLoginAt && (
+              <div className="text-xs text-foreground pt-2 border-t border-muted w-full">
+                <div className="flex items-center justify-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  <span>
+                    Último acceso:{' '}
+                    {format(adminUser.lastLoginAt, "dd MMM yyyy 'a las' HH:mm", { locale: es })}
+                  </span>
+                </div>
+              </div>
+            )}
+            <Button
+              className="w-full bg-gradient-liga1 border-0 text-white"
+              onClick={() => {
+                setShowPerfil(false);
+                router.push('/dashboard/configuracion');
+              }}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Ir a Configuración
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Overlay de cierre de sesión */}
       {isLoggingOut && (
