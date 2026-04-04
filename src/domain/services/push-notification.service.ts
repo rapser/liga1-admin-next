@@ -400,4 +400,86 @@ export class PushNotificationService {
       imageUrl,
     });
   }
+
+  /**
+   * Envía una notificación silenciosa (solo data, sin notification)
+   * Útil para score updates que no deben mostrar banner pero deben despertar la app
+   */
+  async sendSilentNotification(topic: string, data: Record<string, string>): Promise<{ messageId?: string }> {
+    try {
+      const response = await fetch('/api/push-notifications/send-silent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ topic, data }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al enviar la notificación silenciosa');
+      }
+
+      return await response.json();
+    } catch (error: unknown) {
+      throw error;
+    }
+  }
+
+  /**
+   * Envía notificación silenciosa de actualización de marcador
+   * Se envía al topic general (liga1_all) para actualizar el marcador en todas las apps
+   * sin mostrar banner/sonido (notificación silenciosa)
+   * 
+   * IMPORTANTE: Usa solo el campo 'data' (sin 'notification') para que iOS
+   * no muestre un banner automáticamente. La app actualizará el marcador en segundo plano.
+   */
+  async sendScoreUpdateNotification(
+    match: Match,
+    jornadaId: string
+  ): Promise<void> {
+    // Normalizar match para asegurar códigos de equipos
+    const normalizedMatch = normalizeMatchForNotifications(match);
+
+    // Extraer códigos de equipos
+    let equipoLocalId = normalizedMatch.equipoLocalId;
+    let equipoVisitanteId = normalizedMatch.equipoVisitanteId;
+
+    // Si no están disponibles, extraer del ID del partido
+    if (!equipoLocalId || !equipoVisitanteId) {
+      const parts = normalizedMatch.id.split('_');
+      if (parts.length >= 2) {
+        equipoLocalId = parts[0] || null;
+        equipoVisitanteId = parts[1] || null;
+      }
+    }
+
+    if (!equipoLocalId || !equipoVisitanteId) {
+      throw new Error(`No se pudieron determinar los códigos de equipos del partido. Match ID: ${match.id}`);
+    }
+
+    // Preparar el payload de datos
+    const data = {
+      type: 'score_update',
+      matchId: normalizedMatch.id,
+      jornadaId: jornadaId,
+      golesTeamA: normalizedMatch.golesEquipoLocal.toString(),
+      golesTeamB: normalizedMatch.golesEquipoVisitante.toString(),
+      estado: normalizedMatch.estado,
+    };
+
+    // Enviar al topic general (liga1_all)
+    try {
+      await this.sendSilentNotification(GENERAL_TOPIC, data);
+      console.log('✅ Score update notification sent:', {
+        matchId: normalizedMatch.id,
+        score: `${normalizedMatch.golesEquipoLocal}-${normalizedMatch.golesEquipoVisitante}`,
+      });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('❌ Error al enviar score update notification:', errMsg);
+      // No lanzar el error para que no falle la actualización del marcador
+      // Solo registrar el error
+    }
+  }
 }

@@ -26,6 +26,7 @@ import { JornadaRepository } from "@/data/repositories/jornada.repository";
 import { MatchRepository } from "@/data/repositories/match.repository";
 import { TeamRepository } from "@/data/repositories/team.repository";
 import { MatchStateService } from "@/domain/services/match-state.service";
+import { PushNotificationService } from "@/domain/services/push-notification.service";
 import { MatchLiveController } from "@/presentation/components/features/matches";
 import {
   CalendarDays,
@@ -41,9 +42,11 @@ import { getTeamFullName, TorneoType } from "@/core/config/firestore-constants";
 const jornadaRepository = new JornadaRepository();
 const matchRepository = new MatchRepository();
 const teamRepository = new TeamRepository();
+const pushNotificationService = new PushNotificationService();
 const matchStateService = new MatchStateService(
   matchRepository,
   teamRepository,
+  pushNotificationService,
 );
 
 /**
