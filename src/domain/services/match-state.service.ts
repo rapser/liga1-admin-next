@@ -16,11 +16,13 @@ import { Team } from "../entities/team.entity";
 import { IMatchRepository } from "../repositories/match.repository.interface";
 import { ITeamRepository } from "../repositories/team.repository.interface";
 import { TorneoType } from "@/core/config/firestore-constants";
+import { PushNotificationService } from "./push-notification.service";
 
 export class MatchStateService {
   constructor(
     private matchRepository: IMatchRepository,
     private teamRepository: ITeamRepository,
+    private pushNotificationService: PushNotificationService,
   ) {}
 
   /**
@@ -73,7 +75,6 @@ export class MatchStateService {
         enDescanso: false,
         horaInicioSegundaParte: horaInicioSegundaPartePasado,
       };
-
     } else {
       // MODO NORMAL: Partido en tiempo real
       const fechaPartido =
@@ -210,6 +211,31 @@ export class MatchStateService {
       previousLocalScore,
       previousVisitorScore,
     );
+
+    // Enviar notificación push silenciosa de actualización de marcador
+    // (solo si hubo cambio en el marcador)
+    if (
+      localScore !== previousLocalScore ||
+      visitorScore !== previousVisitorScore
+    ) {
+      try {
+        await this.pushNotificationService.sendScoreUpdateNotification(
+          {
+            ...match,
+            golesEquipoLocal: localScore,
+            golesEquipoVisitante: visitorScore,
+          },
+          jornadaId,
+        );
+      } catch (error: unknown) {
+        // Loggear el error pero no fallar la actualización del marcador
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(
+          "⚠️ Error al enviar push notification de score update:",
+          errMsg,
+        );
+      }
+    }
   }
 
   /**
@@ -629,7 +655,9 @@ export class MatchStateService {
     }
 
     if (!equipoLocal || !equipoVisitante) {
-      throw new Error(`Equipos no encontrados: local=${match.equipoLocalId || "N/A"}, visitante=${match.equipoVisitanteId || "N/A"}`);
+      throw new Error(
+        `Equipos no encontrados: local=${match.equipoLocalId || "N/A"}, visitante=${match.equipoVisitanteId || "N/A"}`,
+      );
     }
 
     // Calcular resultado
