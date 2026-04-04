@@ -144,12 +144,15 @@ export default function JornadasPage() {
 
     // Suscripción en tiempo real: actualiza partidos automáticamente
     // cuando cambian marcadores, estados, etc. (incluso desde onTimeUpdated)
-    const unsubscribe = matchRepository.observeMatches(selectedJornada, (updatedMatches) => {
-      const sorted = [...updatedMatches].sort(
-        (a, b) => a.fecha.getTime() - b.fecha.getTime(),
-      );
-      setMatches(sorted);
-    });
+    const unsubscribe = matchRepository.observeMatches(
+      selectedJornada,
+      (updatedMatches) => {
+        const sorted = [...updatedMatches].sort(
+          (a, b) => a.fecha.getTime() - b.fecha.getTime(),
+        );
+        setMatches(sorted);
+      },
+    );
 
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,7 +186,9 @@ export default function JornadasPage() {
         {/* Lista de Jornadas */}
         <Card className="shadow-soft border-0 lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-accent-foreground text-lg">Jornadas</CardTitle>
+            <CardTitle className="text-accent-foreground text-lg">
+              Jornadas
+            </CardTitle>
             <CardDescription>Temporada 2026</CardDescription>
           </CardHeader>
           <CardContent>
@@ -256,7 +261,9 @@ export default function JornadasPage() {
               {/* Lista de Partidos */}
               <Card className="shadow-soft border-0">
                 <CardHeader>
-                  <CardTitle className="text-accent-foreground">Partidos</CardTitle>
+                  <CardTitle className="text-accent-foreground">
+                    Partidos
+                  </CardTitle>
                   <CardDescription>
                     {matches.length}{" "}
                     {matches.length === 1 ? "partido" : "partidos"}
@@ -290,10 +297,10 @@ export default function JornadasPage() {
                           onMatchChange={(matchId, updates) => {
                             if (updates) {
                               // Actualización optimista: merge local sin recargar
-                              setMatches(prev =>
-                                prev.map(m =>
-                                  m.id === matchId ? { ...m, ...updates } : m
-                                )
+                              setMatches((prev) =>
+                                prev.map((m) =>
+                                  m.id === matchId ? { ...m, ...updates } : m,
+                                ),
                               );
                             } else {
                               // Fallback: recargar todos los partidos

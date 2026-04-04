@@ -75,7 +75,6 @@ export class MatchStateService {
         enDescanso: false,
         horaInicioSegundaParte: horaInicioSegundaPartePasado,
       };
-
     } else {
       // MODO NORMAL: Partido en tiempo real
       const fechaPartido =
@@ -215,7 +214,10 @@ export class MatchStateService {
 
     // Enviar notificación push silenciosa de actualización de marcador
     // (solo si hubo cambio en el marcador)
-    if (localScore !== previousLocalScore || visitorScore !== previousVisitorScore) {
+    if (
+      localScore !== previousLocalScore ||
+      visitorScore !== previousVisitorScore
+    ) {
       try {
         await this.pushNotificationService.sendScoreUpdateNotification(
           {
@@ -228,7 +230,10 @@ export class MatchStateService {
       } catch (error: unknown) {
         // Loggear el error pero no fallar la actualización del marcador
         const errMsg = error instanceof Error ? error.message : String(error);
-        console.error('⚠️ Error al enviar push notification de score update:', errMsg);
+        console.error(
+          "⚠️ Error al enviar push notification de score update:",
+          errMsg,
+        );
       }
     }
   }
@@ -650,7 +655,9 @@ export class MatchStateService {
     }
 
     if (!equipoLocal || !equipoVisitante) {
-      throw new Error(`Equipos no encontrados: local=${match.equipoLocalId || "N/A"}, visitante=${match.equipoVisitanteId || "N/A"}`);
+      throw new Error(
+        `Equipos no encontrados: local=${match.equipoLocalId || "N/A"}, visitante=${match.equipoVisitanteId || "N/A"}`,
+      );
     }
 
     // Calcular resultado
