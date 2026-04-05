@@ -150,6 +150,25 @@ export class MatchStateService {
         ]);
       }
     }
+
+    // Notificar a la app iOS para reflejar el estado envivo y marcador inicial (0-0)
+    try {
+      await this.pushNotificationService.sendScoreUpdateNotification(
+        {
+          ...match,
+          estado: "envivo",
+          golesEquipoLocal: finalLocalScore,
+          golesEquipoVisitante: finalVisitorScore,
+        },
+        jornadaId,
+      );
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(
+        "⚠️ Error al enviar push notification de score update al iniciar partido:",
+        errMsg,
+      );
+    }
   }
 
   /**
@@ -405,6 +424,25 @@ export class MatchStateService {
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       estado: "finalizado",
     });
+
+    // Notificar a la app iOS para reflejar estado finalizado y marcador final
+    try {
+      await this.pushNotificationService.sendScoreUpdateNotification(
+        {
+          ...match,
+          estado: "finalizado",
+          golesEquipoLocal: local,
+          golesEquipoVisitante: visitante,
+        },
+        jornadaId,
+      );
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(
+        "⚠️ Error al enviar push notification de score update al finalizar partido:",
+        errMsg,
+      );
+    }
   }
 
   /**
