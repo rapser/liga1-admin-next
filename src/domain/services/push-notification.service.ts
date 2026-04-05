@@ -533,9 +533,16 @@ export class PushNotificationService {
       );
     }
 
+    const eventId = generateEventId(
+      normalizedMatch.id,
+      "score_update",
+      `${normalizedMatch.golesEquipoLocal}_${normalizedMatch.golesEquipoVisitante}_${normalizedMatch.estado}`,
+    );
+
     // Preparar el payload de datos
     const data = {
       type: "score_update",
+      event_id: eventId,
       matchId: normalizedMatch.id,
       jornadaId: jornadaId,
       golesTeamA: normalizedMatch.golesEquipoLocal.toString(),
@@ -548,7 +555,9 @@ export class PushNotificationService {
       await this.sendSilentNotification(GENERAL_TOPIC, data);
       console.log("✅ Score update notification sent:", {
         matchId: normalizedMatch.id,
+        jornadaId,
         score: `${normalizedMatch.golesEquipoLocal}-${normalizedMatch.golesEquipoVisitante}`,
+        event_id: eventId,
       });
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);

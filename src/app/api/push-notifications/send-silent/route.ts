@@ -52,7 +52,9 @@ export async function POST(request: NextRequest) {
       data: dataPayload,
       apns: {
         headers: {
-          "apns-priority": "10", // Alta prioridad
+          // Requerido para silent push en iOS
+          "apns-push-type": "background",
+          "apns-priority": "5",
         },
         payload: {
           aps: {
@@ -72,6 +74,7 @@ export async function POST(request: NextRequest) {
       console.log("✅ Notificación silenciosa enviada:", {
         topic,
         type: data.type,
+        event_id: data.event_id,
         messageId: response,
       });
 
@@ -80,6 +83,7 @@ export async function POST(request: NextRequest) {
         messageId: response,
         topic,
         type: data.type,
+        event_id: data.event_id,
       });
     } catch (sendError: unknown) {
       const sendErrMsg =
