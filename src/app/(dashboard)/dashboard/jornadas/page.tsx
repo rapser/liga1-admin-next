@@ -103,7 +103,7 @@ export default function JornadasPage() {
     queryKey: ["jornadas", "list"],
     queryFn: async () => {
       const data = await jornadaRepository.fetchVisibleJornadas();
-      return [...data].sort((a, b) => a.numero - b.numero);
+      return [...data].sort((a, b) => b.numero - a.numero);
     },
     enabled: !authLoading,
   });
