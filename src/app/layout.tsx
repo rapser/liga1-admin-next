@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/presentation/providers/auth-provider";
 import { QueryProvider } from "@/presentation/providers/query-provider";
+import { ThemeProvider } from "@/presentation/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -21,14 +22,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <AuthProvider>
-          <QueryProvider>
-            {children}
-            <Toaster />
-          </QueryProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <QueryProvider>
+              {children}
+              <Toaster />
+            </QueryProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
