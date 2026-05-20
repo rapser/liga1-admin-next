@@ -163,16 +163,9 @@ export class MatchStateService {
       );
 
       if (equipoLocal && equipoVisitante) {
-        // Incrementar solo matchesPlayed (una sola vez, cuando inicia el partido)
-        // NO actualizar puntos/goles aquí: se aplican en updateMatchScore al cambiar el marcador
-        // o en finishMatch si el partido termina 0-0 (para evitar doble conteo por lecturas obsoletas)
-        await Promise.all([
-          this.teamRepository.updateTeamStats(torneo, match.equipoLocalId, {
-            partidosJugados: equipoLocal.partidosJugados + 1,
-          }),
-          this.teamRepository.updateTeamStats(torneo, match.equipoVisitanteId, {
-            partidosJugados: equipoVisitante.partidosJugados + 1,
-          }),
+        await this.teamRepository.batchWriteTeamStats([
+          { torneo, teamId: match.equipoLocalId, stats: { partidosJugados: equipoLocal.partidosJugados + 1 } },
+          { torneo, teamId: match.equipoVisitanteId, stats: { partidosJugados: equipoVisitante.partidosJugados + 1 } },
         ]);
       }
     }
