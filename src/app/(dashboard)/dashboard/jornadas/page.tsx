@@ -122,32 +122,10 @@ export default function JornadasPage() {
     }
   }, [jornadas, selectedJornada]);
 
-  const loadMatches = async () => {
-    if (!selectedJornada) return;
-
-    try {
-      setLoadingMatches(true);
-      const data = await matchRepository.fetchMatches(selectedJornada);
-      // Ordenar por fecha
-      const sorted = [...data].sort(
-        (a, b) => a.fecha.getTime() - b.fecha.getTime(),
-      );
-      setMatches(sorted);
-    } catch (error) {
-      console.error("Error al cargar partidos:", error);
-    } finally {
-      setLoadingMatches(false);
-    }
-  };
-
   useEffect(() => {
     if (!selectedJornada) return;
 
-    // Carga inicial
-    loadMatches();
-
-    // Suscripción en tiempo real: actualiza partidos automáticamente
-    // cuando cambian marcadores, estados, etc. (incluso desde onTimeUpdated)
+    setLoadingMatches(true);
     const unsubscribe = matchRepository.observeMatches(
       selectedJornada,
       (updatedMatches) => {
@@ -155,11 +133,11 @@ export default function JornadasPage() {
           (a, b) => a.fecha.getTime() - b.fecha.getTime(),
         );
         setMatches(sorted);
+        setLoadingMatches(false);
       },
     );
 
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJornada]);
 
   if (authLoading || loading) {
@@ -300,15 +278,11 @@ export default function JornadasPage() {
                           )}
                           onMatchChange={(matchId, updates) => {
                             if (updates) {
-                              // Actualización optimista: merge local sin recargar
                               setMatches((prev) =>
                                 prev.map((m) =>
                                   m.id === matchId ? { ...m, ...updates } : m,
                                 ),
                               );
-                            } else {
-                              // Fallback: recargar todos los partidos
-                              loadMatches();
                             }
                           }}
                         />
