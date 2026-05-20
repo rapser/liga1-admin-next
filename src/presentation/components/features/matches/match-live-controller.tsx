@@ -32,52 +32,6 @@ interface MatchLiveControllerProps {
   onStateChange?: (updates?: Partial<Match>) => void;
 }
 
-/**
- * Calcula los segundos transcurridos desde que inició el partido
- */
-const getMatchElapsedSeconds = (match: Match): number => {
-  if (!match.horaInicio || match.estado !== "envivo") {
-    return 0;
-  }
-
-  if (match.enDescanso) {
-    const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
-    return (45 + tiempoAgregadoPrimera) * 60;
-  }
-
-  const now = new Date();
-  const inicio =
-    match.horaInicio instanceof Date
-      ? match.horaInicio
-      : new Date(match.horaInicio);
-
-  if (match.horaInicioSegundaParte && !match.primeraParte) {
-    const inicioSegundaParte =
-      match.horaInicioSegundaParte instanceof Date
-        ? match.horaInicioSegundaParte
-        : new Date(match.horaInicioSegundaParte);
-
-    const diffMs = now.getTime() - inicioSegundaParte.getTime();
-    const diffSeconds = Math.floor(diffMs / 1000);
-
-    // Segunda parte: el reloj base vuelve a 45:00 (NO suma el adicional del 1T)
-    const segundosSegundaParte = Math.max(0, diffSeconds);
-    const segundosTotales = 45 * 60 + segundosSegundaParte;
-
-    // LIMITAR el tiempo total: si hay tiempo agregado configurado, máximo es 90 + tiempo agregado
-    // Si no hay tiempo agregado configurado, máximo es 90 minutos
-    const tiempoAgregado = match.tiempoAgregado || 0;
-    const segundosMaximos =
-      tiempoAgregado > 0 ? (90 + tiempoAgregado) * 60 : 90 * 60;
-
-    return Math.min(segundosTotales, segundosMaximos);
-  }
-
-  const diffMs = now.getTime() - inicio.getTime();
-  const diffSeconds = Math.floor(diffMs / 1000);
-
-  return Math.max(0, diffSeconds);
-};
 
 /**
  * Calcula los segundos transcurridos en el descanso
@@ -136,8 +90,14 @@ export function MatchLiveController({
       return;
     }
 
-    // Detectar si el partido ya se jugó en la vida real
     const yaSeJugo = isMatchAlreadyPlayed(match);
+    const ahora = new Date();
+    const fechaPartido =
+      match.fecha instanceof Date ? match.fecha : new Date(match.fecha);
+    const elapsedMinutes = Math.max(
+      0,
+      Math.floor((ahora.getTime() - fechaPartido.getTime()) / 60000),
+    );
 
     setIsProcessing(true);
     try {
@@ -148,6 +108,11 @@ export function MatchLiveController({
           "⚡ Modo rápido: Partido ya jugado. Cronómetro en 90+. Actualiza el marcador y finaliza.",
           { duration: 6000 },
         );
+      } else if (elapsedMinutes >= 60) {
+        const minuto = 45 + Math.min(45, elapsedMinutes - 60);
+        toast.success(`Partido iniciado en segunda parte (~${minuto}')`);
+      } else if (elapsedMinutes >= 45) {
+        toast.success("Partido iniciado — entrando al descanso");
       } else {
         toast.success("Partido iniciado exitosamente");
       }
@@ -254,78 +219,33 @@ export function MatchLiveController({
     }
   }, [match, jornadaId, matchStateService, onStateChange]);
 
-  // Auto-finalizar partido después de 1 minuto de consumir los minutos adicionales
-  useEffect(() => {
-    if (match.estado === "envivo" && !match.enDescanso && !match.primeraParte) {
-      const checkAutoFinish = async () => {
-        const tiempoAgregado = match.tiempoAgregado || 0;
-
-        // Solo si hay tiempo agregado configurado
-        if (tiempoAgregado > 0) {
-          const totalSeconds = getMatchElapsedSeconds(match);
-          const tiempoAgregadoPrimera = match.tiempoAgregadoPrimeraParte || 0;
-
-          // Calcular segundos desde que inició la segunda parte
-          if (match.horaInicioSegundaParte) {
-            const now = new Date();
-            const inicioSegundaParte =
-              match.horaInicioSegundaParte instanceof Date
-                ? match.horaInicioSegundaParte
-                : new Date(match.horaInicioSegundaParte);
-
-            const segundosSegundaParte = Math.floor(
-              (now.getTime() - inicioSegundaParte.getTime()) / 1000,
-            );
-            const minutosSegundaParte = Math.floor(segundosSegundaParte / 60);
-
-            // Si ya pasaron los 45 minutos de la segunda parte (90 totales) + minutos adicionales
-            if (minutosSegundaParte >= 45 + tiempoAgregado) {
-              const segundosAdicionalesTranscurridos =
-                segundosSegundaParte - 45 * 60;
-
-              // Tolerancia: 5 minutos después de consumir los adicionales
-              if (
-                segundosAdicionalesTranscurridos >=
-                tiempoAgregado * 60 + 5 * 60
-              ) {
-                try {
-                  await matchStateService.finishMatch(
-                    jornadaId,
-                    match.id,
-                    torneo,
-                  );
-                  toast.info(
-                    "Partido finalizado automáticamente después de consumir los minutos adicionales",
-                  );
-                  onStateChange?.({ estado: "finalizado" });
-                } catch {
-                  // Error silencioso - se reintentará en el siguiente intervalo
-                }
-              }
-            }
-          }
-        }
-      };
-
-      const interval = setInterval(checkAutoFinish, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [match, jornadaId, torneo, matchStateService, onStateChange]);
 
   // Estado: Pendiente - Mostrar botón para iniciar
   if (match.estado === "pendiente") {
     const yaSeJugo = isMatchAlreadyPlayed(match);
+    const ahoraRender = new Date();
+    const fechaPartidoRender =
+      match.fecha instanceof Date ? match.fecha : new Date(match.fecha);
+    const elapsedMinutesRender = Math.max(
+      0,
+      Math.floor(
+        (ahoraRender.getTime() - fechaPartidoRender.getTime()) / 60000,
+      ),
+    );
+    const estaEnDescanso =
+      !yaSeJugo &&
+      elapsedMinutesRender >= 45 &&
+      elapsedMinutesRender < 60;
+    const estaEnSegundaParte =
+      !yaSeJugo && elapsedMinutesRender >= 60;
+    const minutoSegundaParte = 45 + Math.min(45, elapsedMinutesRender - 60);
 
     return (
       <div className="flex flex-col items-start gap-2">
         <Button
           onClick={handleStartMatch}
           disabled={isProcessing}
-          className={
-            yaSeJugo
-              ? "bg-gradient-liga1 hover:opacity-90"
-              : "bg-gradient-liga1 hover:opacity-90"
-          }
+          className="bg-gradient-liga1 hover:opacity-90"
           size="sm"
         >
           {isProcessing ? (
@@ -338,6 +258,16 @@ export function MatchLiveController({
               <Zap className="h-4 w-4 mr-2" />
               Cargar Resultado
             </>
+          ) : estaEnSegundaParte ? (
+            <>
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Iniciar 2do Tiempo
+            </>
+          ) : estaEnDescanso ? (
+            <>
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Iniciar (Descanso)
+            </>
           ) : (
             <>
               <Play className="h-4 w-4 mr-2" />
@@ -348,6 +278,16 @@ export function MatchLiveController({
         {yaSeJugo && (
           <span className="text-xs text-amber-600 font-medium">
             ⚡ Partido ya jugado — irá directo al min. 90
+          </span>
+        )}
+        {estaEnSegundaParte && (
+          <span className="text-xs text-blue-500 font-medium">
+            ⏱ Comenzará en 2da parte (~{minutoSegundaParte}&apos;)
+          </span>
+        )}
+        {estaEnDescanso && (
+          <span className="text-xs text-orange-500 font-medium">
+            ⏸ Partido en descanso — entrará en modo descanso
           </span>
         )}
       </div>
@@ -383,48 +323,9 @@ export function MatchLiveController({
       minutosTranscurridos >= 85 && estaEnSegundaParte;
     const puedeAjustarTiempoAgregadoSegundo = estaCercaDe90Minutos;
 
-    const tieneTiempoAgregado = tiempoAgregado > 0;
-
-    // Calcular si se completaron los minutos adicionales
-    // Necesitamos calcular los segundos transcurridos desde que inició la segunda parte
-    let segundosAdicionalesTranscurridos = 0;
-    if (
-      estaEnSegundaParte &&
-      tieneTiempoAgregado &&
-      match.horaInicioSegundaParte
-    ) {
-      const now = new Date();
-      const inicioSegundaParte =
-        match.horaInicioSegundaParte instanceof Date
-          ? match.horaInicioSegundaParte
-          : new Date(match.horaInicioSegundaParte);
-
-      const diffMs = now.getTime() - inicioSegundaParte.getTime();
-      const segundosDesdeInicioSegundaParte = Math.floor(diffMs / 1000);
-
-      // Los 45 minutos de la segunda parte = 45 * 60 = 2700 segundos
-      // Si ya pasaron más de 2700 segundos, entonces estamos en tiempo adicional
-      if (segundosDesdeInicioSegundaParte > 45 * 60) {
-        segundosAdicionalesTranscurridos =
-          segundosDesdeInicioSegundaParte - 45 * 60;
-      }
-    }
-
-    const segundosTiempoAgregadoMaximo = tiempoAgregado * 60;
-    const haCompletadoTiempoAgregado =
-      estaEnSegundaParte &&
-      tieneTiempoAgregado &&
-      segundosAdicionalesTranscurridos >= segundosTiempoAgregadoMaximo;
-
-    // También verificar con minutos como fallback
-    const haCompletadoTiempoAgregadoMinutos =
-      estaEnSegundaParte &&
-      tieneTiempoAgregado &&
-      minutosTranscurridos >= 90 + tiempoAgregado;
-
-    // Usar la condición más precisa para mostrar el botón de finalizar
-    const mostrarFinalizar =
-      haCompletadoTiempoAgregado || haCompletadoTiempoAgregadoMinutos;
+    // Mostrar "Finalizar" cuando se alcanzaron los 90 min + tiempo agregado configurado.
+    // Si no se configuró tiempo adicional (tiempoAgregado=0), se puede finalizar a los 90 min.
+    const mostrarFinalizar = canFinishMatch(match);
 
     // Si está en descanso
     if (match.enDescanso) {

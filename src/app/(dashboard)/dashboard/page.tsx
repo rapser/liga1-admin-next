@@ -46,15 +46,23 @@ function formatUserCount(count: number): string {
   return count.toString();
 }
 
+const parseJornadaNum = (id: string) =>
+  parseInt(id.split('_').pop() ?? '0', 10) || 0;
+
 async function fetchDashboardData(): Promise<DashboardData> {
-  const jornadas = await jornadaRepository.fetchVisibleJornadas();
+  const allJornadas = await jornadaRepository.fetchVisibleJornadas();
   const allMatches: UpcomingMatch[] = [];
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayKey = normalizeDate(today);
 
+  // Solo cargar las 2 jornadas más recientes para evitar N requests innecesarios
+  const recentJornadas = [...allJornadas]
+    .sort((a, b) => parseJornadaNum(b.id) - parseJornadaNum(a.id))
+    .slice(0, 2);
+
   const matchesPerJornada = await Promise.all(
-    jornadas.map(jornada =>
+    recentJornadas.map(jornada =>
       matchRepository.fetchMatches(jornada.id)
         .then(matches => ({ jornadaId: jornada.id, matches }))
         .catch(() => ({ jornadaId: jornada.id, matches: [] as Match[] }))
@@ -71,7 +79,7 @@ async function fetchDashboardData(): Promise<DashboardData> {
 
   if (allMatches.length === 0) {
     return {
-      jornadasCount: jornadas.length,
+      jornadasCount: allJornadas.length,
       currentFecha: null,
       currentTorneo: null,
       upcomingMatches: [],
@@ -90,7 +98,7 @@ async function fetchDashboardData(): Promise<DashboardData> {
 
   if (matchesByDate.size === 0) {
     return {
-      jornadasCount: jornadas.length,
+      jornadasCount: allJornadas.length,
       currentFecha: null,
       currentTorneo: null,
       upcomingMatches: [],
@@ -125,7 +133,7 @@ async function fetchDashboardData(): Promise<DashboardData> {
   }
 
   return {
-    jornadasCount: jornadas.length,
+    jornadasCount: allJornadas.length,
     currentFecha,
     currentTorneo,
     upcomingMatches: filteredMatches,

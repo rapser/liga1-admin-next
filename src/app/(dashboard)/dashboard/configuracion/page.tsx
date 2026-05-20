@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/core/config/firebase';
 import { toast } from 'sonner';
@@ -35,13 +35,30 @@ import {
   Lock,
   Palette,
   Globe,
+  Loader2,
+  AlertCircle,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { useTheme } from '@/presentation/providers/theme-provider';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+interface AdminUserRecord {
+  uid: string;
+  email: string;
+  displayName: string | null;
+  photoURL: string | null;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+  role: 'admin' | 'viewer';
+  disabled: boolean;
+}
 
 export default function ConfiguracionPage() {
   const { loading } = useRequireAuth();
   const { user, adminUser, isAdmin, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [openDialog, setOpenDialog] = useState<string | null>(null);
 
   // Estado del formulario de información personal
@@ -51,7 +68,33 @@ export default function ConfiguracionPage() {
   // Estado del botón de reset de contraseña
   const [sendingReset, setSendingReset] = useState(false);
 
+  // Estado del listado de usuarios
+  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+
   const closeDialog = () => setOpenDialog(null);
+
+  const fetchAdminUsers = useCallback(async () => {
+    setLoadingUsers(true);
+    setUsersError(null);
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error('Error al cargar usuarios');
+      const data = await res.json() as { users: AdminUserRecord[] };
+      setAdminUsers(data.users);
+    } catch (err) {
+      setUsersError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (openDialog === 'usuarios' && adminUsers.length === 0 && !loadingUsers) {
+      fetchAdminUsers();
+    }
+  }, [openDialog, adminUsers.length, loadingUsers, fetchAdminUsers]);
 
   const handleSaveName = async () => {
     if (!auth.currentUser || !displayName.trim()) return;
@@ -232,11 +275,17 @@ export default function ConfiguracionPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-accent-foreground">Apariencia</p>
-                      <p className="text-sm text-foreground">Tema y preferencias visuales</p>
+                      <p className="text-sm text-foreground flex items-center gap-1">
+                        {theme === 'dark' ? (
+                          <><Moon className="h-3 w-3" /> Modo oscuro activo</>
+                        ) : (
+                          <><Sun className="h-3 w-3" /> Modo claro activo</>
+                        )}
+                      </p>
                     </div>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setOpenDialog('apariencia')}>
-                    Personalizar
+                    Cambiar
                   </Button>
                 </div>
               </div>
@@ -270,7 +319,7 @@ export default function ConfiguracionPage() {
                         <p className="text-sm text-foreground">Administrar roles y permisos</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => setOpenDialog('usuarios')}>
                       Gestionar
                     </Button>
                   </div>
@@ -411,19 +460,180 @@ export default function ConfiguracionPage() {
       <Dialog open={openDialog === 'apariencia'} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="shadow-soft border-0 max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-accent-foreground">Apariencia</DialogTitle>
+            <DialogTitle className="text-accent-foreground flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              Apariencia
+            </DialogTitle>
           </DialogHeader>
-          <div className="py-2">
-            <div className="p-4 rounded-xl bg-background">
-              <div className="flex items-center gap-2 mb-2">
-                <Palette className="h-4 w-4 text-foreground" />
-                <p className="font-semibold text-accent-foreground">Próximamente</p>
+          <div className="py-2 space-y-3">
+            <p className="text-sm text-foreground">Selecciona el tema de la interfaz.</p>
+
+            {/* Opción Claro */}
+            <button
+              onClick={() => setTheme('light')}
+              className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${
+                theme === 'light'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-transparent bg-background hover:bg-muted'
+              }`}
+            >
+              <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                theme === 'light' ? 'bg-gradient-liga1' : 'bg-muted'
+              }`}>
+                <Sun className={`h-5 w-5 ${theme === 'light' ? 'text-white' : 'text-foreground'}`} />
               </div>
-              <p className="text-sm text-foreground">
-                Las opciones de personalización de apariencia (tema claro/oscuro y preferencias visuales) estarán disponibles en una próxima actualización.
-              </p>
-            </div>
+              <div className="flex-1">
+                <p className="font-semibold text-accent-foreground">Modo Claro</p>
+                <p className="text-xs text-foreground">Fondo blanco, colores suaves</p>
+              </div>
+              {theme === 'light' && (
+                <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                  <div className="h-2 w-2 rounded-full bg-white" />
+                </div>
+              )}
+            </button>
+
+            {/* Opción Oscuro */}
+            <button
+              onClick={() => setTheme('dark')}
+              className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${
+                theme === 'dark'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-transparent bg-background hover:bg-muted'
+              }`}
+            >
+              <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                theme === 'dark' ? 'bg-gradient-liga1' : 'bg-muted'
+              }`}>
+                <Moon className={`h-5 w-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-accent-foreground">Modo Oscuro</p>
+                <p className="text-xs text-foreground">Fondo oscuro, menos fatiga visual</p>
+              </div>
+              {theme === 'dark' && (
+                <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                  <div className="h-2 w-2 rounded-full bg-white" />
+                </div>
+              )}
+            </button>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Gestión de Usuarios */}
+      <Dialog open={openDialog === 'usuarios'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Gestión de Usuarios
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2">
+            {/* Cargando */}
+            {loadingUsers && (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-foreground" />
+                <p className="text-sm text-foreground">Cargando usuarios...</p>
+              </div>
+            )}
+
+            {/* Error */}
+            {!loadingUsers && usersError && (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 text-destructive">
+                <AlertCircle className="h-8 w-8" />
+                <p className="text-sm">{usersError}</p>
+                <Button variant="outline" size="sm" onClick={fetchAdminUsers}>
+                  Reintentar
+                </Button>
+              </div>
+            )}
+
+            {/* Lista de usuarios */}
+            {!loadingUsers && !usersError && (
+              <>
+                <p className="text-xs text-foreground mb-4">
+                  {adminUsers.length} {adminUsers.length === 1 ? 'usuario registrado' : 'usuarios registrados'}
+                </p>
+                <div className="space-y-3 max-h-105 overflow-y-auto pr-1">
+                  {adminUsers.map((u) => {
+                    const initials = (u.displayName ?? u.email)
+                      .charAt(0)
+                      .toUpperCase();
+                    const isCurrentUser = u.uid === user?.uid;
+
+                    return (
+                      <div
+                        key={u.uid}
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                          isCurrentUser
+                            ? 'bg-muted border border-primary/20'
+                            : 'bg-background hover:bg-muted'
+                        }`}
+                      >
+                        {/* Avatar */}
+                        <Avatar className="h-10 w-10 border-2 border-white shadow-soft shrink-0">
+                          <AvatarImage src={u.photoURL ?? undefined} />
+                          <AvatarFallback className="bg-gradient-liga1 text-white font-bold text-sm">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-accent-foreground text-sm truncate">
+                              {u.displayName ?? u.email}
+                            </p>
+                            {isCurrentUser && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 h-4">
+                                Tú
+                              </Badge>
+                            )}
+                            {u.disabled && (
+                              <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4">
+                                Desactivado
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-foreground truncate">{u.email}</p>
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            {u.lastSignInAt && (
+                              <span className="text-xs text-foreground flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Último acceso:{' '}
+                                {format(new Date(u.lastSignInAt), "dd MMM yyyy", { locale: es })}
+                              </span>
+                            )}
+                            {u.createdAt && (
+                              <span className="text-xs text-foreground">
+                                Registrado: {format(new Date(u.createdAt), "dd MMM yyyy", { locale: es })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Role badge */}
+                        <Badge
+                          variant={u.role === 'admin' ? 'default' : 'secondary'}
+                          className={`shrink-0 ${u.role === 'admin' ? 'bg-gradient-liga1 border-0' : ''}`}
+                        >
+                          <Shield className="h-3 w-3 mr-1" />
+                          {u.role === 'admin' ? 'Admin' : 'Viewer'}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cerrar</Button>
           </DialogFooter>

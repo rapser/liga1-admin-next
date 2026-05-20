@@ -134,37 +134,68 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Backgrounds */
+  --background: #111827;
+  --foreground: #9ca3af;
+
+  /* Cards */
+  --card: #1f2937;
+  --card-foreground: #e5e7eb;
+
+  /* Popover */
+  --popover: #1f2937;
+  --popover-foreground: #e5e7eb;
+
+  /* Primary - mantener el rojo Liga 1 */
+  --primary: #f84f4f;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #374151;
+  --secondary-foreground: #e5e7eb;
+
+  /* Muted */
+  --muted: #374151;
+  --muted-foreground: #6b7280;
+
+  /* Accent */
+  --accent: #374151;
+  --accent-foreground: #f3f4f6;
+
+  /* Destructive */
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+
+  /* Borders */
+  --border: #374151;
+  --input: #374151;
+  --ring: #f84f4f;
+
+  /* Badge Status Colors (dark) */
+  --badge-warning-bg: #2d2500;
+  --badge-warning-text: #fbbf24;
+  --badge-warning-border: #92620a;
+  --badge-suspended-text: #fbbf24;
+  --badge-finalized-bg: #374151;
+  --badge-finalized-border: #4b5563;
+  --trophy-gold: #fbbf24;
+
+  /* Charts */
+  --chart-1: #38bdf8;
+  --chart-2: #86efac;
+  --chart-3: #fcd34d;
+  --chart-4: #f87171;
+  --chart-5: #a78bfa;
+
+  /* Sidebar */
+  --sidebar: #1f2937;
+  --sidebar-foreground: #9ca3af;
+  --sidebar-primary: #f84f4f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #111827;
+  --sidebar-accent-foreground: #f3f4f6;
+  --sidebar-border: #374151;
+  --sidebar-ring: #f84f4f;
 }
 
 @layer base {

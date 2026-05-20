@@ -70,7 +70,7 @@ export class MatchStateService {
         estado: "envivo",
         horaInicio: horaInicioPasado,
         primeraParte: false,
-        tiempoAgregado: 1, // 1 minuto agregado para permitir finalizar inmediatamente
+        tiempoAgregado: 0,
         tiempoAgregadoPrimeraParte: 0,
         enDescanso: false,
         horaInicioSegundaParte: horaInicioSegundaPartePasado,
@@ -80,21 +80,47 @@ export class MatchStateService {
       const fechaPartido =
         match.fecha instanceof Date ? match.fecha : new Date(match.fecha);
       const elapsedMs = ahora.getTime() - fechaPartido.getTime();
+      const elapsedMinutes = elapsedMs > 0 ? Math.floor(elapsedMs / 60000) : 0;
 
-      // Si el partido ya debería haber empezado (hora programada en el pasado),
-      // usar la hora programada como horaInicio para que el minutero refleje
-      // el tiempo real transcurrido (ej: 30' si se inició 30 min tarde).
-      // Si todavía no ha llegado la hora programada, usar la hora actual (0 min).
-      const horaInicio = elapsedMs > 0 ? fechaPartido : ahora;
-
-      updates = {
-        estado: "envivo",
-        horaInicio,
-        primeraParte: true,
-        tiempoAgregado: 0,
-        tiempoAgregadoPrimeraParte: 0,
-        enDescanso: false,
-      };
+      if (elapsedMinutes >= 60) {
+        // Segunda parte: transcurrieron 60-120 min desde el horario programado.
+        // Se asume descanso de 15 min → la 2da parte comenzó a los 60 min del partido.
+        const horaInicioSegundaParte = new Date(
+          fechaPartido.getTime() + 60 * 60 * 1000,
+        );
+        updates = {
+          estado: "envivo",
+          horaInicio: fechaPartido,
+          primeraParte: false,
+          tiempoAgregado: 0,
+          tiempoAgregadoPrimeraParte: 0,
+          enDescanso: false,
+          horaInicioSegundaParte,
+        };
+      } else if (elapsedMinutes >= 45) {
+        // Descanso: transcurrieron 45-60 min desde el horario programado.
+        updates = {
+          estado: "envivo",
+          horaInicio: fechaPartido,
+          primeraParte: false,
+          tiempoAgregado: 0,
+          tiempoAgregadoPrimeraParte: 0,
+          enDescanso: true,
+        };
+      } else {
+        // Primera parte: 0-45 min transcurridos.
+        // Si el horario ya pasó, usar la hora programada para que el minutero
+        // refleje el tiempo real (ej: 30' si se inició 30 min tarde).
+        const horaInicio = elapsedMs > 0 ? fechaPartido : ahora;
+        updates = {
+          estado: "envivo",
+          horaInicio,
+          primeraParte: true,
+          tiempoAgregado: 0,
+          tiempoAgregadoPrimeraParte: 0,
+          enDescanso: false,
+        };
+      }
     }
 
     // Si el marcador no está establecido, inicializar a 0-0
@@ -137,16 +163,9 @@ export class MatchStateService {
       );
 
       if (equipoLocal && equipoVisitante) {
-        // Incrementar solo matchesPlayed (una sola vez, cuando inicia el partido)
-        // NO actualizar puntos/goles aquí: se aplican en updateMatchScore al cambiar el marcador
-        // o en finishMatch si el partido termina 0-0 (para evitar doble conteo por lecturas obsoletas)
-        await Promise.all([
-          this.teamRepository.updateTeamStats(torneo, match.equipoLocalId, {
-            partidosJugados: equipoLocal.partidosJugados + 1,
-          }),
-          this.teamRepository.updateTeamStats(torneo, match.equipoVisitanteId, {
-            partidosJugados: equipoVisitante.partidosJugados + 1,
-          }),
+        await this.teamRepository.batchWriteTeamStats([
+          { torneo, teamId: match.equipoLocalId, stats: { partidosJugados: equipoLocal.partidosJugados + 1 } },
+          { torneo, teamId: match.equipoVisitanteId, stats: { partidosJugados: equipoVisitante.partidosJugados + 1 } },
         ]);
       }
     }
