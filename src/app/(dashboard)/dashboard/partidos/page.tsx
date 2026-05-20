@@ -45,47 +45,51 @@ const getTeamsFromMatchId = (
 };
 
 async function fetchPartidosInitial() {
-  const [visibleJornadas, allJornadas] = await Promise.all([
-    jornadaRepository.fetchVisibleJornadas(),
-    jornadaRepository.fetchJornadas(),
-  ]);
+  const visibleJornadas = await jornadaRepository.fetchVisibleJornadas();
 
-  // Cargar matches de todas las jornadas marcando visibilidad y jornadaId
+  // Solo cargar jornadas visibles para En Vivo / Próximos / Suspendidos
   const matchesByJornada = await Promise.all(
-    allJornadas.map(async (j) => ({
+    visibleJornadas.map(async (j) => ({
       jornadaId: j.id,
-      isVisible: j.mostrar,
       matches: await matchRepository.fetchMatches(j.id),
     })),
   );
 
-  const matches = matchesByJornada
-    .flatMap((x) => x.matches)
-    .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-
-  // Matches de jornadas visibles agrupados por jornadaId (para updates de suscripciones)
   const visibleMatchesByJornada: Record<string, Match[]> = {};
-  for (const item of matchesByJornada.filter((x) => x.isVisible)) {
+  for (const item of matchesByJornada) {
     visibleMatchesByJornada[item.jornadaId] = item.matches;
   }
 
-  // visibleJornadas → usadas para suscripciones real-time (fechas activas/próximas)
-  return { jornadas: visibleJornadas, matches, visibleMatchesByJornada };
+  return { jornadas: visibleJornadas, visibleMatchesByJornada };
+}
+
+async function fetchFinalizados(): Promise<Match[]> {
+  const allJornadas = await jornadaRepository.fetchJornadas();
+  const matchesPerJornada = await Promise.all(
+    allJornadas.map((j) => matchRepository.fetchMatches(j.id)),
+  );
+  return matchesPerJornada
+    .flat()
+    .filter((m) => m.estado === 'finalizado')
+    .sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
 }
 
 export default function PartidosPage() {
   const { loading: authLoading } = useRequireAuth();
   const { data, isLoading: queryLoading } = useQuery({
-    queryKey: ["partidos", "all"],
+    queryKey: ["partidos", "visible"],
     queryFn: fetchPartidosInitial,
     enabled: !authLoading,
   });
-  // allMatchesState: todas las jornadas, solo para Finalizados
-  const [allMatchesState, setAllMatchesState] = useState<Match[]>([]);
-  // visibleByJornada: matches de jornadas visibles, keyed by jornadaId para updates precisos
   const [visibleByJornada, setVisibleByJornada] = useState<Record<string, Match[]>>({});
+  const [activeTab, setActiveTab] = useState("en-vivo");
 
-  const allMatches = allMatchesState.length > 0 ? allMatchesState : (data?.matches ?? []);
+  const { data: finalizadosData, isLoading: loadingFinalizados } = useQuery({
+    queryKey: ["partidos", "finalizados"],
+    queryFn: fetchFinalizados,
+    enabled: !authLoading && activeTab === "finalizados",
+  });
+
   const visibleMatches =
     Object.keys(visibleByJornada).length > 0
       ? Object.values(visibleByJornada)
@@ -94,26 +98,21 @@ export default function PartidosPage() {
       : Object.values(data?.visibleMatchesByJornada ?? {})
           .flat()
           .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-  const loading = queryLoading;
 
   useEffect(() => {
     if (!data) return;
-    setAllMatchesState(data.matches);
     setVisibleByJornada(data.visibleMatchesByJornada);
 
-    const unsubscribes: (() => void)[] = [];
-    for (const jornada of data.jornadas) {
+    const unsubscribes = data.jornadas.map((jornada) => {
       const jornadaId = jornada.id;
-      const unsub = matchRepository.observeMatches(jornadaId, (updatedMatches) => {
-        // Reemplaza exactamente los matches de esta jornada
+      return matchRepository.observeMatches(jornadaId, (updatedMatches) => {
         setVisibleByJornada((prev) => ({ ...prev, [jornadaId]: updatedMatches }));
       });
-      unsubscribes.push(unsub);
-    }
+    });
     return () => unsubscribes.forEach((unsub) => unsub());
   }, [data]);
 
-  if (authLoading || loading) {
+  if (authLoading || queryLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -124,17 +123,13 @@ export default function PartidosPage() {
     );
   }
 
-  // En Vivo, Próximos y Suspendidos: solo jornadas visibles (real-time)
   const enVivoMatches = visibleMatches.filter(
     (m) => m.estado === "envivo" && !m.suspendido,
   );
   const proximosMatches = visibleMatches.filter(
     (m) => m.estado === "pendiente" && !m.suspendido,
   );
-  // Finalizados: todas las jornadas (sin filtro de visibilidad), orden descendente
-  const finalizadosMatches = allMatches
-    .filter((m) => m.estado === "finalizado")
-    .sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
+  const finalizadosMatches = finalizadosData ?? [];
   const suspendidosMatches = visibleMatches.filter((m) => m.suspendido);
 
   return (
@@ -177,7 +172,7 @@ export default function PartidosPage() {
       </div>
 
       {/* Tabs de Partidos */}
-      <Tabs defaultValue="en-vivo" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-6">
           <TabsTrigger value="en-vivo">
             En Vivo ({enVivoMatches.length})
@@ -186,7 +181,7 @@ export default function PartidosPage() {
             Próximos ({proximosMatches.length})
           </TabsTrigger>
           <TabsTrigger value="finalizados">
-            Finalizados ({finalizadosMatches.length})
+            Finalizados {finalizadosMatches.length > 0 ? `(${finalizadosMatches.length})` : ''}
           </TabsTrigger>
           <TabsTrigger value="suspendidos">
             Suspendidos ({suspendidosMatches.length})
@@ -208,10 +203,16 @@ export default function PartidosPage() {
         </TabsContent>
 
         <TabsContent value="finalizados">
-          <MatchesList
-            matches={finalizadosMatches}
-            emptyMessage="No hay partidos finalizados"
-          />
+          {loadingFinalizados ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : (
+            <MatchesList
+              matches={finalizadosMatches}
+              emptyMessage="No hay partidos finalizados"
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="suspendidos">
