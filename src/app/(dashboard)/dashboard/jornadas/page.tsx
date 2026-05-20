@@ -103,7 +103,11 @@ export default function JornadasPage() {
     queryKey: ["jornadas", "list"],
     queryFn: async () => {
       const data = await jornadaRepository.fetchVisibleJornadas();
-      return [...data].sort((a, b) => b.numero - a.numero);
+      // Extraer el número del ID ("apertura_16" → 16) para ordenar de forma confiable
+      // independientemente de si el campo `numero` está poblado en Firestore.
+      const parseNum = (id: string) =>
+        parseInt(id.split('_').pop() ?? '0', 10) || 0;
+      return [...data].sort((a, b) => parseNum(b.id) - parseNum(a.id));
     },
     enabled: !authLoading,
   });
