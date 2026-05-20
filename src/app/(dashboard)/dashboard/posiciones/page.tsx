@@ -6,7 +6,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
 import { PageHeader } from '@/presentation/components/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,32 +19,29 @@ const teamRepository = new TeamRepository();
 
 export default function PosicionesPage() {
   const { loading: authLoading } = useRequireAuth();
-  const { data: aperturaData = [], isLoading: loading } = useQuery({
-    queryKey: ['posiciones', 'apertura'],
-    queryFn: async () => {
-      const data = await teamRepository.fetchStandings('apertura');
-      return [...data].sort(compareTeams);
-    },
-    enabled: !authLoading,
-  });
-  const [aperturaTeams, setAperturaTeams] = useState<Team[]>(aperturaData);
+  const [aperturaTeams, setAperturaTeams] = useState<Team[]>([]);
   const [clausuraTeams, setClausuraTeams] = useState<Team[]>([]);
   const [acumuladoTeams, setAcumuladoTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (aperturaData.length > 0) {
-      setAperturaTeams(aperturaData);
-    }
-  }, [aperturaData]);
+    if (authLoading) return;
 
-  useEffect(() => {
-    if (!authLoading && aperturaData.length >= 0) {
-      const unsubscribe = teamRepository.observeStandings('apertura', (teams) => {
-        setAperturaTeams([...teams].sort(compareTeams));
-      });
-      return () => unsubscribe();
-    }
-  }, [authLoading, aperturaData.length]);
+    let resolved = 0;
+    const onData = (setter: (t: Team[]) => void) => (teams: Team[]) => {
+      setter([...teams].sort(compareTeams));
+      resolved++;
+      if (resolved >= 3) setLoading(false);
+    };
+
+    const unsubs = [
+      teamRepository.observeStandings('apertura', onData(setAperturaTeams)),
+      teamRepository.observeStandings('clausura', onData(setClausuraTeams)),
+      teamRepository.observeStandings('acumulado', onData(setAcumuladoTeams)),
+    ];
+
+    return () => unsubs.forEach((u) => u());
+  }, [authLoading]);
 
   if (authLoading || loading) {
     return (
@@ -73,27 +69,44 @@ export default function PosicionesPage() {
         </TabsList>
 
         <TabsContent value="apertura">
-          <StandingsTable teams={aperturaTeams} title="Torneo Apertura" />
+          <StandingsTable teams={aperturaTeams} title="Torneo Apertura" tableType="apertura" />
         </TabsContent>
 
         <TabsContent value="clausura">
-          <StandingsTable teams={clausuraTeams} title="Torneo Clausura" />
+          <StandingsTable teams={clausuraTeams} title="Torneo Clausura" tableType="clausura" />
         </TabsContent>
 
         <TabsContent value="acumulado">
-          <StandingsTable teams={acumuladoTeams} title="Tabla Acumulada" />
+          <StandingsTable teams={acumuladoTeams} title="Tabla Acumulada" tableType="acumulado" />
         </TabsContent>
       </Tabs>
     </>
   );
 }
 
+type TableType = 'apertura' | 'clausura' | 'acumulado';
+
 interface StandingsTableProps {
   teams: Team[];
   title: string;
+  tableType: TableType;
 }
 
-function StandingsTable({ teams, title }: StandingsTableProps) {
+function getPositionBadgeClass(position: number, type: TableType): string {
+  if (type === 'apertura' || type === 'clausura') {
+    if (position === 1) return 'bg-yellow-500 text-white';
+    return 'bg-muted text-foreground';
+  }
+  // acumulado
+  if (position <= 2) return 'bg-blue-700 text-white';
+  if (position === 3) return 'bg-blue-500 text-white';
+  if (position === 4) return 'bg-sky-400 text-white';
+  if (position >= 5 && position <= 8) return 'bg-orange-500 text-white';
+  if (position >= 17) return 'bg-red-600 text-white';
+  return 'bg-muted text-foreground';
+}
+
+function StandingsTable({ teams, title, tableType }: StandingsTableProps) {
   if (teams.length === 0) {
     return (
       <Card className="shadow-soft border-0">
@@ -152,7 +165,10 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
             <tbody>
               {teams.map((team, index) => {
                 const position = index + 1;
-                const isChampion = position === 1;
+                const badgeClass = getPositionBadgeClass(position, tableType);
+                const isChampion =
+                  position === 1 &&
+                  (tableType === 'apertura' || tableType === 'clausura');
 
                 return (
                   <tr
@@ -162,19 +178,19 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${
-                            isChampion
-                              ? 'bg-gradient-success text-white'
-                              : 'bg-muted text-foreground'
-                          }`}
+                          className={`flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${badgeClass}`}
                         >
                           {position}
                         </span>
-                        {isChampion && <Trophy className="h-4 w-4 text-trophy-gold" />}
+                        {isChampion && (
+                          <Trophy className="h-4 w-4 text-trophy-gold" />
+                        )}
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="font-semibold text-accent-foreground">{team.nombre}</span>
+                      <span className="font-semibold text-accent-foreground">
+                        {team.nombre}
+                      </span>
                     </td>
                     <td className="py-4 px-4 text-center text-foreground">
                       {team.partidosJugados}
@@ -221,19 +237,48 @@ function StandingsTable({ teams, title }: StandingsTableProps) {
         </div>
 
         {/* Leyenda */}
-        <div className="mt-6 flex flex-wrap gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded bg-gradient-success"></div>
-            <span className="text-foreground">Clasificación directa</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded bg-gradient-info"></div>
-            <span className="text-foreground">Playoff</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded bg-gradient-error"></div>
-            <span className="text-foreground">Descenso</span>
-          </div>
+        <div className="mt-6 pt-4 border-t border-muted">
+          {tableType === 'apertura' || tableType === 'clausura' ? (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="flex h-5 w-5 items-center justify-center rounded text-xs font-bold bg-yellow-500 text-white">
+                1
+              </span>
+              <span className="text-foreground">
+                Campeón del torneo · Clasifica a Playoff
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded bg-blue-700 shrink-0" />
+                <span className="text-foreground">
+                  Copa Libertadores — Fase de Grupos (1°–2°)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded bg-blue-500 shrink-0" />
+                <span className="text-foreground">
+                  Copa Libertadores — Fase 2 (3°)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded bg-sky-400 shrink-0" />
+                <span className="text-foreground">
+                  Copa Libertadores — Fase 1 (4°)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded bg-orange-500 shrink-0" />
+                <span className="text-foreground">
+                  Copa Sudamericana (5°–8°)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded bg-red-600 shrink-0" />
+                <span className="text-foreground">Descenso (17°–18°)</span>
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

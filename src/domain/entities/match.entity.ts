@@ -175,12 +175,8 @@ export const canFinishMatch = (match: Match): boolean => {
   const minutosTranscurridos = getMatchElapsedMinutes(match);
   const tiempoAgregado = match.tiempoAgregado || 0;
 
-  // Si ya pasaron los 90 minutos, necesita tener tiempo agregado configurado
-  if (minutosTranscurridos >= 90 && tiempoAgregado === 0) {
-    return false; // No puede finalizar hasta configurar minutos adicionales
-  }
-
-  // El partido puede finalizarse cuando han pasado 90 minutos + minutos adicionales configurados
+  // El partido puede finalizarse cuando han pasado 90 minutos + minutos adicionales configurados.
+  // Si no se configuraron minutos adicionales (tiempoAgregado=0), se puede finalizar a los 90 min.
   return minutosTranscurridos >= 90 + tiempoAgregado;
 };
 
