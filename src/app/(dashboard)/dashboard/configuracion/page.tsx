@@ -91,10 +91,10 @@ export default function ConfiguracionPage() {
   }, []);
 
   useEffect(() => {
-    if (openDialog === 'usuarios') {
+    if (openDialog === 'usuarios' && adminUsers.length === 0 && !loadingUsers) {
       fetchAdminUsers();
     }
-  }, [openDialog, fetchAdminUsers]);
+  }, [openDialog, adminUsers.length, loadingUsers, fetchAdminUsers]);
 
   const handleSaveName = async () => {
     if (!auth.currentUser || !displayName.trim()) return;
