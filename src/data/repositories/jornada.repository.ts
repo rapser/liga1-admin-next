@@ -186,7 +186,11 @@ export class JornadaRepository implements IJornadaRepository {
   async setJornadaById(jornadaId: string, jornada: Omit<Jornada, 'id'>): Promise<void> {
     const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, jornadaId);
     const jornadaDTO = JornadaMapper.toDTO(jornada);
-    await setDoc(jornadaRef, jornadaDTO);
+    // Firestore rechaza valores undefined — los eliminamos antes de escribir
+    const cleanDTO = Object.fromEntries(
+      Object.entries(jornadaDTO).filter(([, v]) => v !== undefined)
+    );
+    await setDoc(jornadaRef, cleanDTO);
   }
 
   /**

@@ -111,8 +111,10 @@ export default function ConfiguracionPage() {
         `Clausura generado: ${jornadasCreated} fechas y ${matchesCreated} partidos creados. Recuerda actualizar las fechas de cada partido.`,
       );
       closeDialog();
-    } catch {
-      toast.error('Error al generar el Clausura. Revisa la consola para más detalles.');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('[GenerateClausura]', error);
+      toast.error(`Error: ${msg}`);
     } finally {
       setGeneratingClausura(false);
     }

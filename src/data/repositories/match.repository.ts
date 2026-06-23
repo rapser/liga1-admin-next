@@ -267,6 +267,10 @@ export class MatchRepository implements IMatchRepository {
       matchId
     );
     const matchDTO = MatchMapper.toDTO(match);
-    await setDoc(matchRef, matchDTO);
+    // Firestore rechaza valores undefined — los eliminamos antes de escribir
+    const cleanDTO = Object.fromEntries(
+      Object.entries(matchDTO).filter(([, v]) => v !== undefined)
+    );
+    await setDoc(matchRef, cleanDTO);
   }
 }
