@@ -9,6 +9,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/core/config/firebase';
 import { toast } from 'sonner';
+import { TeamRepository } from '@/data/repositories/team.repository';
+import { JornadaRepository } from '@/data/repositories/jornada.repository';
+import { MatchRepository } from '@/data/repositories/match.repository';
+import { ClausuraGeneratorService } from '@/domain/services/clausura-generator.service';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
 import { useAuth } from '@/presentation/providers/auth-provider';
 import { PageHeader } from '@/presentation/components/shared';
@@ -39,6 +43,7 @@ import {
   AlertCircle,
   Sun,
   Moon,
+  RefreshCw,
 } from 'lucide-react';
 import { useTheme } from '@/presentation/providers/theme-provider';
 import { format } from 'date-fns';
@@ -54,6 +59,12 @@ interface AdminUserRecord {
   role: 'admin' | 'viewer';
   disabled: boolean;
 }
+
+const teamRepository = new TeamRepository();
+const clausuraGeneratorService = new ClausuraGeneratorService(
+  new JornadaRepository(),
+  new MatchRepository(),
+);
 
 export default function ConfiguracionPage() {
   const { loading } = useRequireAuth();
@@ -74,6 +85,40 @@ export default function ConfiguracionPage() {
   const [usersError, setUsersError] = useState<string | null>(null);
 
   const closeDialog = () => setOpenDialog(null);
+
+  const [initializingClausura, setInitializingClausura] = useState(false);
+  const [generatingClausura, setGeneratingClausura] = useState(false);
+
+  const handleInitClausura = async () => {
+    setInitializingClausura(true);
+    try {
+      await teamRepository.initClausuraFromApertura();
+      toast.success('Clausura inicializado correctamente. Los 18 equipos están listos con estadísticas en cero.');
+      closeDialog();
+    } catch {
+      toast.error('Error al inicializar el Clausura. Revisa la consola para más detalles.');
+    } finally {
+      setInitializingClausura(false);
+    }
+  };
+
+  const handleGenerateClausura = async () => {
+    setGeneratingClausura(true);
+    try {
+      const { jornadasCreated, matchesCreated } =
+        await clausuraGeneratorService.generateClausuraFromApertura();
+      toast.success(
+        `Clausura generado: ${jornadasCreated} fechas y ${matchesCreated} partidos creados. Recuerda actualizar las fechas de cada partido.`,
+      );
+      closeDialog();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('[GenerateClausura]', error);
+      toast.error(`Error: ${msg}`);
+    } finally {
+      setGeneratingClausura(false);
+    }
+  };
 
   const fetchAdminUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -342,6 +387,31 @@ export default function ConfiguracionPage() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Gestión de Torneos */}
+                <div className="p-4 rounded-xl bg-background hover:bg-muted transition-colors md:col-span-2">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-gradient-warning flex items-center justify-center shrink-0">
+                        <RefreshCw className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-accent-foreground">Gestión de Torneos</p>
+                        <p className="text-sm text-foreground">
+                          Inicializa equipos del Clausura y genera todas las fechas con los partidos invertidos del Apertura
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Button variant="outline" size="sm" onClick={() => setOpenDialog('initClausura')}>
+                        Iniciar Clausura
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setOpenDialog('generateClausura')}>
+                        Generar Fechas
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -520,6 +590,92 @@ export default function ConfiguracionPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Iniciar Clausura */}
+      <Dialog open={openDialog === 'initClausura'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Iniciar Torneo Clausura
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="p-4 rounded-xl bg-background space-y-2">
+              <p className="text-sm text-foreground">Esta acción:</p>
+              <ul className="text-sm text-foreground list-disc list-inside space-y-1">
+                <li>Crea los 18 documentos de equipos en la colección <strong>clausura</strong> con estadísticas en cero</li>
+                <li>Sincroniza la tabla <strong>acumulado</strong> con los datos actuales del Apertura</li>
+              </ul>
+            </div>
+            <div className="p-3 rounded-xl border border-yellow-400/40 bg-yellow-50 dark:bg-yellow-950/20">
+              <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                Si el Clausura ya fue inicializado antes, esta operación sobreescribirá las estadísticas existentes con cero. Usarla solo al comenzar el torneo.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog} disabled={initializingClausura}>Cancelar</Button>
+            <Button
+              className="bg-gradient-liga1 border-0 text-white"
+              onClick={handleInitClausura}
+              disabled={initializingClausura}
+            >
+              {initializingClausura ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Inicializando...</>
+              ) : (
+                'Confirmar e Iniciar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Generar Fechas del Clausura */}
+      <Dialog open={openDialog === 'generateClausura'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Generar Fechas del Clausura
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="p-4 rounded-xl bg-background space-y-2">
+              <p className="text-sm text-foreground">Esta acción:</p>
+              <ul className="text-sm text-foreground list-disc list-inside space-y-1">
+                <li>Lee todas las fechas del <strong>Apertura</strong> desde Firestore</li>
+                <li>Crea <strong>clausura_01, clausura_02…</strong> con los partidos invertidos (local ↔ visitante)</li>
+                <li>Todos los partidos tendrán como fecha placeholder el <strong>22 Nov 2026</strong></li>
+              </ul>
+            </div>
+            <div className="p-3 rounded-xl border border-blue-400/40 bg-blue-50 dark:bg-blue-950/20">
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                Las fechas reales de cada partido deberás actualizarlas manualmente desde la sección Jornadas a medida que se anuncie el calendario oficial.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl border border-yellow-400/40 bg-yellow-50 dark:bg-yellow-950/20">
+              <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                Si ya existen jornadas del Clausura, serán sobreescritas. Esta operación es segura de repetir.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog} disabled={generatingClausura}>Cancelar</Button>
+            <Button
+              className="bg-gradient-liga1 border-0 text-white"
+              onClick={handleGenerateClausura}
+              disabled={generatingClausura}
+            >
+              {generatingClausura ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generando...</>
+              ) : (
+                'Confirmar y Generar'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
