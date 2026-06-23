@@ -191,10 +191,17 @@ export class JornadaRepository implements IJornadaRepository {
 
   /**
    * Obtiene todas las jornadas del Apertura ordenadas por número.
-   * Usada como fuente para generar las jornadas del Clausura.
+   * Filtra por prefijo del ID en cliente porque el campo 'torneo' puede
+   * no estar almacenado en Firestore (el mapper lo infiere del ID).
    */
   async fetchAllAperturaJornadas(): Promise<Jornada[]> {
-    const jornadas = await this.fetchJornadas('apertura');
+    const jornadasRef = collection(db, FIRESTORE_COLLECTIONS.JORNADAS);
+    const snapshot = await getDocs(jornadasRef);
+
+    const jornadas = snapshot.docs
+      .filter((d) => d.id.startsWith('apertura_'))
+      .map((d) => JornadaMapper.toDomain(d.id, d.data() as Partial<JornadaDTO>));
+
     return jornadas.sort((a, b) => a.numero - b.numero);
   }
 
