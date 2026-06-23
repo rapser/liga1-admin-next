@@ -257,7 +257,7 @@ Cada sección del panel tiene un propósito claro. Así la persona que lea el RE
 | **Jornadas** | `/dashboard/jornadas` | Ver y gestionar jornadas del torneo (Apertura/Clausura). Lista jornadas con sus partidos; desde aquí se puede abrir una jornada para iniciar partidos o ver el estado. Las fechas de inicio/fin y si la jornada se muestra en la app se gestionan con los datos de la colección `jornadas`. |
 | **Noticias** | `/dashboard/noticias` | Gestionar las noticias que consume la app (u otro canal). Crear, editar y listar noticias: título, imagen, categoría unificada (general, resultado, fixture, comunicado, destacado, partidos, fichajes, equipos, jugadores, tabla, estadísticas), medio, URL y estado (publicada/borrador). Los datos están en la colección `news`. |
 | **Posiciones** | `/dashboard/posiciones` | Ver la tabla de posiciones (Apertura, Clausura o Acumulado). Muestra por equipo: partidos jugados, ganados, empatados, perdidos, goles a favor/en contra, diferencia y puntos. Se actualiza en tiempo real según los partidos; los datos vienen de las colecciones `apertura`, `clausura` y `acumulado`. |
-| **Configuración** | `/dashboard/configuracion` | Ajustes del panel y del perfil de usuario. Permite editar el nombre (actualiza Firebase Auth), gestionar seguridad (reset de contraseña por email o info de cuenta Google), y ver información de la cuenta. Sección de configuración del sistema solo visible para administradores. |
+| **Configuración** | `/dashboard/configuracion` | Ajustes del panel y del perfil de usuario. Permite editar el nombre (actualiza Firebase Auth), gestionar seguridad (reset de contraseña por email o info de cuenta Google), y ver información de la cuenta. Sección de configuración del sistema solo visible para administradores. Incluye tarjeta **"Gestión de Torneos"** con botones para la transición Apertura → Clausura (ver más abajo). |
 
 Todas las secciones bajo `/dashboard/*` comparten el mismo layout: sidebar a la izquierda con enlaces a estas rutas, barra superior (navbar) y área de contenido a la derecha.
 
@@ -297,6 +297,8 @@ Cada documento en **`jornadas`** tiene:
 | `esActiva` | `boolean` (opcional) | Si es la jornada activa actual |
 
 El **ID del documento** se arma así: `apertura_01`, `clausura_12`, etc. (torneo + número con 2 dígitos). Ver `generateJornadaId` en `src/domain/entities/jornada.entity.ts`.
+
+> **Nota sobre Firestore real:** En la práctica, los documentos de jornada solo almacenan `fechaInicio` y `mostrar`. Los campos `torneo`, `numero` y `esActiva` los infiere el mapper (`JornadaMapper.toDomain`) a partir del ID del documento: el prefijo (`apertura`/`clausura`) determina el torneo, y los dos últimos dígitos determinan el número. Esto permite que el generador de fechas funcione correctamente aunque los campos no existan en Firestore.
 
 ---
 
@@ -366,6 +368,10 @@ La tabla se ordena por: partidos jugados (desc), puntos (desc), diferencia de go
 - **Posiciones**: Tabla de posiciones (Apertura, Clausura y Acumulado) actualizada según los partidos.
 - **Noticias**: Crear, editar y listar noticias con campo `categoria` unificado (11 valores: general, resultado, fixture, comunicado, destacado, partidos, fichajes, equipos, jugadores, tabla, estadísticas).
 - **Configuración de cuenta**: Editar nombre (actualiza Firebase Auth con `updateProfile`); reset de contraseña por email (`sendPasswordResetEmail`) o información de cuenta Google; dialogs para notificaciones y apariencia.
+- **Transición Apertura → Clausura** (solo admin): Tarjeta "Gestión de Torneos" con dos acciones protegidas por dialog de confirmación:
+  - **Iniciar Clausura**: crea los 18 documentos de equipos en la colección `clausura` con estadísticas en cero y sincroniza el `acumulado` con el estado final del Apertura.
+  - **Generar Fechas**: lee todas las jornadas del Apertura desde Firestore, invierte local/visitante en cada partido (`uni_ali` → `ali_uni`) y crea `clausura_01`…`clausura_N` usando `writeBatch` en una sola operación. Las fechas se establecen como placeholder hasta que el administrador las actualice manualmente partido a partido.
+- **Acumulado automático**: tras cada partido el sistema recalcula el acumulado (apertura + clausura) con `recalculateAcumulado` dentro de `batchWriteTeamStats`, sin intervención manual.
 - **Notificaciones push**: Envío por FCM a tópicos de equipos (`team_*`) o al canal general (`liga1_all`).
 - **APIs de servidor**: `/api/auth/session`, `/api/auth/logout`, `/api/push-notifications/send`, `/api/stats/users` — todas usando Firebase Admin SDK.
 

@@ -67,6 +67,12 @@ export interface ITeamRepository {
   resetStandings(torneo: TorneoType): Promise<void>;
 
   /**
+   * Inicializa la colección clausura copiando equipos del apertura con stats en cero.
+   * También sincroniza acumulado para reflejar el estado actual (apertura finalizado).
+   */
+  initClausuraFromApertura(): Promise<void>;
+
+  /**
    * Obtiene todos los equipos (información básica sin estadísticas)
    */
   fetchAllTeams(): Promise<Team[]>;

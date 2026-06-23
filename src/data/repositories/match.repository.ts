@@ -10,6 +10,7 @@ import {
   getDoc,
   updateDoc,
   addDoc,
+  setDoc,
   deleteDoc,
   onSnapshot,
   query,
@@ -247,5 +248,29 @@ export class MatchRepository implements IMatchRepository {
   async fetchLiveMatches(): Promise<Match[]> {
     // TODO: Implementar con colección separada o Cloud Functions para mejor rendimiento
     return [];
+  }
+
+  /**
+   * Escribe un partido con un ID específico (para ali_uni, hua_cri, etc.)
+   * Usa setDoc en lugar de addDoc para controlar el ID del documento.
+   */
+  async setMatchById(
+    jornadaId: string,
+    matchId: string,
+    match: Omit<Match, 'id'>
+  ): Promise<void> {
+    const matchRef = doc(
+      db,
+      FIRESTORE_COLLECTIONS.JORNADAS,
+      jornadaId,
+      FIRESTORE_COLLECTIONS.MATCHES,
+      matchId
+    );
+    const matchDTO = MatchMapper.toDTO(match);
+    // Firestore rechaza valores undefined — los eliminamos antes de escribir
+    const cleanDTO = Object.fromEntries(
+      Object.entries(matchDTO).filter(([, v]) => v !== undefined)
+    );
+    await setDoc(matchRef, cleanDTO);
   }
 }

@@ -9,6 +9,7 @@ import {
   getDocs,
   getDoc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -176,6 +177,36 @@ export class JornadaRepository implements IJornadaRepository {
     if (!doc) return null;
 
     return JornadaMapper.toDomain(doc.id, doc.data() as Partial<JornadaDTO>);
+  }
+
+  /**
+   * Escribe una jornada con un ID específico (para clausura_01, clausura_02, etc.)
+   * Usa setDoc en lugar de addDoc para controlar el ID del documento.
+   */
+  async setJornadaById(jornadaId: string, jornada: Omit<Jornada, 'id'>): Promise<void> {
+    const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, jornadaId);
+    const jornadaDTO = JornadaMapper.toDTO(jornada);
+    // Firestore rechaza valores undefined — los eliminamos antes de escribir
+    const cleanDTO = Object.fromEntries(
+      Object.entries(jornadaDTO).filter(([, v]) => v !== undefined)
+    );
+    await setDoc(jornadaRef, cleanDTO);
+  }
+
+  /**
+   * Obtiene todas las jornadas del Apertura ordenadas por número.
+   * Filtra por prefijo del ID en cliente porque el campo 'torneo' puede
+   * no estar almacenado en Firestore (el mapper lo infiere del ID).
+   */
+  async fetchAllAperturaJornadas(): Promise<Jornada[]> {
+    const jornadasRef = collection(db, FIRESTORE_COLLECTIONS.JORNADAS);
+    const snapshot = await getDocs(jornadasRef);
+
+    const jornadas = snapshot.docs
+      .filter((d) => d.id.startsWith('apertura_'))
+      .map((d) => JornadaMapper.toDomain(d.id, d.data() as Partial<JornadaDTO>));
+
+    return jornadas.sort((a, b) => a.numero - b.numero);
   }
 
   /**
