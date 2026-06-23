@@ -9,6 +9,7 @@ import {
   getDocs,
   getDoc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -176,6 +177,25 @@ export class JornadaRepository implements IJornadaRepository {
     if (!doc) return null;
 
     return JornadaMapper.toDomain(doc.id, doc.data() as Partial<JornadaDTO>);
+  }
+
+  /**
+   * Escribe una jornada con un ID específico (para clausura_01, clausura_02, etc.)
+   * Usa setDoc en lugar de addDoc para controlar el ID del documento.
+   */
+  async setJornadaById(jornadaId: string, jornada: Omit<Jornada, 'id'>): Promise<void> {
+    const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, jornadaId);
+    const jornadaDTO = JornadaMapper.toDTO(jornada);
+    await setDoc(jornadaRef, jornadaDTO);
+  }
+
+  /**
+   * Obtiene todas las jornadas del Apertura ordenadas por número.
+   * Usada como fuente para generar las jornadas del Clausura.
+   */
+  async fetchAllAperturaJornadas(): Promise<Jornada[]> {
+    const jornadas = await this.fetchJornadas('apertura');
+    return jornadas.sort((a, b) => a.numero - b.numero);
   }
 
   /**
