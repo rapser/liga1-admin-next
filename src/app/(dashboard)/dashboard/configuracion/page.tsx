@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/core/config/firebase';
 import { toast } from 'sonner';
+import { TeamRepository } from '@/data/repositories/team.repository';
 import { useRequireAuth } from '@/presentation/hooks/use-require-auth';
 import { useAuth } from '@/presentation/providers/auth-provider';
 import { PageHeader } from '@/presentation/components/shared';
@@ -39,6 +40,7 @@ import {
   AlertCircle,
   Sun,
   Moon,
+  RefreshCw,
 } from 'lucide-react';
 import { useTheme } from '@/presentation/providers/theme-provider';
 import { format } from 'date-fns';
@@ -54,6 +56,8 @@ interface AdminUserRecord {
   role: 'admin' | 'viewer';
   disabled: boolean;
 }
+
+const teamRepository = new TeamRepository();
 
 export default function ConfiguracionPage() {
   const { loading } = useRequireAuth();
@@ -74,6 +78,21 @@ export default function ConfiguracionPage() {
   const [usersError, setUsersError] = useState<string | null>(null);
 
   const closeDialog = () => setOpenDialog(null);
+
+  const [initializingClausura, setInitializingClausura] = useState(false);
+
+  const handleInitClausura = async () => {
+    setInitializingClausura(true);
+    try {
+      await teamRepository.initClausuraFromApertura();
+      toast.success('Clausura inicializado correctamente. Los 18 equipos están listos con estadísticas en cero.');
+      closeDialog();
+    } catch {
+      toast.error('Error al inicializar el Clausura. Revisa la consola para más detalles.');
+    } finally {
+      setInitializingClausura(false);
+    }
+  };
 
   const fetchAdminUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -342,6 +361,26 @@ export default function ConfiguracionPage() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Gestión de Torneos */}
+                <div className="p-4 rounded-xl bg-background hover:bg-muted transition-colors md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-gradient-warning flex items-center justify-center">
+                        <RefreshCw className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-accent-foreground">Gestión de Torneos</p>
+                        <p className="text-sm text-foreground">
+                          Inicializa el Clausura copiando los equipos del Apertura con estadísticas en cero y sincroniza el Acumulado
+                        </p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setOpenDialog('initClausura')}>
+                      Iniciar Clausura
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -520,6 +559,46 @@ export default function ConfiguracionPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Iniciar Clausura */}
+      <Dialog open={openDialog === 'initClausura'} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="shadow-soft border-0 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-accent-foreground flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Iniciar Torneo Clausura
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="p-4 rounded-xl bg-background space-y-2">
+              <p className="text-sm text-foreground">Esta acción:</p>
+              <ul className="text-sm text-foreground list-disc list-inside space-y-1">
+                <li>Crea los 18 documentos de equipos en la colección <strong>clausura</strong> con estadísticas en cero</li>
+                <li>Sincroniza la tabla <strong>acumulado</strong> con los datos actuales del Apertura</li>
+              </ul>
+            </div>
+            <div className="p-3 rounded-xl border border-yellow-400/40 bg-yellow-50 dark:bg-yellow-950/20">
+              <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                Si el Clausura ya fue inicializado antes, esta operación sobreescribirá las estadísticas existentes con cero. Usarla solo al comenzar el torneo.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog} disabled={initializingClausura}>Cancelar</Button>
+            <Button
+              className="bg-gradient-liga1 border-0 text-white"
+              onClick={handleInitClausura}
+              disabled={initializingClausura}
+            >
+              {initializingClausura ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Inicializando...</>
+              ) : (
+                'Confirmar e Iniciar'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

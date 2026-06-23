@@ -9,6 +9,7 @@ import {
   getDocs,
   getDoc,
   updateDoc,
+  setDoc,
   writeBatch,
   onSnapshot,
   Unsubscribe,
@@ -206,11 +207,15 @@ export class TeamRepository implements ITeamRepository {
     }
 
     await batch.commit();
+
+    // Recalcular acumulado = apertura + clausura para los equipos afectados
+    const affectedIds = [...new Set(operations.map((op) => op.teamId))];
+    await this.recalculateAcumulado(affectedIds);
   }
 
   /**
-   * Resetea las estadísticas de todos los equipos en un torneo
-   * Útil al iniciar un nuevo torneo
+   * Resetea las estadísticas de todos los equipos en un torneo.
+   * Usa set+merge para funcionar aunque los documentos no existan aún.
    */
   async resetStandings(torneo: TorneoType): Promise<void> {
     const collectionName =
@@ -218,24 +223,104 @@ export class TeamRepository implements ITeamRepository {
         ? FIRESTORE_COLLECTIONS.APERTURA
         : FIRESTORE_COLLECTIONS.CLAUSURA;
 
-    const teamsRef = collection(db, collectionName);
-    const snapshot = await getDocs(teamsRef);
+    const aperturaRef = collection(db, FIRESTORE_COLLECTIONS.APERTURA);
+    const aperturaSnapshot = await getDocs(aperturaRef);
 
     const batch = writeBatch(db);
+    const zeroStats = {
+      matchesPlayed: 0,
+      matchesWon: 0,
+      matchesDrawn: 0,
+      matchesLost: 0,
+      goalsScored: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      points: 0,
+    };
 
-    snapshot.docs.forEach((document) => {
-      const teamRef = doc(db, collectionName, document.id);
-      batch.update(teamRef, {
-        partidosJugados: 0,
-        partidosGanados: 0,
-        partidosEmpatados: 0,
-        partidosPerdidos: 0,
-        golesFavor: 0,
-        golesContra: 0,
-        diferenciaGoles: 0,
-        puntos: 0,
-      });
+    aperturaSnapshot.docs.forEach((aperturaDoc) => {
+      const teamRef = doc(db, collectionName, aperturaDoc.id);
+      batch.set(teamRef, zeroStats, { merge: true });
     });
+
+    await batch.commit();
+  }
+
+  /**
+   * Inicializa la colección clausura copiando los equipos del apertura con stats en cero.
+   * También sincroniza acumulado para reflejar el estado actual (solo apertura al inicio).
+   */
+  async initClausuraFromApertura(): Promise<void> {
+    const aperturaRef = collection(db, FIRESTORE_COLLECTIONS.APERTURA);
+    const aperturaSnapshot = await getDocs(aperturaRef);
+
+    const batch = writeBatch(db);
+    const zeroStats = {
+      matchesPlayed: 0,
+      matchesWon: 0,
+      matchesDrawn: 0,
+      matchesLost: 0,
+      goalsScored: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      points: 0,
+    };
+
+    aperturaSnapshot.docs.forEach((aperturaDoc) => {
+      // Inicializar clausura con stats en cero
+      const clausuraRef = doc(db, FIRESTORE_COLLECTIONS.CLAUSURA, aperturaDoc.id);
+      batch.set(clausuraRef, zeroStats, { merge: true });
+
+      // Sincronizar acumulado = stats de apertura (clausura recién empieza en cero)
+      const aperturaData = aperturaDoc.data();
+      const acumuladoRef = doc(db, FIRESTORE_COLLECTIONS.ACUMULADO, aperturaDoc.id);
+      batch.set(acumuladoRef, {
+        matchesPlayed: aperturaData.matchesPlayed ?? 0,
+        matchesWon: aperturaData.matchesWon ?? 0,
+        matchesDrawn: aperturaData.matchesDrawn ?? 0,
+        matchesLost: aperturaData.matchesLost ?? 0,
+        goalsScored: aperturaData.goalsScored ?? 0,
+        goalsAgainst: aperturaData.goalsAgainst ?? 0,
+        goalDifference: aperturaData.goalDifference ?? 0,
+        points: aperturaData.points ?? 0,
+      }, { merge: true });
+    });
+
+    await batch.commit();
+  }
+
+  /**
+   * Recalcula el acumulado para los equipos indicados sumando apertura + clausura.
+   * Llamado automáticamente después de cada actualización de estadísticas.
+   */
+  private async recalculateAcumulado(teamIds: string[]): Promise<void> {
+    const batch = writeBatch(db);
+
+    await Promise.all(
+      teamIds.map(async (teamId) => {
+        const [aperturaDoc, clausuraDoc] = await Promise.all([
+          getDoc(doc(db, FIRESTORE_COLLECTIONS.APERTURA, teamId)),
+          getDoc(doc(db, FIRESTORE_COLLECTIONS.CLAUSURA, teamId)),
+        ]);
+
+        const a = aperturaDoc.exists() ? aperturaDoc.data() : {};
+        const c = clausuraDoc.exists() ? clausuraDoc.data() : {};
+
+        const sum = (field: string) => (a[field] ?? 0) + (c[field] ?? 0);
+
+        const acumuladoRef = doc(db, FIRESTORE_COLLECTIONS.ACUMULADO, teamId);
+        batch.set(acumuladoRef, {
+          matchesPlayed: sum('matchesPlayed'),
+          matchesWon: sum('matchesWon'),
+          matchesDrawn: sum('matchesDrawn'),
+          matchesLost: sum('matchesLost'),
+          goalsScored: sum('goalsScored'),
+          goalsAgainst: sum('goalsAgainst'),
+          goalDifference: sum('goalDifference'),
+          points: sum('points'),
+        }, { merge: true });
+      })
+    );
 
     await batch.commit();
   }
