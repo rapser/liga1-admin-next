@@ -138,7 +138,7 @@ export function MatchLiveController({
 
     setIsProcessing(true);
     try {
-      await matchStateService.finishMatch(jornadaId, match.id, torneo);
+      await matchStateService.finishMatch(jornadaId, match.id);
       toast.success("Partido finalizado exitosamente");
       onStateChange?.({ estado: "finalizado" });
     } catch (error: unknown) {
