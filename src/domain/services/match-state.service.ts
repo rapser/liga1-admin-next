@@ -511,37 +511,18 @@ export class MatchStateService {
 
     const { golesEquipoLocal, golesEquipoVisitante } = match;
 
-    // Obtener estadísticas actuales de ambos equipos desde 'apertura' (siempre)
-    // Primero intentar desde el torneo correspondiente, si no existe, usar apertura
-    let equipoLocal = await this.teamRepository.fetchTeamById(
-      "apertura",
-      equipoLocalId,
-    );
-    let equipoVisitante = await this.teamRepository.fetchTeamById(
-      "apertura",
-      equipoVisitanteId,
-    );
+    // Cada tabla debe calcularse exclusivamente desde sus propias estadísticas.
+    // Usar Apertura como fallback contaminaría el Clausura con los valores del
+    // torneo anterior (por ejemplo, 34 puntos de Apertura + 3 del primer triunfo).
+    const [equipoLocal, equipoVisitante] = await Promise.all([
+      this.teamRepository.fetchTeamById(torneo, equipoLocalId),
+      this.teamRepository.fetchTeamById(torneo, equipoVisitanteId),
+    ]);
 
     if (!equipoLocal || !equipoVisitante) {
-      // Intentar desde la colección del torneo si no están en apertura
-      if (!equipoLocal) {
-        equipoLocal = await this.teamRepository.fetchTeamById(
-          torneo,
-          equipoLocalId,
-        );
-      }
-      if (!equipoVisitante) {
-        equipoVisitante = await this.teamRepository.fetchTeamById(
-          torneo,
-          equipoVisitanteId,
-        );
-      }
-
-      if (!equipoLocal || !equipoVisitante) {
-        throw new Error(
-          `Equipos no encontrados en Firestore: local=${equipoLocalId}, visitante=${equipoVisitanteId}`,
-        );
-      }
+      throw new Error(
+        `Equipos no encontrados en la tabla de ${torneo}: local=${equipoLocalId}, visitante=${equipoVisitanteId}`,
+      );
     }
 
     // Calcular la diferencia de goles (nuevo - anterior)
