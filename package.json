@@ -7,6 +7,7 @@
     "build": "node scripts/run-next.mjs build",
     "start": "node scripts/run-next.mjs start",
     "lint": "eslint",
+    "repair:clausura": "node scripts/rebuild-clausura-standings.mjs",
     "verify-env": "node scripts/verify-env.mjs"
   },
   "dependencies": {
