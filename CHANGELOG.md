@@ -10,12 +10,21 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 - Documentación del flujo Git desde feature/fix hasta producción.
 - Guía de configuración, despliegue, verificación y rollback en Vercel.
+- Resumen de los módulos funcionales, sus rutas y responsabilidades.
+- Referencia de la jerarquía, documentos y campos principales de Firestore.
+- Guía explícita para ejecutar la aplicación con npm en `localhost:3000`.
+- Inicio rápido paso a paso desde la apertura de Terminal hasta la ejecución del servidor de desarrollo.
+- Diagrama de Clean Architecture, flujo de dependencias y árbol ampliado de carpetas del proyecto.
+- Resumen de ingeniería, decisiones técnicas, trade-offs y fronteras cliente/servidor.
+- Controles actuales de calidad, seguridad, rendimiento, integridad y recuperación.
+- Limitaciones conocidas y roadmap priorizado de seguridad, pruebas, CI, observabilidad y arquitectura.
+- Referencias oficiales de Next.js, Firebase, Vercel y GitHub utilizadas como base técnica.
 - Documento inicial de historial de cambios.
 
 ### Changed
 
 - Reorganización completa del README para priorizar tecnologías, arquitectura, dependencias, instalación y operación.
-- Simplificación de la descripción de módulos y pantallas.
+- Simplificación del detalle operativo de las pantallas para mantener una descripción breve y sostenible de cada módulo.
 
 ## [0.1.0] - 2026-07-19
 
