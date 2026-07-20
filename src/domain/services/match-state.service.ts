@@ -12,11 +12,14 @@ import {
   shouldEnterHalftime,
   isMatchAlreadyPlayed,
 } from "../entities/match.entity";
-import { Team } from "../entities/team.entity";
 import { IMatchRepository } from "../repositories/match.repository.interface";
 import { ITeamRepository } from "../repositories/team.repository.interface";
 import { TorneoType } from "@/core/config/firestore-constants";
 import { PushNotificationService } from "./push-notification.service";
+import {
+  calculateLiveStandingTransition,
+  LiveScore,
+} from "./live-standings-calculator";
 
 export class MatchStateService {
   constructor(
@@ -153,21 +156,18 @@ export class MatchStateService {
     }
 
     if (match.equipoLocalId && match.equipoVisitanteId) {
-      const equipoLocal = await this.teamRepository.fetchTeamById(
+      // Al iniciar no existe un resultado anterior que retirar. Aplicar el
+      // marcador inicial (normalmente 0-0) suma PJ y el empate provisional.
+      await this.updateStandingsScore(
+        {
+          ...match,
+          golesEquipoLocal: finalLocalScore,
+          golesEquipoVisitante: finalVisitorScore,
+        },
         torneo,
-        match.equipoLocalId,
+        null,
+        true,
       );
-      const equipoVisitante = await this.teamRepository.fetchTeamById(
-        torneo,
-        match.equipoVisitanteId,
-      );
-
-      if (equipoLocal && equipoVisitante) {
-        await this.teamRepository.batchWriteTeamStats([
-          { torneo, teamId: match.equipoLocalId, stats: { partidosJugados: equipoLocal.partidosJugados + 1 } },
-          { torneo, teamId: match.equipoVisitanteId, stats: { partidosJugados: equipoVisitante.partidosJugados + 1 } },
-        ]);
-      }
     }
 
     // Notificar a la app iOS para reflejar el estado envivo y marcador inicial (0-0)
@@ -246,8 +246,10 @@ export class MatchStateService {
         golesEquipoVisitante: visitorScore,
       },
       torneo,
-      previousLocalScore,
-      previousVisitorScore,
+      {
+        local: previousLocalScore,
+        visitante: previousVisitorScore,
+      },
     );
 
     // Enviar notificación push silenciosa de actualización de marcador
@@ -410,14 +412,12 @@ export class MatchStateService {
   /**
    * Finaliza un partido (cambia de "envivo" a "finalizado")
    * Valida que hayan transcurrido mínimo 90 minutos + tiempo agregado
-   * NO vuelve a actualizar la tabla: ya se actualizó en tiempo real en updateMatchScore.
-   * Si el partido terminó 0-0, la tabla tendrá PJ+1 pero 0 puntos hasta que se llame
-   * updateMatchScore(0,0) o se pueda aplicar el 0-0 al finalizar (ver comentario abajo).
+   * NO vuelve a actualizar la tabla: el resultado provisional se aplica desde
+   * startMatch y cada cambio posterior se procesa en updateMatchScore.
    */
   async finishMatch(
     jornadaId: string,
     matchId: string,
-    torneo: TorneoType,
   ): Promise<void> {
     const match = await this.matchRepository.fetchMatchById(jornadaId, matchId);
 
@@ -433,12 +433,8 @@ export class MatchStateService {
       );
     }
 
-    // Si el partido terminó 0-0, nunca se llamó updateMatchScore; aplicar 1 punto a cada uno
     const local = match.golesEquipoLocal ?? 0;
     const visitante = match.golesEquipoVisitante ?? 0;
-    if (local === 0 && visitante === 0) {
-      await this.updateStandingsScore(match, torneo, 0, 0);
-    }
 
     await this.matchRepository.updateMatch(jornadaId, matchId, {
       estado: "finalizado",
@@ -465,15 +461,14 @@ export class MatchStateService {
   }
 
   /**
-   * Actualiza goles, diferencia y puntos en la tabla durante el partido (sin incrementar PJ)
-   * Se ejecuta cada vez que cambia el marcador mientras el partido está en vivo
-   * Calcula la diferencia entre el marcador nuevo y el anterior para evitar sumar múltiples veces
+   * Aplica el resultado provisional al iniciar el partido y actualiza la tabla
+   * cada vez que cambia el marcador. PJ solo se incrementa durante startMatch.
    */
   private async updateStandingsScore(
     match: Match,
     torneo: TorneoType,
-    previousLocalScore: number = 0,
-    previousVisitorScore: number = 0,
+    previousScore: LiveScore | null,
+    incrementMatchesPlayed = false,
   ): Promise<void> {
     // Extraer IDs de equipos del match.id si no están en match.equipoLocalId/equipoVisitanteId
     // El ID del partido suele ser "local_visitante" (ej: "hua_ali")
@@ -525,129 +520,26 @@ export class MatchStateService {
       );
     }
 
-    // Calcular la diferencia de goles (nuevo - anterior)
-    // Esto evita sumar múltiples veces los mismos goles
-    const diffGolesLocal = golesEquipoLocal - previousLocalScore;
-    const diffGolesVisitante = golesEquipoVisitante - previousVisitorScore;
-
-    // Aplicar la diferencia a los totales actuales
-    const newGolesFavorLocal = equipoLocal.golesFavor + diffGolesLocal;
-    const newGolesContraLocal = equipoLocal.golesContra + diffGolesVisitante;
-    const newGolesFavorVisitante =
-      equipoVisitante.golesFavor + diffGolesVisitante;
-    const newGolesContraVisitante =
-      equipoVisitante.golesContra + diffGolesLocal;
-
-    // Calcular resultado del partido ANTERIOR (basado en previousLocalScore vs previousVisitorScore)
-    const anteriorGanaLocal = previousLocalScore > previousVisitorScore;
-    const anteriorEmpate = previousLocalScore === previousVisitorScore;
-    const anteriorGanaVisitante = previousVisitorScore > previousLocalScore;
-
-    // Calcular resultado del partido ACTUAL (basado en golesEquipoLocal vs golesEquipoVisitante)
-    const actualGanaLocal = golesEquipoLocal > golesEquipoVisitante;
-    const actualEmpate = golesEquipoLocal === golesEquipoVisitante;
-    const actualGanaVisitante = golesEquipoVisitante > golesEquipoLocal;
-
-    // Si el marcador anterior es 0-0, significa que es la primera vez que se actualiza (inicio del partido)
-    // En este caso, no hay que revertir nada, solo aplicar el resultado actual
-    const esInicializacion =
-      previousLocalScore === 0 && previousVisitorScore === 0;
-
-    let newMatchesWonLocal: number;
-    let newMatchesDrawnLocal: number;
-    let newMatchesLostLocal: number;
-    let newMatchesWonVisitante: number;
-    let newMatchesDrawnVisitante: number;
-    let newMatchesLostVisitante: number;
-
-    if (esInicializacion) {
-      // Primera vez: simplemente aplicar el resultado actual a los totales existentes
-      newMatchesWonLocal =
-        equipoLocal.partidosGanados + (actualGanaLocal ? 1 : 0);
-      newMatchesDrawnLocal =
-        equipoLocal.partidosEmpatados + (actualEmpate ? 1 : 0);
-      newMatchesLostLocal =
-        equipoLocal.partidosPerdidos + (actualGanaVisitante ? 1 : 0);
-
-      newMatchesWonVisitante =
-        equipoVisitante.partidosGanados + (actualGanaVisitante ? 1 : 0);
-      newMatchesDrawnVisitante =
-        equipoVisitante.partidosEmpatados + (actualEmpate ? 1 : 0);
-      newMatchesLostVisitante =
-        equipoVisitante.partidosPerdidos + (actualGanaLocal ? 1 : 0);
-    } else {
-      // Cambio de marcador: revertir el resultado anterior y aplicar el resultado actual
-      // Esto permite que cuando el marcador cambia (ej: 2-1 → 2-2), se actualice correctamente
-      const baseMatchesWonLocal =
-        equipoLocal.partidosGanados - (anteriorGanaLocal ? 1 : 0);
-      const baseMatchesDrawnLocal =
-        equipoLocal.partidosEmpatados - (anteriorEmpate ? 1 : 0);
-      const baseMatchesLostLocal =
-        equipoLocal.partidosPerdidos - (anteriorGanaVisitante ? 1 : 0);
-
-      const baseMatchesWonVisitante =
-        equipoVisitante.partidosGanados - (anteriorGanaVisitante ? 1 : 0);
-      const baseMatchesDrawnVisitante =
-        equipoVisitante.partidosEmpatados - (anteriorEmpate ? 1 : 0);
-      const baseMatchesLostVisitante =
-        equipoVisitante.partidosPerdidos - (anteriorGanaLocal ? 1 : 0);
-
-      // Aplicar el resultado ACTUAL del partido
-      newMatchesWonLocal =
-        Math.max(0, baseMatchesWonLocal) + (actualGanaLocal ? 1 : 0);
-      newMatchesDrawnLocal =
-        Math.max(0, baseMatchesDrawnLocal) + (actualEmpate ? 1 : 0);
-      newMatchesLostLocal =
-        Math.max(0, baseMatchesLostLocal) + (actualGanaVisitante ? 1 : 0);
-
-      newMatchesWonVisitante =
-        Math.max(0, baseMatchesWonVisitante) + (actualGanaVisitante ? 1 : 0);
-      newMatchesDrawnVisitante =
-        Math.max(0, baseMatchesDrawnVisitante) + (actualEmpate ? 1 : 0);
-      newMatchesLostVisitante =
-        Math.max(0, baseMatchesLostVisitante) + (actualGanaLocal ? 1 : 0);
-    }
-
-    // NOTA: partidosJugados NO se actualiza aquí
-    // partidosJugados solo se incrementa UNA VEZ cuando el partido INICIA (en startMatch)
-    // Durante el partido en vivo, partidosJugados NO cambia, solo los demás campos
-
-    // Calcular diferencia de goles
-    const newGoalDifferenceLocal = newGolesFavorLocal - newGolesContraLocal;
-    const newGoalDifferenceVisitante =
-      newGolesFavorVisitante - newGolesContraVisitante;
-
-    // Calcular puntos: partidos ganados * 3 + partidos empatados
-    const newPuntosLocal = newMatchesWonLocal * 3 + newMatchesDrawnLocal;
-    const newPuntosVisitante =
-      newMatchesWonVisitante * 3 + newMatchesDrawnVisitante;
-
-    // NO incluir partidosJugados en los stats a actualizar
-    // partidosJugados solo se actualiza UNA VEZ cuando inicia el partido (startMatch)
-    // Durante el partido en vivo, partidosJugados NO cambia, solo estos campos:
-    const newStatsLocal: Partial<Team> = {
-      partidosGanados: newMatchesWonLocal,
-      partidosEmpatados: newMatchesDrawnLocal,
-      partidosPerdidos: newMatchesLostLocal,
-      golesFavor: newGolesFavorLocal,
-      golesContra: newGolesContraLocal,
-      diferenciaGoles: newGoalDifferenceLocal,
-      puntos: newPuntosLocal,
+    const currentScore: LiveScore = {
+      local: golesEquipoLocal,
+      visitante: golesEquipoVisitante,
     };
-
-    const newStatsVisitante: Partial<Team> = {
-      partidosGanados: newMatchesWonVisitante,
-      partidosEmpatados: newMatchesDrawnVisitante,
-      partidosPerdidos: newMatchesLostVisitante,
-      golesFavor: newGolesFavorVisitante,
-      golesContra: newGolesContraVisitante,
-      diferenciaGoles: newGoalDifferenceVisitante,
-      puntos: newPuntosVisitante,
-    };
+    const newStatsLocal = calculateLiveStandingTransition(
+      equipoLocal,
+      "local",
+      currentScore,
+      previousScore,
+      incrementMatchesPlayed,
+    );
+    const newStatsVisitante = calculateLiveStandingTransition(
+      equipoVisitante,
+      "visitante",
+      currentScore,
+      previousScore,
+      incrementMatchesPlayed,
+    );
 
     // Actualizar la colección del torneo correspondiente (apertura o clausura)
-    // NOTA: 'acumulado' NUNCA existe como colección en Firestore
-    // 'acumulado' solo se usa para cálculos locales combinando apertura + clausura
     // Usar batch write para actualizar ambos equipos en un solo round-trip atómico
     await this.teamRepository.batchWriteTeamStats([
       { torneo, teamId: equipoLocalId, stats: newStatsLocal },
