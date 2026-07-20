@@ -1,394 +1,413 @@
-# Liga 1 Admin – Panel Web Administrativo
+# Liga 1 Admin
 
-Panel de administración web para gestionar la **Liga 1 de Fútbol Peruano**: partidos, jornadas, noticias, tabla de posiciones y configuración, con actualizaciones en tiempo real y notificaciones push.
+Panel web privado para administrar la operación de la Liga 1: jornadas, partidos, marcadores en vivo, tablas de posiciones, noticias, usuarios autorizados y notificaciones push.
 
----
+La aplicación utiliza Next.js para la interfaz y las funciones de servidor, mientras que Firebase proporciona autenticación, persistencia en tiempo real y mensajería.
 
-## Contenido (índice)
+## Contenido
 
-| Sección | Qué encontrarás |
-|--------|------------------|
-| [Descripción](#descripción) | Qué es el proyecto y qué hace. |
-| [Qué aprovechamos del framework (Next.js 16)](#qué-aprovechamos-del-framework-nextjs-16) | App Router, loading/error, proxy, API Routes, Turbopack. |
-| [Firebase como backend de datos](#firebase-como-backend-de-datos) | Uso de Auth, Firestore y Admin SDK. |
-| [Stack técnico](#stack-técnico) | Frameworks, librerías y herramientas (Next, React, Tailwind, Firebase, React Query, etc.). |
-| [Arquitectura del proyecto](#arquitectura-del-proyecto) | Capas (domain, data, presentation, core, app) y Clean Architecture. |
-| [Estructura de carpetas](#estructura-de-carpetas-resumen) | Árbol de `src/` y qué hay en cada carpeta. |
-| [Navegación](#navegación) | Cómo funcionan las rutas, el sidebar y la protección (proxy, login → dashboard). |
-| [Secciones de la web](#secciones-de-la-web) | Para qué sirve cada pantalla del panel (login, dashboard, partidos, jornadas, noticias, posiciones, configuración). |
-| [Requisitos / Instalación / Variables / Scripts](#requisitos) | Cómo instalar, configurar y ejecutar. |
-| [Firestore – Colecciones y documentos](#firestore--colecciones-y-documentos) | Jornadas, partidos, apertura/clausura: estructura de colecciones, documentos y fechas/horas. |
-| [Funcionalidades principales](#funcionalidades-principales) | Listado de features. |
-| [Build y despliegue](#build-y-despliegue) | Compilar y desplegar. |
+- [Alcance funcional](#alcance-funcional)
+- [Tecnologías](#tecnologías)
+- [Arquitectura](#arquitectura)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Datos e integraciones](#datos-e-integraciones)
+- [Instalación local](#instalación-local)
+- [Variables de entorno](#variables-de-entorno)
+- [Scripts](#scripts)
+- [Flujo de trabajo con Git](#flujo-de-trabajo-con-git)
+- [Despliegue en Vercel](#despliegue-en-vercel)
+- [Operación y recuperación](#operación-y-recuperación)
 
----
+## Alcance funcional
 
-## Descripción
+El panel permite:
 
-Aplicación web interna para administradores. Incluye autenticación protegida por sesión, dashboard con resumen y gestión de partidos (en vivo y por editar), jornadas, noticias, posiciones y configuración. **Todos los datos viven en Firebase**: autenticación con Firebase Auth y persistencia en Firestore; el panel es cliente Next.js que consume y actualiza esos datos.
+- Autenticar administradores y proteger las rutas internas mediante sesión.
+- Administrar jornadas, partidos y estados del encuentro.
+- Actualizar marcadores y tablas de posiciones en tiempo real.
+- Mantener las tablas del Apertura, Clausura y Acumulado.
+- Crear y administrar noticias.
+- Enviar notificaciones push mediante Firebase Cloud Messaging.
+- Gestionar configuraciones operativas y usuarios autorizados.
 
----
+Las rutas principales están bajo `/dashboard`. El detalle de cada caso de uso debe consultarse en el código de su feature y en las entidades del dominio; el README evita duplicar esa documentación para no quedar desactualizado.
 
-## Qué aprovechamos del framework (Next.js 16)
+## Tecnologías
 
-El proyecto está alineado con las convenciones de Next.js 16 para no introducir deuda técnica y sacar partido al ecosistema:
+### Plataforma principal
 
-- **App Router**  
-  Rutas bajo `src/app/` con layouts por segmento: `(auth)` para login, `(dashboard)` para el panel. Un solo layout del dashboard envuelve todas las páginas internas (sidebar, navbar, contenido).
+| Tecnología | Versión | Responsabilidad |
+|---|---:|---|
+| Next.js | 16.1.6 | App Router, renderizado, API Routes, proxy y build |
+| React | 19.2.3 | Componentes y estado de interfaz |
+| TypeScript | 5.x | Tipado estricto y contratos entre capas |
+| Node.js | 20.9 o superior | Runtime de desarrollo, build y servidor |
+| npm | 10 o superior | Instalación y ejecución de scripts |
 
-- **Estados de UI integrados**  
-  `loading.tsx` y `error.tsx` por segmento (raíz, auth, login, dashboard y cada subruta). Suspense muestra “Cargando…” y los errores muestran mensaje + “Reintentar”. `not-found.tsx` global para 404 con enlace a login.
+### Interfaz
 
-- **Protección de rutas con proxy (Next 16)**  
-  En lugar de middleware clásico se usa la convención **proxy**: `src/proxy.ts` redirige a `/login` si no hay cookie de sesión en rutas `/dashboard/*`. La sesión se crea en el servidor vía API (`/api/auth/session`) con Firebase Admin; el cliente solo redirige cuando la cookie está lista.
+| Dependencia | Uso |
+|---|---|
+| Tailwind CSS 4 | Estilos, tokens y composición visual |
+| Radix UI | Primitivos accesibles de interfaz |
+| shadcn/ui | Convenciones y componentes base en `src/components/ui` |
+| Lucide React | Iconografía |
+| Sonner | Notificaciones toast |
+| next-themes | Tema claro y oscuro |
+| class-variance-authority | Variantes de componentes |
+| clsx y tailwind-merge | Composición segura de clases |
+| tw-animate-css | Animaciones utilitarias |
 
-- **API Routes para lógica de servidor**
-  `POST /api/auth/session` (crear cookie de sesión), `POST /api/auth/logout` (borrar cookie), `/api/push-notifications/send` para notificaciones y `GET /api/stats/users` para el conteo real de usuarios registrados. Firebase Admin solo se usa en servidor (API routes y proxy).
+### Datos, estado e integraciones
 
-- **Turbopack**  
-  Desarrollo y build con Turbopack por defecto; no hay configuración webpack custom.
+| Dependencia | Uso |
+|---|---|
+| Firebase Client SDK 12 | Authentication y Firestore desde el cliente |
+| Firebase Admin SDK 13 | Sesiones, usuarios, Firestore y FCM desde el servidor |
+| TanStack Query 5 | Caché y sincronización de estado remoto |
+| Zustand 5 | Estado global ligero |
+| date-fns 4 | Conversión y presentación de fechas |
 
-- **React 19**  
-  Uso de React 19 con el modelo de componentes y hooks actual.
+### Calidad y compilación
 
----
+- TypeScript está configurado con `strict`, `noImplicitAny`, `strictNullChecks` y `noUncheckedIndexedAccess`.
+- ESLint 9 utiliza las reglas de Next.js Core Web Vitals y TypeScript.
+- Turbopack está configurado como motor de desarrollo y build.
+- El alias `@/*` apunta a `src/*`.
 
-## Firebase como backend de datos
+Las versiones exactas y la lista completa de paquetes se encuentran en [`package.json`](./package.json) y `package-lock.json`.
 
-**Todos los datos de la aplicación están en Firebase.** No hay otra base de datos.
+## Arquitectura
 
-- **Firebase Auth**  
-  Login con email/contraseña (y preparado para Google). El cliente usa el SDK de Firebase; el servidor usa Firebase Admin para crear la cookie de sesión a partir del `idToken` y para validar la sesión en el proxy.
+El proyecto aplica una arquitectura en capas inspirada en Clean Architecture. La lógica del negocio se mantiene separada de Next.js y Firebase.
 
-- **Firestore**  
-  Persistencia principal: jornadas y partidos (estado, marcador, tiempo, tiempo agregado), tabla de posiciones (apertura/clausura), noticias, usuarios autorizados (admins). Los repositorios en `src/data/repositories/` leen y escriben en Firestore; la capa de dominio no conoce Firestore, solo interfaces de repositorios.
+```text
+App Router / UI
+       │
+       ▼
+Presentation
+       │
+       ▼
+Domain ◄── contratos ── Data
+                         │
+                         ▼
+                     Firestore
 
-- **Firebase Admin SDK**  
-  Solo en el servidor (Node): creación de sesión (cookie), logout y envío de notificaciones push (FCM). Las variables `FIREBASE_ADMIN_*` no se exponen al navegador.
+Core configura Firebase, constantes y servicios transversales.
+```
 
-La capa de datos (`data/`) traduce entre el modelo de dominio (entidades) y el modelo de Firestore (DTOs) mediante mappers; así el dominio sigue siendo agnóstico del proveedor de base de datos.
+### Domain
 
----
+`src/domain` contiene:
 
-## Stack técnico
+- Entidades y reglas del negocio.
+- Interfaces de repositorios.
+- Servicios de aplicación, como el manejo del estado de partidos.
 
-### Framework y lenguaje
+No debe depender de componentes visuales ni de implementaciones concretas de Firestore.
 
-- **Next.js 16.1.6** – App Router, Turbopack, proxy, API Routes.
-- **React 19.2.3** – UI y hooks.
-- **TypeScript 5** – Tipado estricto.
+### Data
 
-### UI y estilos
+`src/data` implementa los contratos definidos por el dominio:
 
-- **Tailwind CSS 4** – Utilidades y tema (incl. `@tailwindcss/postcss`, `tw-animate-css`).
-- **Radix UI** – Primitivos (Dialog, Select, Tabs, Dropdown, etc.).
-- **Componentes tipo shadcn** – En `src/components/ui/` (Button, Card, Input, Table, etc.).
-- **Lucide React** – Iconos.
-- **class-variance-authority**, **tailwind-merge**, **clsx** – Variantes y clases.
-- **Sonner** – Toasts.
-- **next-themes** – Tema claro/oscuro (si se usa).
+- Repositorios de Firestore.
+- DTOs que representan documentos persistidos.
+- Mappers entre DTOs y entidades.
 
-### Backend y datos
+Esta capa aísla al dominio de los nombres y formatos utilizados por Firebase.
 
-- **Firebase Auth** – Autenticación en el cliente.
-- **Firestore** – Base de datos; lecturas/escrituras desde el cliente (repositorios).
-- **Firebase Admin SDK** – Servidor: sesión, logout, FCM.
+### Presentation
 
-### Estado y caché
+`src/presentation` contiene componentes de features, layout, providers y hooks. Consume servicios e interfaces del dominio y presenta sus resultados.
 
-- **TanStack Query (React Query) v5** – Caché de datos del servidor (dashboard, partidos, jornadas, noticias, posiciones); `staleTime` para no refetchear en cada cambio de sección.
-- **Zustand** – Estado global ligero cuando se necesite.
+### App
 
-### Utilidades
+`src/app` utiliza el App Router de Next.js para definir:
 
-- **date-fns** – Fechas.
-- **Script `verify-env`** – Comprueba variables de entorno antes de correr la app.
+- Rutas públicas y protegidas.
+- Layouts y estados de carga/error.
+- API Routes con responsabilidades de servidor.
 
----
+`src/proxy.ts` protege `/dashboard/*` comprobando la cookie de sesión.
 
-## Requisitos
+### Core
 
-- **Node.js** 18+ (recomendado 20 LTS).
-- **npm** 10+ (o pnpm/yarn).
+`src/core` centraliza la configuración del Firebase Client SDK, Firebase Admin, colecciones de Firestore y constantes compartidas.
 
----
+### Reglas de dependencia
 
-## Instalación y uso
+- El dominio no importa Firebase, Next.js ni componentes React.
+- Data depende de los contratos del dominio, no al revés.
+- La UI no debe acceder directamente a documentos de Firestore cuando existe un repositorio.
+- Firebase Admin solo se utiliza en código de servidor.
+- La conversión entre `Timestamp` y `Date` corresponde a los mappers.
 
-1. Clonar y entrar en la carpeta del proyecto:
+## Estructura del proyecto
 
-   ```bash
-   cd liga1-admin-next
-   ```
+```text
+src/
+├── app/                    # App Router, layouts y API Routes
+├── components/ui/          # Componentes base de interfaz
+├── core/config/            # Firebase y constantes compartidas
+├── data/
+│   ├── dtos/              # Formatos persistidos
+│   ├── mappers/           # Conversión DTO ↔ dominio
+│   └── repositories/      # Implementaciones de Firestore
+├── domain/
+│   ├── entities/          # Entidades y reglas
+│   ├── repositories/      # Interfaces de repositorios
+│   └── services/          # Casos de uso
+├── lib/                    # Utilidades generales
+├── presentation/
+│   ├── components/        # Layout, features y componentes compartidos
+│   ├── hooks/             # Hooks de presentación
+│   └── providers/         # Auth, tema y React Query
+└── proxy.ts               # Protección de rutas
 
-2. Instalar dependencias:
+scripts/                      # Verificación, ejecución y recuperación
+```
 
-   ```bash
-   npm install
-   ```
+## Datos e integraciones
 
-3. Configurar variables de entorno (ver sección siguiente). Copiar `.env.example` a `.env.local` y completar valores.
+Firestore es la fuente de datos de la aplicación.
 
-4. Verificar variables (opcional):
+| Colección | Responsabilidad |
+|---|---|
+| `jornadas` | Calendario del Apertura y Clausura |
+| `jornadas/{id}/matches` | Partidos y sus estados/marcadores |
+| `apertura` | Posiciones del Torneo Apertura |
+| `clausura` | Posiciones del Torneo Clausura |
+| `acumulado` | Suma de Apertura y Clausura |
+| `news` | Noticias publicadas o en borrador |
+| `admins` | Usuarios autorizados y roles |
 
-   ```bash
-   npm run verify-env
-   ```
+Convenciones relevantes:
 
-5. Desarrollo:
+- Las jornadas utilizan IDs como `apertura_01` y `clausura_01`.
+- Los partidos utilizan IDs formados por los códigos de sus equipos, por ejemplo `ali_uni`.
+- Las fechas se almacenan como `Timestamp` y se convierten a `Date` en la capa de datos.
+- Las tablas de Apertura y Clausura se calculan de forma independiente.
+- `acumulado` se recalcula sumando ambas tablas.
 
-   ```bash
-   npm run dev
-   ```
+Firebase Authentication gestiona la identidad. Firebase Admin valida sesiones y ejecuta operaciones privilegiadas en el servidor. Firebase Cloud Messaging entrega las notificaciones push.
 
-   Abrir [http://localhost:3000](http://localhost:3000).
+## Instalación local
 
-6. Producción:
+### Requisitos
 
-   ```bash
-   npm run build
-   npm run start
-   ```
+- Node.js 20.9 o superior.
+- npm 10 o superior.
+- Proyecto Firebase configurado.
+- Credenciales de Firebase Admin para utilizar todas las API Routes.
 
-**Importante:** Ejecutar siempre `npm run dev`, `npm run build` y `npm start` desde la **raíz del proyecto** (`liga1-admin-next`). Ejecutar desde una carpeta padre puede provocar errores de resolución de módulos (p. ej. Tailwind).
+### Preparación
 
----
+```bash
+git clone <url-del-repositorio>
+cd liga1-admin-next
+npm install
+cp .env.example .env.local
+```
+
+Completar `.env.local` y verificar la configuración:
+
+```bash
+npm run verify-env
+```
+
+Iniciar el entorno local:
+
+```bash
+npm run dev
+```
+
+La aplicación estará disponible en [http://localhost:3000](http://localhost:3000).
+
+Los comandos deben ejecutarse desde la raíz del repositorio para que Next.js y Tailwind resuelvan correctamente sus dependencias.
 
 ## Variables de entorno
 
-Crear **`.env.local`** en la raíz. Usar `.env.example` como plantilla.
+Usar [`.env.example`](./.env.example) como plantilla. `.env.local` no debe incluirse en Git.
 
-### Firebase Client SDK (público – navegador)
+### Firebase Client SDK
 
-| Variable | Descripción |
-|----------|-------------|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | API Key del proyecto Firebase |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Dominio de Auth (ej. `proyecto.firebaseapp.com`) |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | ID del proyecto |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Bucket de Storage |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Sender ID para FCM |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | App ID de Firebase |
+Estas variables se incorporan al bundle del navegador:
 
-### Firebase Admin SDK (privado – solo servidor)
+```text
+NEXT_PUBLIC_FIREBASE_API_KEY
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_PROJECT_ID
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FIREBASE_APP_ID
+```
 
-| Variable | Descripción |
-|----------|-------------|
-| `FIREBASE_ADMIN_PROJECT_ID` | Mismo project ID |
-| `FIREBASE_ADMIN_CLIENT_EMAIL` | Email de la cuenta de servicio |
-| `FIREBASE_ADMIN_PRIVATE_KEY` | Clave privada (respeta `\n` como salto de línea) |
+### Firebase Admin SDK
 
----
+Estas variables son privadas y solo deben existir en entornos de servidor:
+
+```text
+FIREBASE_ADMIN_PROJECT_ID
+FIREBASE_ADMIN_CLIENT_EMAIL
+FIREBASE_ADMIN_PRIVATE_KEY
+```
+
+La clave privada debe conservar los saltos de línea escapados como `\n` cuando se configura en un proveedor de hosting.
 
 ## Scripts
 
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Servidor de desarrollo (Turbopack) |
-| `npm run build` | Build de producción |
-| `npm run start` | Servidor de producción (tras `build`) |
-| `npm run lint` | ESLint |
-| `npm run verify-env` | Verificar variables de entorno |
+| Comando | Propósito |
+|---|---|
+| `npm run dev` | Inicia Next.js en desarrollo |
+| `npm run build` | Genera el build de producción |
+| `npm run start` | Sirve localmente un build generado |
+| `npm run lint` | Ejecuta ESLint |
+| `npm run verify-env` | Comprueba las variables requeridas |
+| `npm run repair:clausura` | Compara la tabla con los partidos finalizados sin escribir |
+| `npm run repair:clausura -- --apply` | Reconstruye Clausura y Acumulado en Firestore |
 
----
+El comando con `--apply` es una herramienta operativa de recuperación. No forma parte del flujo normal de cada partido y debe ejecutarse sin encuentros en vivo, después de revisar la vista previa.
 
-## Arquitectura del proyecto
+### Validación antes de un PR
 
-Arquitectura en capas (Clean Architecture): dominio independiente de frameworks y base de datos; Firebase y Next son detalles de implementación.
-
-- **Domain** (`src/domain/`): entidades, interfaces de repositorios y servicios. Sin dependencias de Next ni Firestore.
-- **Data** (`src/data/`): implementación de repositorios contra Firestore, DTOs y mappers (entidad ↔ Firestore).
-- **Presentation** (`src/presentation/`): providers (auth, React Query), componentes de layout y features, hooks.
-- **Core** (`src/core/`): configuración (Firebase cliente y admin, constantes de Firestore/FCM).
-- **App** (`src/app/`): rutas, layouts, loading/error/not-found y API routes; orquesta la UI y el proxy.
-
-Inversión de dependencias: la presentación y la app dependen de interfaces del dominio; la capa de datos implementa esas interfaces usando Firestore.
-
----
-
-## Estructura de carpetas (resumen)
-
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── (auth)/             # Login y rutas públicas
-│   ├── (dashboard)/        # Dashboard y subrutas (partidos, jornadas, noticias, posiciones, config)
-│   ├── api/                # API Routes (auth/session, auth/logout, push-notifications, stats/users)
-│   ├── layout.tsx, loading.tsx, error.tsx, not-found.tsx
-│   └── page.tsx            # Página raíz
-├── core/config/             # Firebase (cliente + admin), constantes Firestore/FCM
-├── domain/                  # Entidades, interfaces de repositorios/servicios
-├── data/                    # Repositorios (Firestore), DTOs, mappers
-├── presentation/            # Providers, componentes (layout, features, shared), hooks
-├── components/ui/           # Componentes UI base (botones, inputs, tablas, etc.)
-├── lib/                     # Utilidades
-└── proxy.ts                 # Proxy Next 16 – protección de /dashboard
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
 ```
 
----
+El build necesita las variables de entorno requeridas.
 
-## Navegación
+## Flujo de trabajo con Git
 
-- **Rutas públicas (sin sesión):**  
-  `/` (página raíz) y `/login`. Cualquiera puede acceder. Si el usuario ya tiene sesión, la página de login redirige a `/dashboard`.
+El repositorio utiliza `develop` como rama de integración y `main` como rama de producción.
 
-- **Rutas protegidas:**  
-  Todo lo que está bajo `/dashboard/*` (dashboard principal, partidos, jornadas, noticias, posiciones, configuración). El **proxy** (`src/proxy.ts`) se ejecuta antes de servir esas rutas: si no hay cookie de sesión `__session`, responde con una redirección a `/login?from=...`. La cookie se crea en el servidor al hacer login vía `POST /api/auth/session`.
+| Tipo de trabajo | Rama base | Destino del PR |
+|---|---|---|
+| Nueva funcionalidad | `develop` | `develop` |
+| Fix de la siguiente versión | `develop` | `develop` |
+| Estabilización de versión | `develop` → `release/*` | `main` y posteriormente `develop` |
+| Hotfix de producción | `main` | `main` y posteriormente `develop` |
 
-- **Cómo se navega dentro del panel:**  
-  El **layout del dashboard** (`src/app/(dashboard)/layout.tsx`) renderiza el **DashboardLayout** (sidebar + navbar + área de contenido). El **sidebar** tiene enlaces a cada sección usando `next/link`: `/dashboard`, `/dashboard/partidos`, `/dashboard/jornadas`, `/dashboard/noticias`, `/dashboard/posiciones`, `/dashboard/configuracion`. Al hacer clic se hace navegación client-side (App Router); cada ruta tiene su `page.tsx`, y opcionalmente `loading.tsx` y `error.tsx` para ese segmento.
+Ejemplo para una tarea normal:
 
-- **Tras el login:**  
-  El cliente (AuthProvider) llama a `/api/auth/session` con el `idToken` de Firebase; cuando el servidor responde con la cookie establecida, se actualiza el estado y se hace `router.push('/dashboard')`. El proxy ya ve la cookie y deja pasar a `/dashboard`.
+```bash
+git switch develop
+git pull --ff-only origin develop
+git switch -c feature/nombre-descriptivo
+```
 
-- **Resumen:**  
-  Rutas definidas por la estructura de carpetas en `src/app/`; protección con proxy por cookie; navegación entre secciones con `<Link>` y `router.push`; layout compartido para todo el dashboard.
+Después de implementar y validar:
 
----
+```bash
+git add <archivos>
+git commit -m "feat(area): describir cambio"
+git push -u origin feature/nombre-descriptivo
+```
 
-## Secciones de la web
+Se abre un PR hacia `develop`. Cuando el conjunto de cambios está listo para producción, se abre un PR de `develop` hacia `main`.
 
-Cada sección del panel tiene un propósito claro. Así la persona que lea el README entiende **para qué sirve** cada pantalla.
+Reglas recomendadas:
 
-| Sección | Ruta | Para qué sirve |
-|--------|------|-----------------|
-| **Login** | `/login` | Entrada al panel. Solo usuarios autorizados (registrados en Firestore en `admins`) pueden iniciar sesión con email y contraseña. Tras el login se crea la cookie de sesión y se redirige al dashboard. |
-| **Dashboard (inicio)** | `/dashboard` | Página principal una vez dentro. Muestra un resumen: partidos del día/próximos, jornada actual, total real de usuarios registrados en la app móvil (consultado vía Firebase Admin Auth) y funcionalidades disponibles. |
-| **Partidos** | `/dashboard/partidos` | Ver y gestionar partidos. Muestra tabs: En Vivo, Próximos, Finalizados y Suspendidos. Finalizados incluye partidos de **todas** las jornadas (independiente de si `mostrar` es true/false); Próximos y En Vivo solo muestran partidos de jornadas visibles (`mostrar: true`) con actualización en tiempo real. Permite iniciar, actualizar marcador, configurar tiempo agregado y finalizar partidos. |
-| **Jornadas** | `/dashboard/jornadas` | Ver y gestionar jornadas del torneo (Apertura/Clausura). Lista jornadas con sus partidos; desde aquí se puede abrir una jornada para iniciar partidos o ver el estado. Las fechas de inicio/fin y si la jornada se muestra en la app se gestionan con los datos de la colección `jornadas`. |
-| **Noticias** | `/dashboard/noticias` | Gestionar las noticias que consume la app (u otro canal). Crear, editar y listar noticias: título, imagen, categoría unificada (general, resultado, fixture, comunicado, destacado, partidos, fichajes, equipos, jugadores, tabla, estadísticas), medio, URL y estado (publicada/borrador). Los datos están en la colección `news`. |
-| **Posiciones** | `/dashboard/posiciones` | Ver la tabla de posiciones (Apertura, Clausura o Acumulado). Muestra por equipo: partidos jugados, ganados, empatados, perdidos, goles a favor/en contra, diferencia y puntos. Se actualiza en tiempo real según los partidos; los datos vienen de las colecciones `apertura`, `clausura` y `acumulado`. |
-| **Configuración** | `/dashboard/configuracion` | Ajustes del panel y del perfil de usuario. Permite editar el nombre (actualiza Firebase Auth), gestionar seguridad (reset de contraseña por email o info de cuenta Google), y ver información de la cuenta. Sección de configuración del sistema solo visible para administradores. Incluye tarjeta **"Gestión de Torneos"** con botones para la transición Apertura → Clausura (ver más abajo). |
+- Proteger `main` y `develop`; no hacer push directo.
+- Exigir PR y verificaciones exitosas.
+- No hacer rebase ni force push sobre ramas compartidas.
+- Se puede usar squash para `feature/* → develop`.
+- Para `develop` o `release/* → main`, preferir un merge commit.
+- Todo hotfix de `main` debe regresar a `develop` mediante un back-merge.
+- Eliminar las ramas temporales después del merge.
 
-Todas las secciones bajo `/dashboard/*` comparten el mismo layout: sidebar a la izquierda con enlaces a estas rutas, barra superior (navbar) y área de contenido a la derecha.
+## Despliegue en Vercel
 
----
+### Configuración inicial del proyecto
 
-## Firestore – Colecciones y documentos
+1. Importar el repositorio desde GitHub en Vercel.
+2. Seleccionar Next.js como Framework Preset.
+3. Configurar como Root Directory la raíz que contiene `package.json`.
+4. Mantener `npm run build` como Build Command.
+5. Registrar todas las variables del Firebase Client y Admin SDK.
+6. Configurar `main` como Production Branch en:
 
-Todos los datos persistentes están en Firestore (proyecto configurado en `.env.local`). Las constantes de colecciones y los DTOs están en `src/core/config/firestore-constants.ts` y `src/data/dtos/`. Las fechas y horas se guardan como **Timestamp** de Firestore; en el dominio y en la UI se usan como **Date** (los mappers convierten). Para formatear fechas/días usamos **date-fns** y `src/lib/date-utils.ts` (por ejemplo `normalizeDate` para comparar solo día/mes/año en formato `YYYY-MM-DD`).
-
----
-
-### Colecciones que usamos
-
-| Colección | Uso |
-|-----------|-----|
-| **`jornadas`** | Una jornada por documento. ID con formato `{torneo}_{numero}` (ej. `apertura_01`, `clausura_15`). |
-| **`jornadas/{jornadaId}/matches`** | Subcolección de partidos de esa jornada. Cada partido es un documento (ID ej. `ali_uni`). |
-| **`apertura`** | Tabla de posiciones del Torneo Apertura. Un documento por equipo (ID = código del equipo, ej. `ali`, `uni`). |
-| **`clausura`** | Igual que `apertura` para el Torneo Clausura. |
-| **`acumulado`** | Tabla acumulada (apertura + clausura); misma estructura que apertura/clausura si se usa. |
-| **`news`** | Noticias (título, imagen, categoría, estado, etc.). |
-| **`admins`** | Usuarios autorizados (email, role: admin/viewer). |
-
----
-
-### Estructura de jornadas
-
-Cada documento en **`jornadas`** tiene:
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `torneo` | `string` | `"apertura"` o `"clausura"` |
-| `numero` | `number` | Número de jornada (1–38) |
-| `mostrar` | `boolean` | Si la jornada se muestra en la app |
-| `fechaInicio` | `Timestamp` | Fecha/hora de inicio de la jornada |
-| `fechaFin` | `Timestamp` (opcional) | Fecha/hora de fin |
-| `esActiva` | `boolean` (opcional) | Si es la jornada activa actual |
-
-El **ID del documento** se arma así: `apertura_01`, `clausura_12`, etc. (torneo + número con 2 dígitos). Ver `generateJornadaId` en `src/domain/entities/jornada.entity.ts`.
-
-> **Nota sobre Firestore real:** En la práctica, los documentos de jornada solo almacenan `fechaInicio` y `mostrar`. Los campos `torneo`, `numero` y `esActiva` los infiere el mapper (`JornadaMapper.toDomain`) a partir del ID del documento: el prefijo (`apertura`/`clausura`) determina el torneo, y los dos últimos dígitos determinan el número. Esto permite que el generador de fechas funcione correctamente aunque los campos no existan en Firestore.
-
----
-
-### Estructura de partidos (subcolección `matches`)
-
-Cada documento en **`jornadas/{jornadaId}/matches`** tiene:
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `equipoLocalId` | `string` | Código del equipo local (ej. `ali`, `uni`) |
-| `equipoVisitanteId` | `string` | Código del equipo visitante |
-| `fecha` | `Timestamp` | Fecha y hora programada del partido |
-| `golesEquipoLocal` / `golesEquipoVisitante` | `number` | Marcador |
-| `estado` | `string` | `"pendiente"` \| `"envivo"` \| `"finalizado"` \| `"anulado"` \| `"suspendido"` |
-| `suspendido` | `boolean` | Si está suspendido |
-| `estadio` | `string` (opcional) | Nombre del estadio |
-| `jornadaNumero` | `number` (opcional) | Número de jornada |
-| **En vivo:** | | |
-| `horaInicio` | `Timestamp` (opcional) | Cuándo pasó a "envivo" |
-| `primeraParte` | `boolean` (opcional) | `true` = 1.er tiempo, `false` = 2.º tiempo |
-| `enDescanso` | `boolean` (opcional) | Si está en descanso |
-| `horaInicioSegundaParte` | `Timestamp` (opcional) | Inicio del 2.º tiempo |
-| `tiempoAgregadoPrimeraParte` | `number` (opcional) | Minutos agregados al 1.er tiempo |
-| `tiempoAgregado` | `number` (opcional) | Minutos agregados al 2.º tiempo |
-
-El **minuto mostrado** en el timer se calcula en el dominio a partir de `horaInicio` (y `horaInicioSegundaParte` en 2.ª parte), con `date-fns`/Date; no se guarda un campo “minuto actual” en Firestore. Ver `getMatchElapsedMinutes`, `getFormattedMatchMinute`, `canFinishMatch`, etc. en `src/domain/entities/match.entity.ts`.
-
----
-
-### Estructura de apertura / clausura (tabla de posiciones)
-
-Cada documento en **`apertura`** o **`clausura`** (ID = código del equipo, ej. `hua`, `ali`, `uni`):
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `name` | `string` | Nombre completo del equipo |
-| `city` | `string` | Ciudad |
-| `stadium` | `string` | Estadio |
-| `logo` | `string` | Código o path del logo |
-| `matchesPlayed` | `number` | Partidos jugados |
-| `matchesWon` | `number` | Ganados |
-| `matchesDrawn` | `number` | Empatados |
-| `matchesLost` | `number` | Perdidos |
-| `goalsScored` | `number` | Goles a favor |
-| `goalsAgainst` | `number` | Goles en contra |
-| `goalDifference` | `number` | Diferencia de goles |
-| `points` | `number` | Puntos (ganados×3 + empatados) |
-
-La tabla se ordena por: partidos jugados (desc), puntos (desc), diferencia de goles (desc), goles a favor (desc). Al iniciar un partido se incrementa `matchesPlayed` en ambos equipos; durante/final del partido se actualizan goles, PG/PE/PP y puntos (lógica en `MatchStateService` y repositorio de equipos).
-
----
-
-### Códigos de equipos y fechas
-
-- **Códigos de equipo:** Definidos en `firestore-constants.ts` (`TEAM_CODES`, `TEAM_NAMES`). Se usan como ID de documento en apertura/clausura y como `equipoLocalId` / `equipoVisitanteId` en partidos.
-- **Fechas y horas:** En Firestore siempre **Timestamp**. En la app se convierten a **Date** en los mappers. Para mostrar o comparar días se usa **date-fns** y `normalizeDate()` de `src/lib/date-utils.ts` cuando interesa solo año/mes/día.
-
----
-
-## Funcionalidades principales
-
-- **Autenticación**: Login email/contraseña y Google; sesión con cookie segura; proxy que protege `/dashboard`; verificación de usuarios autorizados en Firestore; roles admin/viewer.
-- **Dashboard**: Resumen con partidos próximos o del día, jornada actual, contador real de usuarios registrados en la app móvil (vía `GET /api/stats/users` con Firebase Admin Auth).
-- **Menú de usuario (navbar)**: Botón "Perfil" abre un modal con avatar, nombre, email, rol y último acceso. Botón "Configuración" navega a la página de configuración.
-- **Partidos**: Tabs En Vivo, Próximos, Finalizados y Suspendidos. Finalizados abarca **todas** las jornadas (historial completo); Próximos y En Vivo solo jornadas visibles con suscripciones en tiempo real (`onSnapshot`). Iniciar partido, actualizar marcador, tiempo agregado y finalizar.
-- **Jornadas**: Listado de jornadas y sus partidos; gestión de visibilidad (`mostrar`) y jornada activa (`esActiva`).
-- **Posiciones**: Tabla de posiciones (Apertura, Clausura y Acumulado) actualizada según los partidos.
-- **Noticias**: Crear, editar y listar noticias con campo `categoria` unificado (11 valores: general, resultado, fixture, comunicado, destacado, partidos, fichajes, equipos, jugadores, tabla, estadísticas).
-- **Configuración de cuenta**: Editar nombre (actualiza Firebase Auth con `updateProfile`); reset de contraseña por email (`sendPasswordResetEmail`) o información de cuenta Google; dialogs para notificaciones y apariencia.
-- **Transición Apertura → Clausura** (solo admin): Tarjeta "Gestión de Torneos" con dos acciones protegidas por dialog de confirmación:
-  - **Iniciar Clausura**: crea los 18 documentos de equipos en la colección `clausura` con estadísticas en cero y sincroniza el `acumulado` con el estado final del Apertura.
-  - **Generar Fechas**: lee todas las jornadas del Apertura desde Firestore, invierte local/visitante en cada partido (`uni_ali` → `ali_uni`) y crea `clausura_01`…`clausura_N` usando `writeBatch` en una sola operación. Las fechas se establecen como placeholder hasta que el administrador las actualice manualmente partido a partido.
-- **Acumulado automático**: tras cada partido el sistema recalcula el acumulado (apertura + clausura) con `recalculateAcumulado` dentro de `batchWriteTeamStats`, sin intervención manual.
-- **Notificaciones push**: Envío por FCM a tópicos de equipos (`team_*`) o al canal general (`liga1_all`).
-- **APIs de servidor**: `/api/auth/session`, `/api/auth/logout`, `/api/push-notifications/send`, `/api/stats/users` — todas usando Firebase Admin SDK.
-
----
-
-## Build y despliegue
-
-1. Configurar en el entorno las mismas variables que en `.env.local` (en Vercel/otro host: panel de variables de entorno).
-2. Ejecutar desde la raíz del proyecto:
-   ```bash
-   npm run build
-   npm run start
+   ```text
+   Project Settings → Environments → Production → Branch Tracking
    ```
-   En Vercel (o similar) el build se lanza desde la raíz del repo que contenga `liga1-admin-next` (o desde la raíz del monorepo según configuración).
 
----
+7. Configurar también las variables necesarias para Preview si se probarán PRs contra Firebase.
+
+El repositorio no contiene `vercel.json`; la rama de producción, dominios y variables se administran desde el proyecto de Vercel.
+
+### Flujo de despliegue
+
+```text
+feature/* o fix/*
+        │
+        ▼
+ PR hacia develop ──► Preview Deployment
+        │
+        ▼
+      develop
+        │
+        ▼
+ PR hacia main
+        │
+        ▼
+       main ──► Production Deployment ──► dominio público
+```
+
+Con la integración de Git habilitada:
+
+- Cada push o PR de una rama distinta de `main` genera normalmente un Preview Deployment.
+- El merge hacia `main` inicia un Production Deployment.
+- Vercel actualiza el dominio productivo solamente cuando el build termina correctamente.
+
+### Proceso recomendado para publicar
+
+1. Integrar el cambio mediante PR hacia `develop`.
+2. Revisar el Preview Deployment y ejecutar las pruebas funcionales.
+3. Abrir el PR `develop → main`.
+4. Confirmar que lint, tipos y build hayan pasado.
+5. Fusionar el PR.
+6. Esperar que el deployment de Vercel cambie a `Ready`.
+7. Verificar la funcionalidad y los logs en producción.
+8. Si `main` recibió cambios exclusivos, sincronizarlos nuevamente hacia `develop`.
+
+### Rollback
+
+Si una publicación falla funcionalmente:
+
+- Revertir el PR en GitHub y fusionar el revert hacia `main`, o
+- Promover nuevamente un deployment estable desde el panel de Vercel.
+
+Después de un rollback se debe sincronizar el estado resultante de `main` hacia `develop` para evitar reintroducir el problema.
+
+## Operación y recuperación
+
+La tabla del Clausura puede auditarse sin modificar datos:
+
+```bash
+npm run repair:clausura
+```
+
+Si la vista previa detecta diferencias y no existen partidos en vivo, un administrador con credenciales válidas puede reconstruirla:
+
+```bash
+npm run repair:clausura -- --apply
+```
+
+El script usa como fuente de verdad los partidos finalizados de jornadas `clausura_*`, recalcula todas las estadísticas y actualiza también el Acumulado.
+
+## Seguridad
+
+- Nunca subir `.env.local`, cuentas de servicio ni claves privadas.
+- No utilizar variables `FIREBASE_ADMIN_*` en componentes cliente.
+- Mantener las reglas de Firestore y los usuarios de `admins` con el mínimo privilegio necesario.
+- Revisar que Preview y Production utilicen las variables y proyectos Firebase esperados.
+- Proteger las ramas principales y exigir verificaciones antes del merge.
+
+## Historial de cambios
+
+Los cambios relevantes se documentan en [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## Licencia
 
-Proyecto privado. Uso interno Liga 1.
+Proyecto privado para uso interno.
