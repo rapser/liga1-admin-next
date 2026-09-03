@@ -11,7 +11,14 @@ export const FIRESTORE_COLLECTIONS = {
   ACUMULADO: "acumulado",
   NEWS: "news",
   USERS: "admins", // Cambiar a 'admins' para coincidir con la app iOS
+  STADIUMS: "stadiums", // Datos maestros de sedes (altitud, lat/lng) — sembrado desde la app iOS
+  POLLS: "polls", // Encuestas arbitrales en vivo ("¿fue penal?")
+  POLL_SHARDS: "shards", // Subcolección de polls/{id}: contadores distribuidos
+  POLL_VOTES: "pollVotes", // pollVotes/{pollId}/votes/{uid} — 1 voto por usuario
 } as const;
+
+/** Número de shards del contador distribuido de cada encuesta. */
+export const POLL_SHARD_COUNT = 10;
 
 export const TEAM_CODES = {
   ALI: "ali", // Alianza Lima

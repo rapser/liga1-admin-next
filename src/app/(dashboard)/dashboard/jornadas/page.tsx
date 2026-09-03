@@ -27,7 +27,10 @@ import { MatchRepository } from "@/data/repositories/match.repository";
 import { TeamRepository } from "@/data/repositories/team.repository";
 import { MatchStateService } from "@/domain/services/match-state.service";
 import { PushNotificationService } from "@/domain/services/push-notification.service";
-import { MatchLiveController } from "@/presentation/components/features/matches";
+import {
+  MatchLiveController,
+  WeatherRefreshButton,
+} from "@/presentation/components/features/matches";
 import {
   CalendarDays,
   Trophy,
@@ -224,18 +227,21 @@ export default function JornadasPage() {
                         {getTorneoFromJornadaId(selectedJornadaData.id)}
                       </CardDescription>
                     </div>
-                    <Badge
-                      variant={
-                        selectedJornadaData.mostrar ? "default" : "secondary"
-                      }
-                      className={
-                        selectedJornadaData.mostrar
-                          ? "bg-gradient-success border-0"
-                          : ""
-                      }
-                    >
-                      {selectedJornadaData.mostrar ? "Activa" : "Inactiva"}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <WeatherRefreshButton />
+                      <Badge
+                        variant={
+                          selectedJornadaData.mostrar ? "default" : "secondary"
+                        }
+                        className={
+                          selectedJornadaData.mostrar
+                            ? "bg-gradient-success border-0"
+                            : ""
+                        }
+                      >
+                        {selectedJornadaData.mostrar ? "Activa" : "Inactiva"}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
               </Card>
