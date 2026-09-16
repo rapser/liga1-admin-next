@@ -7,3 +7,4 @@ export * from './team.mapper';
 export * from './jornada.mapper';
 export * from './news.mapper';
 export * from './admin.mapper';
+export * from './poll.mapper';

@@ -7,3 +7,4 @@ export * from './team.dto';
 export * from './jornada.dto';
 export * from './news.dto';
 export * from './admin.dto';
+export * from './poll.dto';

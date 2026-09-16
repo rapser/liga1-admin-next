@@ -8,6 +8,8 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 ### Added
 
+- Workflow de GitHub Actions que refresca el clima de las sedes cada 6 horas invocando `POST /api/weather/refresh`, con disparo manual desde la pestaña Actions.
+- Documentación del refresco programado del clima y de sus dos disparadores (Vercel Cron y GitHub Actions).
 - Documentación del flujo Git desde feature/fix hasta producción.
 - Guía de configuración, despliegue, verificación y rollback en Vercel.
 - Resumen de los módulos funcionales, sus rutas y responsabilidades.
@@ -23,6 +25,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 ### Changed
 
+- El cron de clima en `vercel.json` pasa de cada 12 horas a una vez al día: el plan Hobby de Vercel rechaza en el despliegue cualquier expresión más frecuente.
 - Reorganización completa del README para priorizar tecnologías, arquitectura, dependencias, instalación y operación.
 - Simplificación del detalle operativo de las pantallas para mantener una descripción breve y sostenible de cada módulo.
 

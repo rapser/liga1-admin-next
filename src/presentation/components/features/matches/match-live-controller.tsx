@@ -19,6 +19,7 @@ import { LiveMatchTimer } from "./live-match-timer";
 import { AddTimeConfig } from "./add-time-config";
 import { AddFirstHalfTimeConfig } from "./add-first-half-time-config";
 import { PushNotificationModal } from "./push-notification-modal";
+import { RefereePollPanel } from "./referee-poll-panel";
 import { useMatchTimer } from "@/presentation/hooks/use-match-timer";
 import { Play, Square, Loader2, Bell, PlayCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -460,6 +461,9 @@ export function MatchLiveController({
             Enviar Notificación Push
           </Button>
         </div>
+
+        {/* Encuesta arbitral en vivo */}
+        <RefereePollPanel matchId={match.id} jornadaId={jornadaId} />
 
         {/* Modal de Notificaciones Push */}
         <PushNotificationModal

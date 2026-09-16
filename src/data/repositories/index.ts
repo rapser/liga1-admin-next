@@ -7,3 +7,4 @@ export * from './team.repository';
 export * from './jornada.repository';
 export * from './news.repository';
 export * from './admin.repository';
+export * from './poll.repository';

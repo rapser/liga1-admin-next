@@ -6,6 +6,7 @@
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { getMessaging, Messaging } from 'firebase-admin/messaging';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 // Configuración de Firebase Admin desde variables de entorno
 const firebaseAdminConfig = {
@@ -25,6 +26,7 @@ if (!firebaseAdminConfig.projectId || !firebaseAdminConfig.clientEmail || !fireb
 let adminApp: App;
 let messaging: Messaging;
 let adminAuth: Auth;
+let adminDb: Firestore;
 
 if (getApps().length === 0) {
   adminApp = initializeApp({
@@ -36,10 +38,12 @@ if (getApps().length === 0) {
   });
   adminAuth = getAuth(adminApp);
   messaging = getMessaging(adminApp);
+  adminDb = getFirestore(adminApp);
 } else {
   adminApp = getApps()[0]!;
   adminAuth = getAuth(adminApp);
   messaging = getMessaging(adminApp);
+  adminDb = getFirestore(adminApp);
 }
 
-export { adminApp, adminAuth, messaging };
+export { adminApp, adminAuth, messaging, adminDb };
