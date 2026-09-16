@@ -1,0 +1,68 @@
+# Refresco programado del clima de las sedes.
+#
+# El plan Hobby de Vercel solo admite crons diarios, por lo que `vercel.json`
+# se queda con una ejecución al día como red de seguridad y la frecuencia real
+# la aporta este workflow: POST /api/weather/refresh cada 6 horas con el mismo
+# `CRON_SECRET` que usa el cron de Vercel.
+#
+# Requiere en Settings → Secrets and variables → Actions:
+#   - secret   CRON_SECRET     (idéntico al configurado en Vercel)
+#   - variable ADMIN_BASE_URL  (URL de producción del panel, sin barra final)
+
+name: Refrescar clima
+
+on:
+  schedule:
+    # 00:00, 06:00, 12:00 y 18:00 UTC (19:00, 01:00, 07:00 y 13:00 en Lima).
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+# Evita que dos refrescos se solapen si una corrida se retrasa.
+concurrency:
+  group: weather-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Invocar /api/weather/refresh
+        env:
+          # El secreto se pasa por entorno: nunca aparece en el log del comando.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: ${{ vars.ADMIN_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${BASE_URL}" ]; then
+            echo "::error::Falta la variable ADMIN_BASE_URL en el repositorio."
+            exit 1
+          fi
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::Falta el secreto CRON_SECRET en el repositorio."
+            exit 1
+          fi
+
+          # --fail-with-body: sale distinto de 0 si el HTTP no es 2xx, pero
+          # imprime el cuerpo para ver el motivo del endpoint.
+          # --max-time 120: el handler declara maxDuration = 60.
+          curl "${BASE_URL%/}/api/weather/refresh" \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --max-time 120 \
+            | tee resumen.json
+
+          echo ""
+
+          {
+            echo "### Refresco de clima"
+            jq -r '"- Actualizados: \(.actualizados)"' resumen.json
+            jq -r '"- Sin sede: \(.sinSede)"' resumen.json
+            jq -r '"- Fuera de horizonte: \(.fueraDeHorizonte)"' resumen.json
+            jq -r '"- Errores: \(.errores)"' resumen.json
+            jq -r '"- Duración: \(.duracionMs) ms"' resumen.json
+          } >> "$GITHUB_STEP_SUMMARY"
