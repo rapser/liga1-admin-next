@@ -811,7 +811,25 @@ No es necesario ejecutar `vercel --prod` para el flujo normal: GitHub y la integ
 
 7. Configurar también las variables necesarias para Preview si se probarán PRs contra Firebase.
 
-El repositorio no contiene `vercel.json`; la rama de producción, dominios y variables se administran desde el proyecto de Vercel.
+La rama de producción, los dominios y las variables se administran desde el proyecto de Vercel. El `vercel.json` del repositorio solo declara el cron del refresco de clima (ver más abajo).
+
+### Refresco programado del clima
+
+El endpoint `POST /api/weather/refresh` se dispara de dos formas, ambas con la cabecera `Authorization: Bearer $CRON_SECRET`:
+
+| Disparador | Frecuencia | Configuración |
+| --- | --- | --- |
+| Vercel Cron | 1 vez al día, 09:00 UTC (±59 min) | `vercel.json` |
+| GitHub Actions | cada 6 horas | `.github/workflows/weather-refresh.yml` |
+
+El plan Hobby de Vercel solo admite crons **diarios**: una expresión más frecuente falla durante el despliegue con `Hobby accounts are limited to daily cron jobs`. Por eso la frecuencia real la aporta el workflow de GitHub Actions, que llama al mismo endpoint sin límite de intervalo, y el cron de Vercel se mantiene como red de seguridad. Las dos ejecuciones son idempotentes: el handler escribe el sub-objeto `clima` con `merge: true`.
+
+El workflow necesita, en Settings → Secrets and variables → Actions:
+
+- Secret `CRON_SECRET`: el mismo valor configurado en las variables de entorno de Vercel.
+- Variable `ADMIN_BASE_URL`: la URL de producción del panel, sin barra final.
+
+También se puede refrescar a mano desde el botón "Actualizar clima" de la pantalla de jornadas, o desde la pestaña Actions con *Run workflow*.
 
 Esta configuración se realiza una sola vez. Para los despliegues siguientes se utiliza el flujo de Pull Requests descrito a continuación.
 

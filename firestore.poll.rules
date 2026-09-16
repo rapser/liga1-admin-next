@@ -1,0 +1,56 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Reglas de la ENCUESTA ARBITRAL (Sprint 3A).
+// NO es un firestore.rules completo: pega estos `match` dentro de tu bloque
+//   service cloud.firestore { match /databases/{database}/documents { ... } }
+// en la consola de Firebase, junto a las reglas que ya tienes.
+//
+// Modelo:
+//   polls/{pollId}                      -> documento de la encuesta (crea/cierra el admin)
+//   polls/{pollId}/shards/{n}           -> contador distribuido (la app incrementa uno)
+//   pollVotes/{pollId}/votes/{uid}      -> 1 voto por usuario, inmutable (anti-fraude)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function isAdmin() {
+  return isSignedIn()
+    && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+}
+
+function pollData(pollId) {
+  return get(/databases/$(database)/documents/polls/$(pollId)).data;
+}
+
+function pollAcceptaVotos(pollId) {
+  return pollData(pollId).estado == 'activa'
+    && request.time < pollData(pollId).cierraEn;
+}
+
+match /polls/{pollId} {
+  // Lectura pública (la app muestra la pregunta y el estado).
+  allow read: if true;
+  // Solo el admin crea / cierra encuestas.
+  allow create, update, delete: if isAdmin();
+
+  match /shards/{shardId} {
+    allow read: if true;
+    // Cualquier usuario autenticado incrementa un shard mientras la encuesta esté abierta.
+    // (Anti-fraude real: el doc de voto de abajo es create-only por uid.)
+    allow write: if isSignedIn() && pollAcceptaVotos(pollId);
+  }
+}
+
+match /pollVotes/{pollId}/votes/{uid} {
+  // Cada quien puede leer solo su propio voto (para saber si ya votó y qué eligió).
+  allow read: if isSignedIn() && request.auth.uid == uid;
+  // Un único voto por usuario, dentro de la ventana, con opción declarada.
+  allow create: if isSignedIn()
+    && request.auth.uid == uid
+    && pollAcceptaVotos(pollId)
+    && request.resource.data.opcionId is string
+    && request.resource.data.opcionId.size() > 0;
+  // Voto inmutable: no update, no delete. Al ser create-only, no se puede re-votar.
+  allow update, delete: if false;
+}
