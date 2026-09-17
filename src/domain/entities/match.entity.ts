@@ -58,6 +58,17 @@ export interface Match {
 
   /** Fecha/hora cuando inició la segunda parte */
   horaInicioSegundaParte?: Date;
+
+  /** Fuente y claves externas usadas por la sincronización automática */
+  provider?: "sofascore" | "espn";
+  providerEventId?: string;
+  providerStatus?: string;
+  providerHomeTeamId?: string;
+  providerAwayTeamId?: string;
+  lastProviderSyncAt?: Date;
+
+  /** "manual" impide que el sincronizador modifique este partido */
+  syncMode?: "auto" | "manual";
 }
 
 /**

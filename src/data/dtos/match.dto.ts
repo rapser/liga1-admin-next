@@ -50,6 +50,14 @@ export interface MatchDTO {
 
   /** Fecha/hora cuando inició la segunda parte (Timestamp de Firestore) */
   horaInicioSegundaParte?: Timestamp;
+
+  provider?: "sofascore" | "espn";
+  providerEventId?: string;
+  providerStatus?: string;
+  providerHomeTeamId?: string;
+  providerAwayTeamId?: string;
+  lastProviderSyncAt?: Timestamp;
+  syncMode?: "auto" | "manual";
 }
 
 /**
