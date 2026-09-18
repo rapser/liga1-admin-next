@@ -17,10 +17,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Jornada,
-  getJornadaDisplayName,
-} from "@/domain/entities/jornada.entity";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { Match } from "@/domain/entities/match.entity";
 import { JornadaRepository } from "@/data/repositories/jornada.repository";
 import { MatchRepository } from "@/data/repositories/match.repository";
@@ -37,6 +35,8 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  Bot,
+  Hand,
 } from "lucide-react";
 import { format, isToday, isTomorrow, isYesterday } from "date-fns";
 import { es } from "date-fns/locale";
@@ -115,20 +115,14 @@ export default function JornadasPage() {
     enabled: !authLoading,
   });
   const jornadas = jornadasData;
-  const [selectedJornada, setSelectedJornada] = useState<string | null>(null);
+  const [selectedJornadaOverride, setSelectedJornadaOverride] = useState<string | null>(null);
+  const selectedJornada = selectedJornadaOverride ?? jornadas[0]?.id ?? null;
   const [matches, setMatches] = useState<Match[]>([]);
-  const [loadingMatches, setLoadingMatches] = useState(false);
-
-  useEffect(() => {
-    if (jornadas.length > 0 && jornadas[0] && !selectedJornada) {
-      setSelectedJornada(jornadas[0].id);
-    }
-  }, [jornadas, selectedJornada]);
+  const [loadingMatches, setLoadingMatches] = useState(true);
 
   useEffect(() => {
     if (!selectedJornada) return;
 
-    setLoadingMatches(true);
     const unsubscribe = matchRepository.observeMatches(
       selectedJornada,
       (updatedMatches) => {
@@ -181,7 +175,10 @@ export default function JornadasPage() {
               {jornadas.map((jornada) => (
                 <button
                   key={jornada.id}
-                  onClick={() => setSelectedJornada(jornada.id)}
+                  onClick={() => {
+                    setLoadingMatches(true);
+                    setSelectedJornadaOverride(jornada.id);
+                  }}
                   className={`w-full text-left p-3 rounded-xl transition-all ${
                     selectedJornada === jornada.id
                       ? "bg-gradient-liga1 text-white shadow-soft"
@@ -318,10 +315,35 @@ function MatchCard({
   torneo,
   onMatchChange,
 }: MatchCardProps) {
+  const [changingSyncMode, setChangingSyncMode] = useState(false);
   // Extraer códigos de equipos del ID del partido si no están presentes
   const teams = getTeamsFromMatchId(match.id);
   const equipoLocalId = match.equipoLocalId || teams.local;
   const equipoVisitanteId = match.equipoVisitanteId || teams.visitante;
+  // Documentos existentes siguen en manual hasta que el dry-run/enlace con proveedor sea aprobado.
+  const syncMode = match.syncMode || "manual";
+
+  const toggleSyncMode = async () => {
+    const nextMode = syncMode === "auto" ? "manual" : "auto";
+    setChangingSyncMode(true);
+    try {
+      await matchRepository.updateMatch(jornadaId, match.id, {
+        syncMode: nextMode,
+      });
+      onMatchChange(match.id, { syncMode: nextMode });
+      toast.success(
+        nextMode === "manual"
+          ? "Control manual activado"
+          : "Sincronización automática activada",
+      );
+    } catch (error) {
+      toast.error("No se pudo cambiar el modo del partido", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setChangingSyncMode(false);
+    }
+  };
 
   const getStatusBadge = () => {
     if (match.suspendido) {
@@ -452,14 +474,41 @@ function MatchCard({
       </div>
 
       {/* Controles de Gestión */}
-      <div className="flex items-center justify-center pt-2 border-t border-muted">
-        <MatchLiveController
-          match={match}
-          jornadaId={jornadaId}
-          torneo={torneo}
-          matchStateService={matchStateService}
-          onStateChange={(updates) => onMatchChange(match.id, updates)}
-        />
+      <div className="space-y-3 pt-2 border-t border-muted">
+        <div className="flex items-center justify-center gap-3">
+          <Badge variant={syncMode === "auto" ? "default" : "secondary"}>
+            {syncMode === "auto" ? (
+              <Bot className="h-3 w-3 mr-1" />
+            ) : (
+              <Hand className="h-3 w-3 mr-1" />
+            )}
+            {syncMode === "auto" ? "Automático" : "Manual"}
+          </Badge>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={changingSyncMode}
+            onClick={toggleSyncMode}
+          >
+            {syncMode === "auto" ? "Tomar control manual" : "Volver a automático"}
+          </Button>
+        </div>
+        {syncMode === "manual" ? (
+          <div className="flex items-center justify-center">
+            <MatchLiveController
+              match={match}
+              jornadaId={jornadaId}
+              torneo={torneo}
+              matchStateService={matchStateService}
+              onStateChange={(updates) => onMatchChange(match.id, updates)}
+            />
+          </div>
+        ) : (
+          <p className="text-center text-xs text-muted-foreground">
+            El marcador, estado y horario los controla el proveedor en vivo.
+          </p>
+        )}
       </div>
     </div>
   );

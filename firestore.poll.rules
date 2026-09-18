@@ -36,9 +36,11 @@ match /polls/{pollId} {
 
   match /shards/{shardId} {
     allow read: if true;
+    // Solo el admin crea/borra shards (lo hace en el batch al crear la encuesta).
+    allow create, delete: if isAdmin();
     // Cualquier usuario autenticado incrementa un shard mientras la encuesta esté abierta.
     // (Anti-fraude real: el doc de voto de abajo es create-only por uid.)
-    allow write: if isSignedIn() && pollAcceptaVotos(pollId);
+    allow update: if isSignedIn() && pollAcceptaVotos(pollId);
   }
 }
 

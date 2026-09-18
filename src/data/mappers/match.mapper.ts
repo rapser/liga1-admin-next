@@ -44,7 +44,15 @@ export class MatchMapper {
       tiempoAgregadoPrimeraParte: dto.tiempoAgregadoPrimeraParte,
       primeraParte: dto.primeraParte,
       enDescanso: dto.enDescanso,
+      minutoActual: dto.minutoActual,
       horaInicioSegundaParte: dto.horaInicioSegundaParte?.toDate(),
+      provider: dto.provider,
+      providerEventId: dto.providerEventId,
+      providerStatus: dto.providerStatus,
+      providerHomeTeamId: dto.providerHomeTeamId,
+      providerAwayTeamId: dto.providerAwayTeamId,
+      lastProviderSyncAt: dto.lastProviderSyncAt?.toDate(),
+      syncMode: dto.syncMode,
     };
   }
 
@@ -69,9 +77,19 @@ export class MatchMapper {
       tiempoAgregadoPrimeraParte: match.tiempoAgregadoPrimeraParte,
       primeraParte: match.primeraParte,
       enDescanso: match.enDescanso,
+      minutoActual: match.minutoActual,
       horaInicioSegundaParte: match.horaInicioSegundaParte
         ? Timestamp.fromDate(match.horaInicioSegundaParte)
         : undefined,
+      provider: match.provider,
+      providerEventId: match.providerEventId,
+      providerStatus: match.providerStatus,
+      providerHomeTeamId: match.providerHomeTeamId,
+      providerAwayTeamId: match.providerAwayTeamId,
+      lastProviderSyncAt: match.lastProviderSyncAt
+        ? Timestamp.fromDate(match.lastProviderSyncAt)
+        : undefined,
+      syncMode: match.syncMode,
     };
   }
 

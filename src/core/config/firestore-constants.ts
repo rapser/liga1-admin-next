@@ -15,6 +15,7 @@ export const FIRESTORE_COLLECTIONS = {
   POLLS: "polls", // Encuestas arbitrales en vivo ("¿fue penal?")
   POLL_SHARDS: "shards", // Subcolección de polls/{id}: contadores distribuidos
   POLL_VOTES: "pollVotes", // pollVotes/{pollId}/votes/{uid} — 1 voto por usuario
+  LIVE_SYNC_EVENTS: "liveSyncEvents", // ledger idempotente de pushes automáticos
 } as const;
 
 /** Número de shards del contador distribuido de cada encuesta. */
