@@ -48,6 +48,8 @@ export interface MatchDTO {
   /** Indica si el partido está en descanso (entre primera y segunda parte) */
   enDescanso?: boolean;
 
+  minutoActual?: string;
+
   /** Fecha/hora cuando inició la segunda parte (Timestamp de Firestore) */
   horaInicioSegundaParte?: Timestamp;
 

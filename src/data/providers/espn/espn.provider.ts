@@ -91,6 +91,7 @@ export class EspnProvider {
         type: statusType,
         description: rawStatus?.description || rawStatus?.detail,
       },
+      displayClock: rawStatus?.detail || rawStatus?.description,
       tournament: { uniqueTournament: { id: 406, name: "Peruvian Liga 1" } },
       venue: { name: competition?.venue?.fullName },
     };

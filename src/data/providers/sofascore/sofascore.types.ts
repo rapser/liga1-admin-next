@@ -32,6 +32,8 @@ export interface SofaScoreEvent {
   homeScore?: SofaScoreScore;
   awayScore?: SofaScoreScore;
   status: SofaScoreStatus;
+  /** Reloj oficial ya formateado: 23', 45+2', ET, FT, etc. */
+  displayClock?: string;
   tournament?: SofaScoreTournament;
   roundInfo?: { round?: number };
   venue?: { stadium?: { name?: string }; name?: string };

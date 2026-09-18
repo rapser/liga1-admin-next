@@ -34,6 +34,7 @@ interface StoredMatch {
   golesEquipoVisitante: number;
   estado: LocalStatus;
   suspendido: boolean;
+  minutoActual?: string;
   providerEventId?: string | number;
   provider?: "sofascore" | "espn";
   syncMode?: "auto" | "manual";
@@ -204,11 +205,33 @@ export class LiveSyncService {
     }
 
     if (!dryRun && changes.length > 0) {
-      const freshMatches = await this.fetchStoredMatches();
-      await this.rebuildStandings(freshMatches);
-      result.standingsRebuilt = true;
+      const affectsStandings = changes.some((change) =>
+        change.fields.some((field) =>
+          [
+            "golesEquipoLocal",
+            "golesEquipoVisitante",
+            "estado",
+            "suspendido",
+          ].includes(field),
+        ),
+      );
+      if (affectsStandings) {
+        const freshMatches = await this.fetchStoredMatches();
+        await this.rebuildStandings(freshMatches);
+        result.standingsRebuilt = true;
+      }
       if (mode !== "reconcile") {
         for (const change of changes) {
+          const requiresClientRefresh = change.fields.some((field) =>
+            [
+              "fecha",
+              "golesEquipoLocal",
+              "golesEquipoVisitante",
+              "estado",
+              "suspendido",
+            ].includes(field),
+          );
+          if (!requiresClientRefresh) continue;
           const allowVisible =
             mode === "live" &&
             String(change.before.providerEventId || "") === String(change.event.id);
@@ -265,6 +288,7 @@ export class LiveSyncService {
             golesEquipoVisitante: data.golesEquipoVisitante ?? 0,
             estado: data.estado || "pendiente",
             suspendido: data.suspendido ?? false,
+            minutoActual: data.minutoActual,
             providerEventId: data.providerEventId,
             provider: data.provider,
             syncMode: data.syncMode,
@@ -310,6 +334,7 @@ export class LiveSyncService {
       golesEquipoVisitante: getScore(event, "away", stored.golesEquipoVisitante),
       estado: state.estado,
       suspendido: state.suspendido,
+      minutoActual: event.displayClock,
       providerEventId: String(event.id),
       provider: event.provider || "sofascore",
       syncMode: stored.syncMode || "auto",
@@ -320,6 +345,7 @@ export class LiveSyncService {
     if (stored.golesEquipoVisitante !== after.golesEquipoVisitante) fields.push("golesEquipoVisitante");
     if (stored.estado !== after.estado) fields.push("estado");
     if (stored.suspendido !== after.suspendido) fields.push("suspendido");
+    if (stored.minutoActual !== after.minutoActual) fields.push("minutoActual");
     if (String(stored.providerEventId || "") !== String(event.id)) fields.push("providerEventId");
     if (stored.provider !== after.provider) fields.push("provider");
     if (!stored.syncMode) fields.push("syncMode");
@@ -343,6 +369,7 @@ export class LiveSyncService {
         golesEquipoVisitante: after.golesEquipoVisitante,
         estado: after.estado,
         suspendido: after.suspendido,
+        minutoActual: after.minutoActual || null,
         enDescanso: state.enDescanso,
         primeraParte:
           after.estado === "envivo" &&

@@ -44,6 +44,7 @@ export class MatchMapper {
       tiempoAgregadoPrimeraParte: dto.tiempoAgregadoPrimeraParte,
       primeraParte: dto.primeraParte,
       enDescanso: dto.enDescanso,
+      minutoActual: dto.minutoActual,
       horaInicioSegundaParte: dto.horaInicioSegundaParte?.toDate(),
       provider: dto.provider,
       providerEventId: dto.providerEventId,
@@ -76,6 +77,7 @@ export class MatchMapper {
       tiempoAgregadoPrimeraParte: match.tiempoAgregadoPrimeraParte,
       primeraParte: match.primeraParte,
       enDescanso: match.enDescanso,
+      minutoActual: match.minutoActual,
       horaInicioSegundaParte: match.horaInicioSegundaParte
         ? Timestamp.fromDate(match.horaInicioSegundaParte)
         : undefined,
