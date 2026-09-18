@@ -160,22 +160,28 @@ export class EspnProvider {
     let awayScore = 0;
 
     return (data.keyEvents || [])
-      .filter((item) => item.scoringPlay === true)
+      .filter((item) => {
+        const type = `${item.type?.type || ""} ${item.type?.text || ""}`.toLowerCase();
+        return item.scoringPlay === true || type.includes("red card");
+      })
       .map((item) => {
         const isHome = Boolean(homeId && item.team?.id === homeId);
-        if (isHome) homeScore += 1;
-        else awayScore += 1;
+        const isGoal = item.scoringPlay === true;
+        if (isGoal && isHome) homeScore += 1;
+        else if (isGoal) awayScore += 1;
         const display = item.clock?.displayValue || "";
         const minuteParts = display.match(/(\d+)(?:\+(\d+))?/);
         const text = `${item.type?.type || ""} ${item.type?.text || ""} ${item.text || ""}`.toLowerCase();
         return {
           id: Number(item.id || 0),
-          incidentType: "goal",
-          incidentClass: text.includes("own goal")
-            ? "ownGoal"
-            : text.includes("penalty")
-              ? "penalty"
-              : "regular",
+          incidentType: isGoal ? "goal" : "card",
+          incidentClass: isGoal
+            ? text.includes("own goal")
+              ? "ownGoal"
+              : text.includes("penalty")
+                ? "penalty"
+                : "regular"
+            : "red",
           isHome,
           time: minuteParts ? Number(minuteParts[1]) : undefined,
           addedTime: minuteParts?.[2] ? Number(minuteParts[2]) : undefined,

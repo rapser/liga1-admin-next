@@ -36,6 +36,7 @@ interface StoredMatch {
   suspendido: boolean;
   minutoActual?: string;
   golesDetalle: StoredGoalDetail[];
+  tarjetasRojasDetalle: StoredRedCardDetail[];
   providerEventId?: string | number;
   provider?: "sofascore" | "espn";
   syncMode?: "auto" | "manual";
@@ -47,6 +48,13 @@ interface StoredGoalDetail {
   minuto: string;
   equipo: "local" | "visitante";
   tipo: "gol" | "penal" | "autogol";
+}
+
+interface StoredRedCardDetail {
+  id: string;
+  nombre: string;
+  minuto: string;
+  equipo: "local" | "visitante";
 }
 
 interface MatchChange {
@@ -166,6 +174,40 @@ function goalDetailsFromIncidents(incidents: SofaScoreIncident[]): StoredGoalDet
     }));
 }
 
+function parseStoredRedCardDetails(value: unknown): StoredRedCardDetail[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const card = item as Record<string, unknown>;
+    if (typeof card.nombre !== "string" || typeof card.minuto !== "string") return [];
+    return [{
+      id: String(card.id || `${card.nombre}-${card.minuto}`),
+      nombre: card.nombre,
+      minuto: card.minuto,
+      equipo: card.equipo === "local" ? "local" as const : "visitante" as const,
+    }];
+  });
+}
+
+function redCardDetailsFromIncidents(incidents: SofaScoreIncident[]): StoredRedCardDetail[] {
+  return incidents
+    .filter(
+      (incident) =>
+        incident.incidentType === "card" &&
+        (incident.incidentClass || "").toLowerCase().includes("red"),
+    )
+    .map((incident, index) => ({
+      id: String(incident.id || `red-card-${index + 1}`),
+      nombre: incident.player?.name || incident.player?.shortName || "Jugador por confirmar",
+      minuto:
+        incident.timeDisplay ||
+        (incident.time
+          ? `${incident.time}${incident.addedTime ? `+${incident.addedTime}` : ""}'`
+          : "—"),
+      equipo: incident.isHome ? "local" : "visitante",
+    }));
+}
+
 function statsZero(): StandingStats {
   return {
     matchesPlayed: 0,
@@ -252,23 +294,29 @@ export class LiveSyncService {
         stored.golesEquipoLocal !== nextHomeScore ||
         stored.golesEquipoVisitante !== nextAwayScore;
       let goalDetails: StoredGoalDetail[] | undefined;
+      let redCardDetails: StoredRedCardDetail[] | undefined;
+      const nextState = providerStatus(event).estado;
+      const shouldFetchIncidents =
+        nextState === "envivo" ||
+        scoreChanged ||
+        stored.golesDetalle.length !== nextGoalTotal ||
+        (nextState === "finalizado" && stored.estado !== "finalizado");
 
       if (nextGoalTotal === 0 && stored.golesDetalle.length > 0) {
         goalDetails = [];
-      } else if (
-        nextGoalTotal > 0 &&
-        (scoreChanged || stored.golesDetalle.length !== nextGoalTotal)
-      ) {
+      }
+      if (shouldFetchIncidents) {
         try {
           event.incidents = await this.provider.fetchIncidents(event);
           const fetchedGoals = goalDetailsFromIncidents(event.incidents);
           if (fetchedGoals.length > 0) goalDetails = fetchedGoals;
+          redCardDetails = redCardDetailsFromIncidents(event.incidents);
         } catch (error) {
-          console.warn("No se pudieron consultar goleadores", error);
+          console.warn("No se pudieron consultar incidencias", error);
         }
       }
 
-      const change = this.buildChange(stored, event, goalDetails);
+      const change = this.buildChange(stored, event, goalDetails, redCardDetails);
       if (!change) continue;
       result.changed += 1;
       changes.push(change);
@@ -362,6 +410,7 @@ export class LiveSyncService {
             suspendido: data.suspendido ?? false,
             minutoActual: data.minutoActual,
             golesDetalle: parseStoredGoalDetails(data.golesDetalle),
+            tarjetasRojasDetalle: parseStoredRedCardDetails(data.tarjetasRojasDetalle),
             providerEventId: data.providerEventId,
             provider: data.provider,
             syncMode: data.syncMode,
@@ -401,6 +450,7 @@ export class LiveSyncService {
     stored: StoredMatch,
     event: SofaScoreEvent,
     goalDetails?: StoredGoalDetail[],
+    redCardDetails?: StoredRedCardDetail[],
   ): MatchChange | null {
     const state = providerStatus(event);
     const nextDate = new Date(event.startTimestamp * 1000);
@@ -413,6 +463,7 @@ export class LiveSyncService {
       suspendido: state.suspendido,
       minutoActual: event.displayClock,
       golesDetalle: goalDetails ?? stored.golesDetalle,
+      tarjetasRojasDetalle: redCardDetails ?? stored.tarjetasRojasDetalle,
       providerEventId: String(event.id),
       provider: event.provider || "sofascore",
       syncMode: stored.syncMode || "auto",
@@ -426,6 +477,12 @@ export class LiveSyncService {
     if (stored.minutoActual !== after.minutoActual) fields.push("minutoActual");
     if (JSON.stringify(stored.golesDetalle) !== JSON.stringify(after.golesDetalle)) {
       fields.push("golesDetalle");
+    }
+    if (
+      JSON.stringify(stored.tarjetasRojasDetalle) !==
+      JSON.stringify(after.tarjetasRojasDetalle)
+    ) {
+      fields.push("tarjetasRojasDetalle");
     }
     if (String(stored.providerEventId || "") !== String(event.id)) fields.push("providerEventId");
     if (stored.provider !== after.provider) fields.push("provider");
@@ -452,6 +509,7 @@ export class LiveSyncService {
         suspendido: after.suspendido,
         minutoActual: after.minutoActual || null,
         golesDetalle: after.golesDetalle,
+        tarjetasRojasDetalle: after.tarjetasRojasDetalle,
         enDescanso: state.enDescanso,
         primeraParte:
           after.estado === "envivo" &&
