@@ -68,6 +68,7 @@ export interface LiveSyncResult {
   notifications: number;
   standingsRebuilt: boolean;
   adoptUnconfigured: boolean;
+  requestedEventId?: number;
 }
 
 function asDate(value: unknown): Date {
@@ -151,11 +152,15 @@ export class LiveSyncService {
     mode: LiveSyncMode,
     dryRun = false,
     adoptUnconfigured = false,
+    requestedEventId?: number,
   ): Promise<LiveSyncResult> {
-    const [events, matches] = await Promise.all([
+    const [allEvents, matches] = await Promise.all([
       this.fetchEvents(mode),
       this.fetchStoredMatches(),
     ]);
+    const events = requestedEventId
+      ? allEvents.filter((event) => event.id === requestedEventId)
+      : allEvents;
     const result: LiveSyncResult = {
       mode,
       dryRun,
@@ -167,6 +172,7 @@ export class LiveSyncService {
       notifications: 0,
       standingsRebuilt: false,
       adoptUnconfigured,
+      requestedEventId,
     };
     const changes: MatchChange[] = [];
 

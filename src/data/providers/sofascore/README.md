@@ -30,5 +30,8 @@ Para proteger un partido y operarlo desde el admin, guardar
 `syncMode: "manual"` en su documento. Para devolverlo al proveedor usar
 `syncMode: "auto"`.
 
+Para una activación controlada de un solo encuentro se puede añadir
+`eventId=<id del proveedor>&adopt=true`; los demás partidos no se procesan.
+
 Las escrituras actualizan el partido, reconstruyen Apertura/Clausura/Acumulado
 y registran cada push en `liveSyncEvents` para no repetir goles, inicio o final.

@@ -24,6 +24,11 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   }
   const dryRun = request.nextUrl.searchParams.get("dryRun") === "true";
   const adoptUnconfigured = request.nextUrl.searchParams.get("adopt") === "true";
+  const eventIdParam = request.nextUrl.searchParams.get("eventId");
+  const requestedEventId = eventIdParam ? Number(eventIdParam) : undefined;
+  if (eventIdParam && (!Number.isSafeInteger(requestedEventId) || requestedEventId! <= 0)) {
+    return NextResponse.json({ error: "eventId inválido" }, { status: 400 });
+  }
   if (process.env.LIVE_SYNC_ENABLED !== "true" && !dryRun) {
     return NextResponse.json(
       { error: "Sincronización desactivada", hint: "Usa dryRun=true o activa LIVE_SYNC_ENABLED" },
@@ -36,6 +41,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
       modeParam as LiveSyncMode,
       dryRun,
       adoptUnconfigured,
+      requestedEventId,
     );
     return NextResponse.json(result);
   } catch (error) {
