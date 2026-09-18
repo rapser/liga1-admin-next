@@ -56,8 +56,22 @@ export interface Match {
   /** Indica si el partido está en descanso (entre primera y segunda parte) */
   enDescanso?: boolean;
 
+  /** Reloj oficial del proveedor, por ejemplo 23', 45+2' o ET */
+  minutoActual?: string;
+
   /** Fecha/hora cuando inició la segunda parte */
   horaInicioSegundaParte?: Date;
+
+  /** Fuente y claves externas usadas por la sincronización automática */
+  provider?: "sofascore" | "espn";
+  providerEventId?: string;
+  providerStatus?: string;
+  providerHomeTeamId?: string;
+  providerAwayTeamId?: string;
+  lastProviderSyncAt?: Date;
+
+  /** "manual" impide que el sincronizador modifique este partido */
+  syncMode?: "auto" | "manual";
 }
 
 /**
