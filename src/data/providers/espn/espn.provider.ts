@@ -63,7 +63,10 @@ export class EspnProvider {
     else if (label.includes("suspend") || label.includes("interrupt")) statusType = "suspended";
     else if (label.includes("cancel")) statusType = "canceled";
     else if (rawStatus?.state === "in") {
-      statusType = label.includes("half") ? "halftime" : "inprogress";
+      statusType =
+        label.includes("half time") || label.includes("halftime")
+          ? "halftime"
+          : "inprogress";
     }
 
     return {
@@ -111,4 +114,3 @@ export class EspnProvider {
     return this.request(new URLSearchParams({ dates: year, limit: "500" }));
   }
 }
-
