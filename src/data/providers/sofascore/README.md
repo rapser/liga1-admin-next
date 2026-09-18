@@ -40,5 +40,9 @@ cierra automáticamente. También tiene un límite de seguridad de seis horas,
 configurable con `LIVE_MONITOR_MAX_DURATION_MS`; el intervalo se configura con
 `LIVE_MONITOR_INTERVAL_MS` (45 segundos por defecto).
 
+Si el horario ya es conocido, se puede dejar programado sin consumir consultas
+durante la espera. Por ejemplo, para activarlo cinco minutos antes:
+`LIVE_MONITOR_START_AT=2026-09-19T00:55:00Z npm run monitor:live -- <eventId>`.
+
 Las escrituras actualizan el partido, reconstruyen Apertura/Clausura/Acumulado
 y registran cada push en `liveSyncEvents` para no repetir goles, inicio o final.

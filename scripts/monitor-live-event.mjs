@@ -3,6 +3,7 @@ const secret = process.env.CRON_SECRET;
 const baseUrl = (process.env.LIVE_SYNC_BASE_URL || "http://localhost:3100").replace(/\/$/, "");
 const intervalMs = positiveNumber(process.env.LIVE_MONITOR_INTERVAL_MS, 45_000);
 const maxDurationMs = positiveNumber(process.env.LIVE_MONITOR_MAX_DURATION_MS, 21_600_000);
+const startAt = parseStartAt(process.env.LIVE_MONITOR_START_AT);
 
 if (!Number.isSafeInteger(eventId) || eventId <= 0) {
   console.error("Uso: npm run monitor:live -- <eventId>");
@@ -14,12 +15,21 @@ if (!secret) {
   process.exit(1);
 }
 
-const startedAt = Date.now();
 let stopping = false;
 
 process.on("SIGINT", stopFromSignal);
 process.on("SIGTERM", stopFromSignal);
 
+if (startAt && startAt > Date.now()) {
+  console.log(
+    `Monitor programado para ${new Date(startAt).toISOString()} (evento ${eventId}).`,
+  );
+  await waitUntil(startAt);
+}
+
+if (stopping) process.exit(0);
+
+const startedAt = Date.now();
 while (!stopping && Date.now() - startedAt < maxDurationMs) {
   try {
     const result = await syncEvent();
@@ -50,6 +60,16 @@ function positiveNumber(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseStartAt(value) {
+  if (!value) return undefined;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    console.error("LIVE_MONITOR_START_AT debe ser una fecha ISO válida.");
+    process.exit(1);
+  }
+  return timestamp;
+}
+
 async function syncEvent() {
   const url = new URL("/api/live-sync", baseUrl);
   url.searchParams.set("mode", "live");
@@ -70,6 +90,12 @@ async function syncEvent() {
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitUntil(timestamp) {
+  while (!stopping && Date.now() < timestamp) {
+    await delay(Math.min(timestamp - Date.now(), 60_000));
+  }
 }
 
 function stopFromSignal() {
