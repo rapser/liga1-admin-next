@@ -1,4 +1,8 @@
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import {
+  FieldValue,
+  Timestamp,
+  type QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 import type { Message } from "firebase-admin/messaging";
 import { adminDb, messaging } from "@/core/config/firebase-admin";
 import {
@@ -87,6 +91,8 @@ export interface LiveSyncResult {
   standingsRebuilt: boolean;
   adoptUnconfigured: boolean;
   requestedEventId?: number;
+  requestedEventStatus?: LocalStatus;
+  stopMonitoring?: boolean;
 }
 
 function asDate(value: unknown): Date {
@@ -246,13 +252,18 @@ export class LiveSyncService {
     adoptUnconfigured = false,
     requestedEventId?: number,
   ): Promise<LiveSyncResult> {
-    const [allEvents, matches] = await Promise.all([
-      this.fetchEvents(mode),
-      this.fetchStoredMatches(),
-    ]);
-    const events = requestedEventId
-      ? allEvents.filter((event) => event.id === requestedEventId)
-      : allEvents;
+    const allEvents = await this.fetchEvents(mode);
+    const requestedEvent = requestedEventId
+      ? allEvents.find((event) => event.id === requestedEventId)
+      : undefined;
+    const events = requestedEvent ? [requestedEvent] : requestedEventId ? [] : allEvents;
+    const matches =
+      mode === "live" && !adoptUnconfigured
+        ? await this.fetchStoredMatchesByProviderIds(events.map((event) => event.id))
+        : await this.fetchStoredMatches();
+    const requestedEventStatus = requestedEvent
+      ? providerStatus(requestedEvent).estado
+      : undefined;
     const result: LiveSyncResult = {
       mode,
       dryRun,
@@ -265,6 +276,10 @@ export class LiveSyncService {
       standingsRebuilt: false,
       adoptUnconfigured,
       requestedEventId,
+      requestedEventStatus,
+      stopMonitoring: requestedEventId
+        ? requestedEventStatus === "finalizado" || requestedEventStatus === "anulado"
+        : undefined,
     };
     const changes: MatchChange[] = [];
 
@@ -394,31 +409,69 @@ export class LiveSyncService {
         const snapshot = await jornadaDoc.ref
           .collection(FIRESTORE_COLLECTIONS.MATCHES)
           .get();
-        return snapshot.docs.map((matchDoc): StoredMatch => {
-          const data = matchDoc.data();
-          const parts = matchDoc.id.split("_");
-          return {
-            jornadaId: jornadaDoc.id,
-            matchId: matchDoc.id,
-            torneo,
-            equipoLocalId: data.equipoLocalId || parts[0] || null,
-            equipoVisitanteId: data.equipoVisitanteId || parts[1] || null,
-            fecha: asDate(data.fecha),
-            golesEquipoLocal: data.golesEquipoLocal ?? 0,
-            golesEquipoVisitante: data.golesEquipoVisitante ?? 0,
-            estado: data.estado || "pendiente",
-            suspendido: data.suspendido ?? false,
-            minutoActual: data.minutoActual,
-            golesDetalle: parseStoredGoalDetails(data.golesDetalle),
-            tarjetasRojasDetalle: parseStoredRedCardDetails(data.tarjetasRojasDetalle),
-            providerEventId: data.providerEventId,
-            provider: data.provider,
-            syncMode: data.syncMode,
-          };
-        });
+        return snapshot.docs.map((matchDoc) => this.toStoredMatch(matchDoc, torneo));
       }),
     );
     return matchGroups.flat();
+  }
+
+  private async fetchStoredMatchesByProviderIds(eventIds: number[]): Promise<StoredMatch[]> {
+    if (eventIds.length === 0) return [];
+
+    const uniqueIds = [...new Set(eventIds.map(String))];
+    const chunks = Array.from(
+      { length: Math.ceil(uniqueIds.length / 30) },
+      (_, index) => uniqueIds.slice(index * 30, (index + 1) * 30),
+    );
+    const snapshots = await Promise.all(
+      chunks.map((ids) =>
+        adminDb
+          .collectionGroup(FIRESTORE_COLLECTIONS.MATCHES)
+          .where("providerEventId", "in", ids)
+          .get(),
+      ),
+    );
+    const documents = snapshots.flatMap((snapshot) => snapshot.docs);
+
+    if (documents.length === 0 && eventIds.length === 1) {
+      const legacySnapshot = await adminDb
+        .collectionGroup(FIRESTORE_COLLECTIONS.MATCHES)
+        .where("providerEventId", "==", eventIds[0])
+        .get();
+      return legacySnapshot.docs.map((matchDoc) => this.toStoredMatch(matchDoc));
+    }
+
+    return documents.map((matchDoc) => this.toStoredMatch(matchDoc));
+  }
+
+  private toStoredMatch(
+    matchDoc: QueryDocumentSnapshot,
+    knownTournament?: TorneoType,
+  ): StoredMatch {
+    const data = matchDoc.data();
+    const parts = matchDoc.id.split("_");
+    const jornadaId = matchDoc.ref.parent.parent?.id || "";
+    const torneo: TorneoType =
+      knownTournament || (jornadaId.includes("clausura") ? "clausura" : "apertura");
+
+    return {
+      jornadaId,
+      matchId: matchDoc.id,
+      torneo,
+      equipoLocalId: data.equipoLocalId || parts[0] || null,
+      equipoVisitanteId: data.equipoVisitanteId || parts[1] || null,
+      fecha: asDate(data.fecha),
+      golesEquipoLocal: data.golesEquipoLocal ?? 0,
+      golesEquipoVisitante: data.golesEquipoVisitante ?? 0,
+      estado: data.estado || "pendiente",
+      suspendido: data.suspendido ?? false,
+      minutoActual: data.minutoActual,
+      golesDetalle: parseStoredGoalDetails(data.golesDetalle),
+      tarjetasRojasDetalle: parseStoredRedCardDetails(data.tarjetasRojasDetalle),
+      providerEventId: data.providerEventId,
+      provider: data.provider,
+      syncMode: data.syncMode,
+    };
   }
 
   private findMatch(event: SofaScoreEvent, matches: StoredMatch[]): StoredMatch | undefined {

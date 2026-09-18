@@ -33,5 +33,12 @@ Para proteger un partido y operarlo desde el admin, guardar
 Para una activación controlada de un solo encuentro se puede añadir
 `eventId=<id del proveedor>&adopt=true`; los demás partidos no se procesan.
 
+Para monitorear localmente un solo partido usar
+`npm run monitor:live -- <eventId>`. El proceso ejecuta una última
+sincronización cuando el proveedor informa `finalizado` o `anulado` y luego se
+cierra automáticamente. También tiene un límite de seguridad de seis horas,
+configurable con `LIVE_MONITOR_MAX_DURATION_MS`; el intervalo se configura con
+`LIVE_MONITOR_INTERVAL_MS` (45 segundos por defecto).
+
 Las escrituras actualizan el partido, reconstruyen Apertura/Clausura/Acumulado
 y registran cada push en `liveSyncEvents` para no repetir goles, inicio o final.
