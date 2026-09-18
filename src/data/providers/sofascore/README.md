@@ -21,10 +21,11 @@ antibot. Mantener ESPN o configurar una URL autorizada en `SOFASCORE_BASE_URL`.
 5. Activar `LIVE_SYNC_ENABLED=true` y ejecutar una vez
    `mode=reconcile&adopt=true`. Esta adopción explícita enlaza los documentos
    sin `syncMode`, no toca los que ya estén en `manual` y no envía pushes.
-6. Programar un scheduler externo:
-   - `mode=live`: cada minuto.
-   - `mode=fixtures`: cada 6 horas.
-   - `mode=reconcile`: una vez de madrugada.
+6. El scheduler externo ya está automatizado en
+   `.github/workflows/live-sync.yml` (mismos secrets que
+   `weather-refresh.yml`): `mode=live` cada 5 minutos, `mode=fixtures` cada 6
+   horas y `mode=reconcile` una vez de madrugada. No requiere pasos manuales
+   adicionales una vez mergeado a `main`.
 
 Para proteger un partido y operarlo desde el admin, guardar
 `syncMode: "manual"` en su documento. Para devolverlo al proveedor usar
