@@ -34,6 +34,8 @@ export interface SofaScoreEvent {
   status: SofaScoreStatus;
   /** Reloj oficial ya formateado: 23', 45+2', ET, FT, etc. */
   displayClock?: string;
+  /** Incidencias precargadas para reutilizarlas al persistir y notificar. */
+  incidents?: SofaScoreIncident[];
   tournament?: SofaScoreTournament;
   roundInfo?: { round?: number };
   venue?: { stadium?: { name?: string }; name?: string };
@@ -46,6 +48,7 @@ export interface SofaScoreIncident {
   incidentClass?: string;
   isHome?: boolean;
   time?: number;
+  timeDisplay?: string;
   addedTime?: number;
   homeScore?: number;
   awayScore?: number;

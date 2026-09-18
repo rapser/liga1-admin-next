@@ -35,9 +35,18 @@ interface StoredMatch {
   estado: LocalStatus;
   suspendido: boolean;
   minutoActual?: string;
+  golesDetalle: StoredGoalDetail[];
   providerEventId?: string | number;
   provider?: "sofascore" | "espn";
   syncMode?: "auto" | "manual";
+}
+
+interface StoredGoalDetail {
+  id: string;
+  nombre: string;
+  minuto: string;
+  equipo: "local" | "visitante";
+  tipo: "gol" | "penal" | "autogol";
 }
 
 interface MatchChange {
@@ -115,6 +124,46 @@ function providerStatus(event: SofaScoreEvent): {
 function getScore(event: SofaScoreEvent, side: "home" | "away", fallback: number): number {
   const score = side === "home" ? event.homeScore : event.awayScore;
   return score?.current ?? score?.display ?? fallback;
+}
+
+function parseStoredGoalDetails(value: unknown): StoredGoalDetail[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const goal = item as Record<string, unknown>;
+    if (typeof goal.nombre !== "string" || typeof goal.minuto !== "string") return [];
+    return [{
+      id: String(goal.id || `${goal.nombre}-${goal.minuto}`),
+      nombre: goal.nombre,
+      minuto: goal.minuto,
+      equipo: goal.equipo === "local" ? "local" as const : "visitante" as const,
+      tipo:
+        goal.tipo === "penal" || goal.tipo === "autogol"
+          ? goal.tipo
+          : "gol" as const,
+    }];
+  });
+}
+
+function goalDetailsFromIncidents(incidents: SofaScoreIncident[]): StoredGoalDetail[] {
+  return incidents
+    .filter((incident) => incident.incidentType === "goal")
+    .map((incident, index) => ({
+      id: String(incident.id || `goal-${index + 1}`),
+      nombre: incident.player?.name || incident.player?.shortName || "Autor por confirmar",
+      minuto:
+        incident.timeDisplay ||
+        (incident.time
+          ? `${incident.time}${incident.addedTime ? `+${incident.addedTime}` : ""}'`
+          : "—"),
+      equipo: incident.isHome ? "local" : "visitante",
+      tipo:
+        incident.incidentClass === "penalty"
+          ? "penal"
+          : incident.incidentClass === "ownGoal"
+            ? "autogol"
+            : "gol",
+    }));
 }
 
 function statsZero(): StandingStats {
@@ -196,7 +245,30 @@ export class LiveSyncService {
         continue;
       }
 
-      const change = this.buildChange(stored, event);
+      const nextHomeScore = getScore(event, "home", stored.golesEquipoLocal);
+      const nextAwayScore = getScore(event, "away", stored.golesEquipoVisitante);
+      const nextGoalTotal = nextHomeScore + nextAwayScore;
+      const scoreChanged =
+        stored.golesEquipoLocal !== nextHomeScore ||
+        stored.golesEquipoVisitante !== nextAwayScore;
+      let goalDetails: StoredGoalDetail[] | undefined;
+
+      if (nextGoalTotal === 0 && stored.golesDetalle.length > 0) {
+        goalDetails = [];
+      } else if (
+        nextGoalTotal > 0 &&
+        (scoreChanged || stored.golesDetalle.length !== nextGoalTotal)
+      ) {
+        try {
+          event.incidents = await this.provider.fetchIncidents(event);
+          const fetchedGoals = goalDetailsFromIncidents(event.incidents);
+          if (fetchedGoals.length > 0) goalDetails = fetchedGoals;
+        } catch (error) {
+          console.warn("No se pudieron consultar goleadores", error);
+        }
+      }
+
+      const change = this.buildChange(stored, event, goalDetails);
       if (!change) continue;
       result.changed += 1;
       changes.push(change);
@@ -289,6 +361,7 @@ export class LiveSyncService {
             estado: data.estado || "pendiente",
             suspendido: data.suspendido ?? false,
             minutoActual: data.minutoActual,
+            golesDetalle: parseStoredGoalDetails(data.golesDetalle),
             providerEventId: data.providerEventId,
             provider: data.provider,
             syncMode: data.syncMode,
@@ -324,7 +397,11 @@ export class LiveSyncService {
       )[0];
   }
 
-  private buildChange(stored: StoredMatch, event: SofaScoreEvent): MatchChange | null {
+  private buildChange(
+    stored: StoredMatch,
+    event: SofaScoreEvent,
+    goalDetails?: StoredGoalDetail[],
+  ): MatchChange | null {
     const state = providerStatus(event);
     const nextDate = new Date(event.startTimestamp * 1000);
     const after: StoredMatch = {
@@ -335,6 +412,7 @@ export class LiveSyncService {
       estado: state.estado,
       suspendido: state.suspendido,
       minutoActual: event.displayClock,
+      golesDetalle: goalDetails ?? stored.golesDetalle,
       providerEventId: String(event.id),
       provider: event.provider || "sofascore",
       syncMode: stored.syncMode || "auto",
@@ -346,6 +424,9 @@ export class LiveSyncService {
     if (stored.estado !== after.estado) fields.push("estado");
     if (stored.suspendido !== after.suspendido) fields.push("suspendido");
     if (stored.minutoActual !== after.minutoActual) fields.push("minutoActual");
+    if (JSON.stringify(stored.golesDetalle) !== JSON.stringify(after.golesDetalle)) {
+      fields.push("golesDetalle");
+    }
     if (String(stored.providerEventId || "") !== String(event.id)) fields.push("providerEventId");
     if (stored.provider !== after.provider) fields.push("provider");
     if (!stored.syncMode) fields.push("syncMode");
@@ -370,6 +451,7 @@ export class LiveSyncService {
         estado: after.estado,
         suspendido: after.suspendido,
         minutoActual: after.minutoActual || null,
+        golesDetalle: after.golesDetalle,
         enDescanso: state.enDescanso,
         primeraParte:
           after.estado === "envivo" &&
@@ -536,7 +618,7 @@ export class LiveSyncService {
         const isHome = incident?.isHome ?? index < homeDelta;
         const scoringId = isHome ? change.after.equipoLocalId : change.after.equipoVisitanteId;
         const scoringName = TEAM_NAMES[scoringId || ""] || "un equipo";
-        const minute = incident?.time ? `${incident.time}'` : "";
+        const minute = incident?.timeDisplay || (incident?.time ? `${incident.time}'` : "");
         const scorer = incident?.player?.name || incident?.player?.shortName;
         for (const topic of topics) {
           const goalKey = incident?.id || `${oldTotal + index + 1}-${isHome ? "home" : "away"}`;

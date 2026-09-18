@@ -1,4 +1,7 @@
-import type { SofaScoreEvent } from "../sofascore/sofascore.types";
+import type {
+  SofaScoreEvent,
+  SofaScoreIncident,
+} from "../sofascore/sofascore.types";
 
 interface EspnCompetitor {
   homeAway?: "home" | "away";
@@ -29,8 +32,33 @@ interface EspnEvent {
   }>;
 }
 
+interface EspnKeyEvent {
+  id?: string;
+  scoringPlay?: boolean;
+  text?: string;
+  type?: { type?: string; text?: string };
+  clock?: { value?: number; displayValue?: string };
+  team?: { id?: string };
+  participants?: Array<{
+    athlete?: { displayName?: string; shortName?: string };
+  }>;
+}
+
+interface EspnSummary {
+  header?: {
+    competitions?: Array<{
+      competitors?: Array<{ id?: string; homeAway?: "home" | "away" }>;
+    }>;
+  };
+  keyEvents?: EspnKeyEvent[];
+}
+
 const DEFAULT_BASE_URL =
   "https://site.api.espn.com/apis/site/v2/sports/soccer/per.1";
+
+function normalizeDisplayClock(value?: string): string | undefined {
+  return value?.replace(/^(\d+)'?\+(\d+)'?$/, "$1+$2'");
+}
 
 export class EspnProvider {
   private readonly baseUrl = (
@@ -91,7 +119,7 @@ export class EspnProvider {
         type: statusType,
         description: rawStatus?.description || rawStatus?.detail,
       },
-      displayClock: rawStatus?.detail || rawStatus?.description,
+      displayClock: normalizeDisplayClock(rawStatus?.detail || rawStatus?.description),
       tournament: { uniqueTournament: { id: 406, name: "Peruvian Liga 1" } },
       venue: { name: competition?.venue?.fullName },
     };
@@ -113,5 +141,52 @@ export class EspnProvider {
   async fetchCurrentSeasonEvents(): Promise<SofaScoreEvent[]> {
     const year = process.env.LIGA1_SEASON || String(new Date().getFullYear());
     return this.request(new URLSearchParams({ dates: year, limit: "500" }));
+  }
+
+  async fetchIncidents(eventId: number): Promise<SofaScoreIncident[]> {
+    const response = await fetch(`${this.baseUrl}/summary?event=${eventId}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!response.ok) {
+      throw new Error(`ESPN respondió ${response.status} al consultar incidencias`);
+    }
+
+    const data = (await response.json()) as EspnSummary;
+    const competitors = data.header?.competitions?.[0]?.competitors || [];
+    const homeId = competitors.find((item) => item.homeAway === "home")?.id;
+    let homeScore = 0;
+    let awayScore = 0;
+
+    return (data.keyEvents || [])
+      .filter((item) => item.scoringPlay === true)
+      .map((item) => {
+        const isHome = Boolean(homeId && item.team?.id === homeId);
+        if (isHome) homeScore += 1;
+        else awayScore += 1;
+        const display = item.clock?.displayValue || "";
+        const minuteParts = display.match(/(\d+)(?:\+(\d+))?/);
+        const text = `${item.type?.type || ""} ${item.type?.text || ""} ${item.text || ""}`.toLowerCase();
+        return {
+          id: Number(item.id || 0),
+          incidentType: "goal",
+          incidentClass: text.includes("own goal")
+            ? "ownGoal"
+            : text.includes("penalty")
+              ? "penalty"
+              : "regular",
+          isHome,
+          time: minuteParts ? Number(minuteParts[1]) : undefined,
+          addedTime: minuteParts?.[2] ? Number(minuteParts[2]) : undefined,
+          timeDisplay: display,
+          homeScore,
+          awayScore,
+          player: {
+            name: item.participants?.[0]?.athlete?.displayName,
+            shortName: item.participants?.[0]?.athlete?.shortName,
+          },
+        } satisfies SofaScoreIncident;
+      });
   }
 }

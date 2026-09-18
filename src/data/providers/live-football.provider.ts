@@ -45,8 +45,8 @@ export class LiveFootballProvider {
   }
 
   fetchIncidents(event: SofaScoreEvent): Promise<SofaScoreIncident[]> {
-    if (event.provider !== "sofascore") return Promise.resolve([]);
+    if (event.incidents) return Promise.resolve(event.incidents);
+    if (event.provider === "espn") return this.espn.fetchIncidents(event.id);
     return this.sofascore.fetchIncidents(event.id);
   }
 }
-
