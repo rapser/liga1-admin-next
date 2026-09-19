@@ -13,9 +13,9 @@ import {
 import { GENERAL_TOPIC, getTeamTopic } from "@/core/config/fcm-topics";
 import { LiveFootballProvider } from "@/data/providers/live-football.provider";
 import type {
-  SofaScoreEvent,
-  SofaScoreIncident,
-} from "@/data/providers/sofascore/sofascore.types";
+  FootballEvent,
+  FootballIncident,
+} from "@/data/providers/football.types";
 import { mapProviderTeam } from "./team-mapping";
 
 export type LiveSyncMode = "live" | "fixtures" | "reconcile";
@@ -42,7 +42,7 @@ interface StoredMatch {
   golesDetalle: StoredGoalDetail[];
   tarjetasRojasDetalle: StoredRedCardDetail[];
   providerEventId?: string | number;
-  provider?: "sofascore" | "espn";
+  provider?: "espn";
   syncMode?: "auto" | "manual";
 }
 
@@ -64,7 +64,7 @@ interface StoredRedCardDetail {
 interface MatchChange {
   before: StoredMatch;
   after: StoredMatch;
-  event: SofaScoreEvent;
+  event: FootballEvent;
   fields: string[];
 }
 
@@ -104,7 +104,7 @@ function asDate(value: unknown): Date {
   return new Date(String(value));
 }
 
-function providerStatus(event: SofaScoreEvent): {
+function providerStatus(event: FootballEvent): {
   estado: LocalStatus;
   suspendido: boolean;
   enDescanso: boolean;
@@ -143,12 +143,12 @@ const LIVE_TERMINAL_GRACE_MS = 6 * 60 * 60 * 1000;
  * monitor cinco minutos antes de iniciar y sale, como máximo, seis horas
  * después de su hora programada. El cron de fixtures corrige reprogramaciones.
  */
-function isWithinLiveMonitoringWindow(event: SofaScoreEvent, now: number): boolean {
+function isWithinLiveMonitoringWindow(event: FootballEvent, now: number): boolean {
   const kickoff = event.startTimestamp * 1000;
   return now >= kickoff - LIVE_START_LEAD_MS && now <= kickoff + LIVE_TERMINAL_GRACE_MS;
 }
 
-function getScore(event: SofaScoreEvent, side: "home" | "away", fallback: number): number {
+function getScore(event: FootballEvent, side: "home" | "away", fallback: number): number {
   const score = side === "home" ? event.homeScore : event.awayScore;
   return score?.current ?? score?.display ?? fallback;
 }
@@ -172,7 +172,7 @@ function parseStoredGoalDetails(value: unknown): StoredGoalDetail[] {
   });
 }
 
-function goalDetailsFromIncidents(incidents: SofaScoreIncident[]): StoredGoalDetail[] {
+function goalDetailsFromIncidents(incidents: FootballIncident[]): StoredGoalDetail[] {
   return incidents
     .filter((incident) => incident.incidentType === "goal")
     .map((incident, index) => ({
@@ -208,7 +208,7 @@ function parseStoredRedCardDetails(value: unknown): StoredRedCardDetail[] {
   });
 }
 
-function redCardDetailsFromIncidents(incidents: SofaScoreIncident[]): StoredRedCardDetail[] {
+function redCardDetailsFromIncidents(incidents: FootballIncident[]): StoredRedCardDetail[] {
   return incidents
     .filter(
       (incident) =>
@@ -420,7 +420,7 @@ export class LiveSyncService {
     return result;
   }
 
-  private async fetchEvents(mode: LiveSyncMode): Promise<SofaScoreEvent[]> {
+  private async fetchEvents(mode: LiveSyncMode): Promise<FootballEvent[]> {
     if (mode === "fixtures" || mode === "reconcile") {
       return this.provider.fetchCurrentSeasonEvents();
     }
@@ -434,7 +434,7 @@ export class LiveSyncService {
       this.provider.fetchScheduledEvents(now),
       this.provider.fetchScheduledEvents(tomorrow),
     ]);
-    const unique = new Map<number, SofaScoreEvent>();
+    const unique = new Map<number, FootballEvent>();
     groups.flat().forEach((event) => unique.set(event.id, event));
     return [...unique.values()];
   }
@@ -490,7 +490,7 @@ export class LiveSyncService {
     };
   }
 
-  private findMatch(event: SofaScoreEvent, matches: StoredMatch[]): StoredMatch | undefined {
+  private findMatch(event: FootballEvent, matches: StoredMatch[]): StoredMatch | undefined {
     const byProviderId = matches.find(
       (match) =>
         String(match.providerEventId || "") === String(event.id) &&
@@ -517,7 +517,7 @@ export class LiveSyncService {
 
   private buildChange(
     stored: StoredMatch,
-    event: SofaScoreEvent,
+    event: FootballEvent,
     goalDetails?: StoredGoalDetail[],
     redCardDetails?: StoredRedCardDetail[],
   ): MatchChange | null {
@@ -534,7 +534,7 @@ export class LiveSyncService {
       golesDetalle: goalDetails ?? stored.golesDetalle,
       tarjetasRojasDetalle: redCardDetails ?? stored.tarjetasRojasDetalle,
       providerEventId: String(event.id),
-      provider: event.provider || "sofascore",
+      provider: "espn",
       syncMode: stored.syncMode || "auto",
     };
     const fields: string[] = [];
@@ -587,7 +587,7 @@ export class LiveSyncService {
         ...(after.estado === "envivo" && change.before.estado !== "envivo"
           ? { horaInicio: Timestamp.fromDate(new Date()) }
           : {}),
-        provider: event.provider || "sofascore",
+        provider: "espn",
         providerEventId: String(event.id),
         providerStatus: event.status.type || event.status.description || "unknown",
         providerHomeTeamId: String(event.homeTeam.id),
@@ -728,7 +728,7 @@ export class LiveSyncService {
       getTeamTopic(change.after.equipoLocalId || ""),
       getTeamTopic(change.after.equipoVisitanteId || ""),
     ].filter((topic): topic is string => Boolean(topic));
-    const providerName = change.event.provider || "sofascore";
+    const providerName = "espn";
 
     if (allowVisible && change.before.estado !== "envivo" && change.after.estado === "envivo") {
       for (const topic of topics) {
@@ -740,7 +740,7 @@ export class LiveSyncService {
     const oldTotal = change.before.golesEquipoLocal + change.before.golesEquipoVisitante;
     const newTotal = change.after.golesEquipoLocal + change.after.golesEquipoVisitante;
     if (allowVisible && newTotal > oldTotal) {
-      let incidents: SofaScoreIncident[] = [];
+      let incidents: FootballIncident[] = [];
       try {
         incidents = (await this.provider.fetchIncidents(change.event)).filter(
           (incident) =>
