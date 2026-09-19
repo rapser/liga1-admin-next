@@ -12,6 +12,11 @@ normaliza sus datos antes de guardarlos. No se usa scraping ni otro proveedor.
   suspensiones y cancelaciones.
 - `mode=reconcile` se ejecuta una vez al día como verificación de respaldo.
 
+El workflow requiere los secrets `CRON_SECRET` y
+`VERCEL_AUTOMATION_BYPASS_SECRET`, además de la variable `ADMIN_BASE_URL` en
+GitHub Actions. El segundo permite que el job llegue al endpoint sin desactivar
+la protección de Vercel.
+
 Para intervenir manualmente un partido, guardar `syncMode: "manual"` en su
 documento. Al volver a `syncMode: "auto"` —o al retirar el campo— ESPN vuelve a
 ser la fuente del encuentro.
