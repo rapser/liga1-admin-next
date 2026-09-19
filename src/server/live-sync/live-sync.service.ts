@@ -423,8 +423,19 @@ export class LiveSyncService {
     return [...unique.values()];
   }
 
+  private async fetchVisibleJornadaIds(): Promise<Set<string>> {
+    const snapshot = await adminDb
+      .collection(FIRESTORE_COLLECTIONS.JORNADAS)
+      .where("mostrar", "==", true)
+      .get();
+    return new Set(snapshot.docs.map((doc) => doc.id));
+  }
+
   private async fetchStoredMatches(): Promise<StoredMatch[]> {
-    const jornadas = await adminDb.collection(FIRESTORE_COLLECTIONS.JORNADAS).get();
+    const jornadas = await adminDb
+      .collection(FIRESTORE_COLLECTIONS.JORNADAS)
+      .where("mostrar", "==", true)
+      .get();
     const matchGroups = await Promise.all(
       jornadas.docs.map(async (jornadaDoc) => {
         const jornadaData = jornadaDoc.data();
@@ -444,6 +455,11 @@ export class LiveSyncService {
   private async fetchStoredMatchesByProviderIds(eventIds: number[]): Promise<StoredMatch[]> {
     if (eventIds.length === 0) return [];
 
+    const visibleJornadaIds = await this.fetchVisibleJornadaIds();
+    if (visibleJornadaIds.size === 0) return [];
+    const isVisible = (doc: QueryDocumentSnapshot) =>
+      visibleJornadaIds.has(doc.ref.parent.parent?.id || "");
+
     const uniqueIds = [...new Set(eventIds.map(String))];
     const chunks = Array.from(
       { length: Math.ceil(uniqueIds.length / 30) },
@@ -457,14 +473,14 @@ export class LiveSyncService {
           .get(),
       ),
     );
-    const documents = snapshots.flatMap((snapshot) => snapshot.docs);
+    const documents = snapshots.flatMap((snapshot) => snapshot.docs).filter(isVisible);
 
     if (documents.length === 0 && eventIds.length === 1) {
       const legacySnapshot = await adminDb
         .collectionGroup(FIRESTORE_COLLECTIONS.MATCHES)
         .where("providerEventId", "==", eventIds[0])
         .get();
-      return legacySnapshot.docs.map((matchDoc) => this.toStoredMatch(matchDoc));
+      return legacySnapshot.docs.filter(isVisible).map((matchDoc) => this.toStoredMatch(matchDoc));
     }
 
     return documents.map((matchDoc) => this.toStoredMatch(matchDoc));
