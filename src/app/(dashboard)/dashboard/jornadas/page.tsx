@@ -320,8 +320,11 @@ function MatchCard({
   const teams = getTeamsFromMatchId(match.id);
   const equipoLocalId = match.equipoLocalId || teams.local;
   const equipoVisitanteId = match.equipoVisitanteId || teams.visitante;
-  // Documentos existentes siguen en manual hasta que el dry-run/enlace con proveedor sea aprobado.
-  const syncMode = match.syncMode || "manual";
+  // La automatización es el comportamiento predeterminado de cualquier partido
+  // perteneciente a una jornada visible. Solo se muestra control manual cuando
+  // fue elegido explícitamente y persistido en Firestore.
+  const syncMode = match.syncMode || "auto";
+  const canManageManualSync = match.estado === "pendiente";
 
   const toggleSyncMode = async () => {
     const nextMode = syncMode === "auto" ? "manual" : "auto";
@@ -473,43 +476,44 @@ function MatchCard({
         </div>
       </div>
 
-      {/* Controles de Gestión */}
-      <div className="space-y-3 pt-2 border-t border-muted">
-        <div className="flex items-center justify-center gap-3">
-          <Badge variant={syncMode === "auto" ? "default" : "secondary"}>
-            {syncMode === "auto" ? (
-              <Bot className="h-3 w-3 mr-1" />
-            ) : (
-              <Hand className="h-3 w-3 mr-1" />
-            )}
-            {syncMode === "auto" ? "Automático" : "Manual"}
-          </Badge>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={changingSyncMode}
-            onClick={toggleSyncMode}
-          >
-            {syncMode === "auto" ? "Tomar control manual" : "Volver a automático"}
-          </Button>
-        </div>
-        {syncMode === "manual" ? (
-          <div className="flex items-center justify-center">
-            <MatchLiveController
-              match={match}
-              jornadaId={jornadaId}
-              torneo={torneo}
-              matchStateService={matchStateService}
-              onStateChange={(updates) => onMatchChange(match.id, updates)}
-            />
+      {canManageManualSync && (
+        <div className="space-y-3 pt-2 border-t border-muted">
+          <div className="flex items-center justify-center gap-3">
+            <Badge variant={syncMode === "auto" ? "default" : "secondary"}>
+              {syncMode === "auto" ? (
+                <Bot className="h-3 w-3 mr-1" />
+              ) : (
+                <Hand className="h-3 w-3 mr-1" />
+              )}
+              {syncMode === "auto" ? "Automático" : "Manual"}
+            </Badge>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={changingSyncMode}
+              onClick={toggleSyncMode}
+            >
+              {syncMode === "auto" ? "Tomar control manual" : "Volver a automático"}
+            </Button>
           </div>
-        ) : (
-          <p className="text-center text-xs text-muted-foreground">
-            El marcador, estado y horario los controla el proveedor en vivo.
-          </p>
-        )}
-      </div>
+          {syncMode === "manual" ? (
+            <div className="flex items-center justify-center">
+              <MatchLiveController
+                match={match}
+                jornadaId={jornadaId}
+                torneo={torneo}
+                matchStateService={matchStateService}
+                onStateChange={(updates) => onMatchChange(match.id, updates)}
+              />
+            </div>
+          ) : (
+            <p className="text-center text-xs text-muted-foreground">
+              El marcador, estado y horario los controla el proveedor en vivo.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
