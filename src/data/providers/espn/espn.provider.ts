@@ -1,7 +1,7 @@
 import type {
-  SofaScoreEvent,
-  SofaScoreIncident,
-} from "../sofascore/sofascore.types";
+  FootballEvent,
+  FootballIncident,
+} from "../football.types";
 
 interface EspnCompetitor {
   homeAway?: "home" | "away";
@@ -65,7 +65,7 @@ export class EspnProvider {
     process.env.ESPN_BASE_URL || DEFAULT_BASE_URL
   ).replace(/\/$/, "");
 
-  private async request(params: URLSearchParams): Promise<SofaScoreEvent[]> {
+  private async request(params: URLSearchParams): Promise<FootballEvent[]> {
     const response = await fetch(`${this.baseUrl}/scoreboard?${params}`, {
       cache: "no-store",
       headers: { Accept: "application/json" },
@@ -75,10 +75,10 @@ export class EspnProvider {
       throw new Error(`ESPN respondió ${response.status}`);
     }
     const data = (await response.json()) as { events?: EspnEvent[] };
-    return (data.events || []).map((event) => this.normalize(event)).filter(Boolean) as SofaScoreEvent[];
+    return (data.events || []).map((event) => this.normalize(event)).filter(Boolean) as FootballEvent[];
   }
 
-  private normalize(event: EspnEvent): SofaScoreEvent | null {
+  private normalize(event: EspnEvent): FootballEvent | null {
     const competition = event.competitions?.[0];
     const home = competition?.competitors?.find((item) => item.homeAway === "home");
     const away = competition?.competitors?.find((item) => item.homeAway === "away");
@@ -129,21 +129,21 @@ export class EspnProvider {
     return date.toISOString().slice(0, 10).replaceAll("-", "");
   }
 
-  async fetchScheduledEvents(date: Date): Promise<SofaScoreEvent[]> {
+  async fetchScheduledEvents(date: Date): Promise<FootballEvent[]> {
     return this.request(new URLSearchParams({ dates: this.dateParam(date), limit: "100" }));
   }
 
-  async fetchLiveEvents(): Promise<SofaScoreEvent[]> {
+  async fetchLiveEvents(): Promise<FootballEvent[]> {
     const events = await this.fetchScheduledEvents(new Date());
     return events.filter((event) => ["inprogress", "halftime"].includes(event.status.type || ""));
   }
 
-  async fetchCurrentSeasonEvents(): Promise<SofaScoreEvent[]> {
+  async fetchCurrentSeasonEvents(): Promise<FootballEvent[]> {
     const year = process.env.LIGA1_SEASON || String(new Date().getFullYear());
     return this.request(new URLSearchParams({ dates: year, limit: "500" }));
   }
 
-  async fetchIncidents(eventId: number): Promise<SofaScoreIncident[]> {
+  async fetchIncidents(eventId: number): Promise<FootballIncident[]> {
     const response = await fetch(`${this.baseUrl}/summary?event=${eventId}`, {
       cache: "no-store",
       headers: { Accept: "application/json" },
@@ -192,7 +192,7 @@ export class EspnProvider {
             name: item.participants?.[0]?.athlete?.displayName,
             shortName: item.participants?.[0]?.athlete?.shortName,
           },
-        } satisfies SofaScoreIncident;
+        } satisfies FootballIncident;
       });
   }
 }

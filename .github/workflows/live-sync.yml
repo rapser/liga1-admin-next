@@ -2,10 +2,11 @@
 #
 # Antes esto dependía de correr `npm run monitor:live -- <eventId>` a mano
 # por cada partido. Este workflow reemplaza ese paso manual llamando
-# POST /api/live-sync sin `eventId`, que ya cubre todos los partidos
-# programados/en vivo en la ventana de +-1 día.
+# POST /api/live-sync sin `eventId`. El backend solo incorpora partidos desde
+# cinco minutos antes de su inicio hasta su cierre; no consulta todo el fixture
+# cada cinco minutos.
 #
-# Cadencia recomendada en src/data/providers/sofascore/README.md:
+# Cadencia recomendada en src/data/providers/README.md:
 #   - mode=live: cada minuto (GitHub Actions solo permite 5 min como mínimo).
 #   - mode=fixtures: cada 6 horas.
 #   - mode=reconcile: una vez de madrugada.
