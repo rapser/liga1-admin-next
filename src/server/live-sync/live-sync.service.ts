@@ -3,7 +3,11 @@ import {
   Timestamp,
   type QueryDocumentSnapshot,
 } from "firebase-admin/firestore";
-import type { Message } from "firebase-admin/messaging";
+import type {
+  ConditionMessage,
+  Message,
+  TopicMessage,
+} from "firebase-admin/messaging";
 import { adminDb, messaging } from "@/core/config/firebase-admin";
 import {
   FIRESTORE_COLLECTIONS,
@@ -26,6 +30,10 @@ type LocalStatus =
   | "finalizado"
   | "anulado"
   | "suspendido";
+
+type MatchAudience =
+  | Pick<TopicMessage, "topic">
+  | Pick<ConditionMessage, "condition">;
 
 interface StoredMatch {
   jornadaId: string;
@@ -705,7 +713,7 @@ export class LiveSyncService {
   }
 
   private visibleMessage(
-    topic: string,
+    audience: MatchAudience,
     title: string,
     body: string,
     eventType: string,
@@ -714,7 +722,7 @@ export class LiveSyncService {
     extra: Record<string, string> = {},
   ): Message {
     return {
-      topic,
+      ...audience,
       notification: { title, body },
       data: {
         event_type: eventType,
@@ -731,6 +739,21 @@ export class LiveSyncService {
     };
   }
 
+  /**
+   * Un único envío con OR evita duplicar la notificación cuando un dispositivo
+   * está suscrito a los dos equipos que disputan el partido.
+   */
+  private matchAudience(topics: string[]): MatchAudience | null {
+    const uniqueTopics = [...new Set(topics)];
+    if (uniqueTopics.length === 0) return null;
+    const [firstTopic] = uniqueTopics;
+    if (uniqueTopics.length === 1 && firstTopic) return { topic: firstTopic };
+
+    return {
+      condition: uniqueTopics.map((topic) => `'${topic}' in topics`).join(" || "),
+    };
+  }
+
   private async notifyChange(change: MatchChange, allowVisible: boolean): Promise<number> {
     let count = 0;
     const homeName = TEAM_NAMES[change.after.equipoLocalId || ""] || "Local";
@@ -739,13 +762,12 @@ export class LiveSyncService {
       getTeamTopic(change.after.equipoLocalId || ""),
       getTeamTopic(change.after.equipoVisitanteId || ""),
     ].filter((topic): topic is string => Boolean(topic));
+    const audience = this.matchAudience(topics);
     const providerName = "espn";
 
-    if (allowVisible && change.before.estado !== "envivo" && change.after.estado === "envivo") {
-      for (const topic of topics) {
-        const id = `${providerName}-${change.event.id}-start-${topic}`;
-        if (await this.sendOnce(id, this.visibleMessage(topic, "🎯 ¡Comienza el partido!", `${homeName} vs ${awayName} - ¡Ya empezó!`, "match_start", id, change))) count += 1;
-      }
+    if (allowVisible && audience && change.before.estado !== "envivo" && change.after.estado === "envivo") {
+      const id = `${providerName}-${change.event.id}-start`;
+      if (await this.sendOnce(id, this.visibleMessage(audience, "🎯 ¡Comienza el partido!", `${homeName} vs ${awayName} - ¡Ya empezó!`, "match_start", id, change))) count += 1;
     }
 
     const oldTotal = change.before.golesEquipoLocal + change.before.golesEquipoVisitante;
@@ -770,22 +792,19 @@ export class LiveSyncService {
         const scoringName = TEAM_NAMES[scoringId || ""] || "un equipo";
         const minute = incident?.timeDisplay || (incident?.time ? `${incident.time}'` : "");
         const scorer = incident?.player?.name || incident?.player?.shortName;
-        for (const topic of topics) {
-          const goalKey = incident?.id || `${oldTotal + index + 1}-${isHome ? "home" : "away"}`;
-          const id = `${providerName}-${change.event.id}-goal-${goalKey}-${topic}`;
-          const detail = [minute, scorer].filter(Boolean).join(" - ");
-          const body = `${homeName} ${change.after.golesEquipoLocal} - ${change.after.golesEquipoVisitante} ${awayName}${detail ? ` (${detail})` : ""}`;
-          if (await this.sendOnce(id, this.visibleMessage(topic, `⚽ ¡Gol de ${scoringName}!`, body, "goal", id, change, { scoring_team: scoringId || "", minute: String(incident?.time || ""), scorer: scorer || "" }))) count += 1;
-        }
+        if (!audience) continue;
+        const goalKey = incident?.id || `${oldTotal + index + 1}-${isHome ? "home" : "away"}`;
+        const id = `${providerName}-${change.event.id}-goal-${goalKey}`;
+        const detail = [minute, scorer].filter(Boolean).join(" - ");
+        const body = `${homeName} ${change.after.golesEquipoLocal} - ${change.after.golesEquipoVisitante} ${awayName}${detail ? ` (${detail})` : ""}`;
+        if (await this.sendOnce(id, this.visibleMessage(audience, `⚽ ¡Gol de ${scoringName}!`, body, "goal", id, change, { scoring_team: scoringId || "", minute: String(incident?.time || ""), scorer: scorer || "" }))) count += 1;
       }
     }
 
-    if (allowVisible && change.before.estado !== "finalizado" && change.after.estado === "finalizado") {
-      for (const topic of topics) {
-        const id = `${providerName}-${change.event.id}-end-${topic}`;
-        const body = `${homeName} ${change.after.golesEquipoLocal} - ${change.after.golesEquipoVisitante} ${awayName}`;
-        if (await this.sendOnce(id, this.visibleMessage(topic, "⏱️ Resultado final", body, "match_end", id, change))) count += 1;
-      }
+    if (allowVisible && audience && change.before.estado !== "finalizado" && change.after.estado === "finalizado") {
+      const id = `${providerName}-${change.event.id}-end`;
+      const body = `${homeName} ${change.after.golesEquipoLocal} - ${change.after.golesEquipoVisitante} ${awayName}`;
+      if (await this.sendOnce(id, this.visibleMessage(audience, "⏱️ Resultado final", body, "match_end", id, change))) count += 1;
     }
 
     const silentId = `${providerName}-${change.event.id}-update-${change.after.estado}-${change.after.golesEquipoLocal}-${change.after.golesEquipoVisitante}-${change.after.fecha.getTime()}`;
