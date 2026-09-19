@@ -151,16 +151,17 @@ const LIVE_START_LEAD_MS = 5 * 60 * 1000;
 const LIVE_TERMINAL_GRACE_MS = 6 * 60 * 60 * 1000;
 
 /**
- * Evita consultar todo el fixture cada cinco minutos. Un partido entra al
- * monitor cinco minutos antes de iniciar y sale inmediatamente cuando el
- * proveedor lo declara finalizado o anulado. El límite de seis horas protege
- * de eventos que el proveedor deja indebidamente abiertos. El cron de fixtures
- * corrige reprogramaciones.
+ * Evita consultar todo el fixture cada minuto. Un partido entra al monitor
+ * cinco minutos antes de iniciar y sale del radar solo cuando nuestro propio
+ * registro en Firestore queda en "finalizado"/"anulado" (fetchStoredMatches
+ * con onlyUnresolved ya lo excluye entonces). No se filtra aquí por el estado
+ * que reporta el proveedor: si lo hiciéramos, el evento se excluiría en el
+ * mismo tick en que el proveedor lo marca finalizado, y esa transición nunca
+ * llegaría a escribirse en Firestore (el partido quedaría "envivo" para
+ * siempre). El límite de seis horas protege de eventos que el proveedor deja
+ * indebidamente abiertos. El cron de fixtures corrige reprogramaciones.
  */
 function isWithinLiveMonitoringWindow(event: FootballEvent, now: number): boolean {
-  const estado = providerStatus(event).estado;
-  if (estado === "finalizado" || estado === "anulado") return false;
-
   const kickoff = event.startTimestamp * 1000;
   return now >= kickoff - LIVE_START_LEAD_MS && now <= kickoff + LIVE_TERMINAL_GRACE_MS;
 }
