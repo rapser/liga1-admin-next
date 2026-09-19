@@ -243,6 +243,31 @@ function addResult(stats: StandingStats, scored: number, conceded: number): void
   }
 }
 
+function removeResult(stats: StandingStats, scored: number, conceded: number): void {
+  stats.matchesPlayed -= 1;
+  stats.goalsScored -= scored;
+  stats.goalsAgainst -= conceded;
+  stats.goalDifference = stats.goalsScored - stats.goalsAgainst;
+  if (scored > conceded) {
+    stats.matchesWon -= 1;
+    stats.points -= 3;
+  } else if (scored === conceded) {
+    stats.matchesDrawn -= 1;
+    stats.points -= 1;
+  } else {
+    stats.matchesLost -= 1;
+  }
+}
+
+function countsForStandings(match: StoredMatch): boolean {
+  return (
+    Boolean(match.equipoLocalId) &&
+    Boolean(match.equipoVisitanteId) &&
+    !match.suspendido &&
+    (match.estado === "envivo" || match.estado === "finalizado")
+  );
+}
+
 export class LiveSyncService {
   constructor(private readonly provider = new LiveFootballProvider()) {}
 
@@ -340,7 +365,7 @@ export class LiveSyncService {
     }
 
     if (!dryRun && changes.length > 0) {
-      const affectsStandings = changes.some((change) =>
+      const standingsChanges = changes.filter((change) =>
         change.fields.some((field) =>
           [
             "golesEquipoLocal",
@@ -350,9 +375,10 @@ export class LiveSyncService {
           ].includes(field),
         ),
       );
-      if (affectsStandings) {
-        const freshMatches = await this.fetchStoredMatches();
-        await this.rebuildStandings(freshMatches);
+      for (const change of standingsChanges) {
+        await this.applyStandingsDelta(change);
+      }
+      if (standingsChanges.length > 0) {
         result.standingsRebuilt = true;
       }
       if (mode !== "reconcile") {
@@ -583,44 +609,56 @@ export class LiveSyncService {
     );
   }
 
-  private async rebuildStandings(matches: StoredMatch[]): Promise<void> {
-    const tournamentStats: Record<TorneoType, Record<string, StandingStats>> = {
-      apertura: {},
-      clausura: {},
+  private async applyStandingsDelta(change: MatchChange): Promise<void> {
+    const { before, after } = change;
+    if (!before.equipoLocalId || !before.equipoVisitanteId) return;
+
+    const countedBefore = countsForStandings(before);
+    const countedAfter = countsForStandings(after);
+    if (!countedBefore && !countedAfter) return;
+
+    const torneoCollection =
+      after.torneo === "clausura" ? FIRESTORE_COLLECTIONS.CLAUSURA : FIRESTORE_COLLECTIONS.APERTURA;
+    const homeId = before.equipoLocalId;
+    const awayId = before.equipoVisitanteId;
+    const refs = {
+      homeTorneo: adminDb.collection(torneoCollection).doc(homeId),
+      awayTorneo: adminDb.collection(torneoCollection).doc(awayId),
+      homeAcumulado: adminDb.collection(FIRESTORE_COLLECTIONS.ACUMULADO).doc(homeId),
+      awayAcumulado: adminDb.collection(FIRESTORE_COLLECTIONS.ACUMULADO).doc(awayId),
     };
-    for (const torneo of ["apertura", "clausura"] as const) {
-      for (const teamId of Object.keys(TEAM_NAMES)) {
-        tournamentStats[torneo][teamId] = statsZero();
-      }
-    }
 
-    for (const match of matches) {
-      if (
-        !match.equipoLocalId ||
-        !match.equipoVisitanteId ||
-        match.suspendido ||
-        !["envivo", "finalizado"].includes(match.estado)
-      ) continue;
-      const home = tournamentStats[match.torneo][match.equipoLocalId];
-      const away = tournamentStats[match.torneo][match.equipoVisitanteId];
-      if (!home || !away) continue;
-      addResult(home, match.golesEquipoLocal, match.golesEquipoVisitante);
-      addResult(away, match.golesEquipoVisitante, match.golesEquipoLocal);
-    }
+    await adminDb.runTransaction(async (transaction) => {
+      const [homeTorneoSnap, awayTorneoSnap, homeAcumuladoSnap, awayAcumuladoSnap] = await Promise.all([
+        transaction.get(refs.homeTorneo),
+        transaction.get(refs.awayTorneo),
+        transaction.get(refs.homeAcumulado),
+        transaction.get(refs.awayAcumulado),
+      ]);
 
-    const batch = adminDb.batch();
-    for (const teamId of Object.keys(TEAM_NAMES)) {
-      const apertura = tournamentStats.apertura[teamId] || statsZero();
-      const clausura = tournamentStats.clausura[teamId] || statsZero();
-      batch.set(adminDb.collection(FIRESTORE_COLLECTIONS.APERTURA).doc(teamId), apertura, { merge: true });
-      batch.set(adminDb.collection(FIRESTORE_COLLECTIONS.CLAUSURA).doc(teamId), clausura, { merge: true });
-      const acumulado = statsZero();
-      for (const key of Object.keys(acumulado) as Array<keyof StandingStats>) {
-        acumulado[key] = apertura[key] + clausura[key];
+      const homeTorneoStats = (homeTorneoSnap.data() as StandingStats | undefined) || statsZero();
+      const awayTorneoStats = (awayTorneoSnap.data() as StandingStats | undefined) || statsZero();
+      const homeAcumuladoStats = (homeAcumuladoSnap.data() as StandingStats | undefined) || statsZero();
+      const awayAcumuladoStats = (awayAcumuladoSnap.data() as StandingStats | undefined) || statsZero();
+
+      if (countedBefore) {
+        removeResult(homeTorneoStats, before.golesEquipoLocal, before.golesEquipoVisitante);
+        removeResult(awayTorneoStats, before.golesEquipoVisitante, before.golesEquipoLocal);
+        removeResult(homeAcumuladoStats, before.golesEquipoLocal, before.golesEquipoVisitante);
+        removeResult(awayAcumuladoStats, before.golesEquipoVisitante, before.golesEquipoLocal);
       }
-      batch.set(adminDb.collection(FIRESTORE_COLLECTIONS.ACUMULADO).doc(teamId), acumulado, { merge: true });
-    }
-    await batch.commit();
+      if (countedAfter) {
+        addResult(homeTorneoStats, after.golesEquipoLocal, after.golesEquipoVisitante);
+        addResult(awayTorneoStats, after.golesEquipoVisitante, after.golesEquipoLocal);
+        addResult(homeAcumuladoStats, after.golesEquipoLocal, after.golesEquipoVisitante);
+        addResult(awayAcumuladoStats, after.golesEquipoVisitante, after.golesEquipoLocal);
+      }
+
+      transaction.set(refs.homeTorneo, homeTorneoStats, { merge: true });
+      transaction.set(refs.awayTorneo, awayTorneoStats, { merge: true });
+      transaction.set(refs.homeAcumulado, homeAcumuladoStats, { merge: true });
+      transaction.set(refs.awayAcumulado, awayAcumuladoStats, { merge: true });
+    });
   }
 
   private async claimNotification(eventId: string): Promise<boolean> {
