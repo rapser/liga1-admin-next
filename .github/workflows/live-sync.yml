@@ -13,6 +13,7 @@
 #
 # Requiere los mismos secrets/vars que weather-refresh.yml:
 #   - secret   CRON_SECRET     (idéntico al configurado en Vercel)
+#   - secret   VERCEL_AUTOMATION_BYPASS_SECRET (bypass de Deployment Protection)
 #   - variable ADMIN_BASE_URL  (URL de producción del panel, sin barra final)
 
 name: Sincronizar datos en vivo
@@ -62,6 +63,7 @@ jobs:
         env:
           # El secreto se pasa por entorno: nunca aparece en el log del comando.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           BASE_URL: ${{ vars.ADMIN_BASE_URL }}
           MODE: ${{ steps.vars.outputs.mode }}
           DRY_RUN: ${{ inputs.dryRun || 'false' }}
@@ -76,10 +78,15 @@ jobs:
             echo "::error::Falta el secreto CRON_SECRET en el repositorio."
             exit 1
           fi
+          if [ -z "${VERCEL_AUTOMATION_BYPASS_SECRET}" ]; then
+            echo "::error::Falta el secreto VERCEL_AUTOMATION_BYPASS_SECRET en el repositorio."
+            exit 1
+          fi
 
           curl "${BASE_URL%/}/api/live-sync?mode=${MODE}&dryRun=${DRY_RUN}" \
             --request POST \
             --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
             --fail-with-body \
             --silent \
             --show-error \
