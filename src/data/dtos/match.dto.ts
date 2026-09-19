@@ -59,6 +59,7 @@ export interface MatchDTO {
   providerHomeTeamId?: string;
   providerAwayTeamId?: string;
   lastProviderSyncAt?: Timestamp;
+  resumenYoutubeUrl?: string;
   syncMode?: "auto" | "manual";
 }
 
