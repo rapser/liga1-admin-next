@@ -320,8 +320,10 @@ function MatchCard({
   const teams = getTeamsFromMatchId(match.id);
   const equipoLocalId = match.equipoLocalId || teams.local;
   const equipoVisitanteId = match.equipoVisitanteId || teams.visitante;
-  // Documentos existentes siguen en manual hasta que el dry-run/enlace con proveedor sea aprobado.
-  const syncMode = match.syncMode || "manual";
+  // La automatización es el comportamiento predeterminado de cualquier partido
+  // perteneciente a una jornada visible. Solo se muestra control manual cuando
+  // fue elegido explícitamente y persistido en Firestore.
+  const syncMode = match.syncMode || "auto";
 
   const toggleSyncMode = async () => {
     const nextMode = syncMode === "auto" ? "manual" : "auto";
