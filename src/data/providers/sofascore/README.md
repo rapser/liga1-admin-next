@@ -18,9 +18,11 @@ antibot. Mantener ESPN o configurar una URL autorizada en `SOFASCORE_BASE_URL`.
    `Authorization: Bearer <CRON_SECRET>` y revisar `unmatched`.
 4. Corregir alias o partidos de Firestore que no coincidan; repetir hasta que
    todos los encuentros esperados estén enlazados.
-5. Activar `LIVE_SYNC_ENABLED=true` y ejecutar una vez
-   `mode=reconcile&adopt=true`. Esta adopción explícita enlaza los documentos
-   sin `syncMode`, no toca los que ya estén en `manual` y no envía pushes.
+5. Activar `LIVE_SYNC_ENABLED=true`. No hace falta un paso de adopción: un
+   partido se sincroniza automáticamente en cuanto queda enlazado (por
+   `providerEventId` o por alias), sin importar si tiene o no el campo
+   `syncMode` — salvo que su documento diga explícitamente
+   `syncMode: "manual"`.
 6. El scheduler externo ya está automatizado en
    `.github/workflows/live-sync.yml` (mismos secrets que
    `weather-refresh.yml`): `mode=live` cada 5 minutos, `mode=fixtures` cada 6
@@ -28,8 +30,13 @@ antibot. Mantener ESPN o configurar una URL autorizada en `SOFASCORE_BASE_URL`.
    adicionales una vez mergeado a `main`.
 
 Para proteger un partido y operarlo desde el admin, guardar
-`syncMode: "manual"` en su documento. Para devolverlo al proveedor usar
-`syncMode: "auto"`.
+`syncMode: "manual"` en su documento — es la única forma de sacarlo del
+auto-sync. Cualquier otro valor, incluido no tener el campo, se trata como
+automático. Para devolverlo al proveedor usar `syncMode: "auto"` (o quitar el
+campo).
+
+Solo se sincronizan partidos de jornadas con `mostrar: true`; los de una
+jornada oculta se ignoran aunque el proveedor los reporte.
 
 Para una activación controlada de un solo encuentro se puede añadir
 `eventId=<id del proveedor>&adopt=true`; los demás partidos no se procesan.

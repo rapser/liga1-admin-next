@@ -319,10 +319,7 @@ export class LiveSyncService {
         continue;
       }
       result.matched += 1;
-      if (
-        stored.syncMode === "manual" ||
-        (!stored.syncMode && !adoptUnconfigured)
-      ) {
+      if (stored.syncMode === "manual") {
         result.skippedManual += 1;
         continue;
       }
