@@ -13,9 +13,9 @@ import {
 import { GENERAL_TOPIC, getTeamTopic } from "@/core/config/fcm-topics";
 import { LiveFootballProvider } from "@/data/providers/live-football.provider";
 import type {
-  SofaScoreEvent,
-  SofaScoreIncident,
-} from "@/data/providers/sofascore/sofascore.types";
+  FootballEvent,
+  FootballIncident,
+} from "@/data/providers/football.types";
 import { mapProviderTeam } from "./team-mapping";
 
 export type LiveSyncMode = "live" | "fixtures" | "reconcile";
@@ -42,7 +42,7 @@ interface StoredMatch {
   golesDetalle: StoredGoalDetail[];
   tarjetasRojasDetalle: StoredRedCardDetail[];
   providerEventId?: string | number;
-  provider?: "sofascore" | "espn";
+  provider?: "espn";
   syncMode?: "auto" | "manual";
 }
 
@@ -64,7 +64,7 @@ interface StoredRedCardDetail {
 interface MatchChange {
   before: StoredMatch;
   after: StoredMatch;
-  event: SofaScoreEvent;
+  event: FootballEvent;
   fields: string[];
 }
 
@@ -104,7 +104,7 @@ function asDate(value: unknown): Date {
   return new Date(String(value));
 }
 
-function providerStatus(event: SofaScoreEvent): {
+function providerStatus(event: FootballEvent): {
   estado: LocalStatus;
   suspendido: boolean;
   enDescanso: boolean;
@@ -135,7 +135,20 @@ function providerStatus(event: SofaScoreEvent): {
   return { estado: "pendiente", suspendido: false, enDescanso: false };
 }
 
-function getScore(event: SofaScoreEvent, side: "home" | "away", fallback: number): number {
+const LIVE_START_LEAD_MS = 5 * 60 * 1000;
+const LIVE_TERMINAL_GRACE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Evita consultar todo el fixture cada cinco minutos. Un partido entra al
+ * monitor cinco minutos antes de iniciar y sale, como máximo, seis horas
+ * después de su hora programada. El cron de fixtures corrige reprogramaciones.
+ */
+function isWithinLiveMonitoringWindow(event: FootballEvent, now: number): boolean {
+  const kickoff = event.startTimestamp * 1000;
+  return now >= kickoff - LIVE_START_LEAD_MS && now <= kickoff + LIVE_TERMINAL_GRACE_MS;
+}
+
+function getScore(event: FootballEvent, side: "home" | "away", fallback: number): number {
   const score = side === "home" ? event.homeScore : event.awayScore;
   return score?.current ?? score?.display ?? fallback;
 }
@@ -159,7 +172,7 @@ function parseStoredGoalDetails(value: unknown): StoredGoalDetail[] {
   });
 }
 
-function goalDetailsFromIncidents(incidents: SofaScoreIncident[]): StoredGoalDetail[] {
+function goalDetailsFromIncidents(incidents: FootballIncident[]): StoredGoalDetail[] {
   return incidents
     .filter((incident) => incident.incidentType === "goal")
     .map((incident, index) => ({
@@ -195,7 +208,7 @@ function parseStoredRedCardDetails(value: unknown): StoredRedCardDetail[] {
   });
 }
 
-function redCardDetailsFromIncidents(incidents: SofaScoreIncident[]): StoredRedCardDetail[] {
+function redCardDetailsFromIncidents(incidents: FootballIncident[]): StoredRedCardDetail[] {
   return incidents
     .filter(
       (incident) =>
@@ -281,11 +294,17 @@ export class LiveSyncService {
     const requestedEvent = requestedEventId
       ? allEvents.find((event) => event.id === requestedEventId)
       : undefined;
-    const events = requestedEvent ? [requestedEvent] : requestedEventId ? [] : allEvents;
-    const matches =
-      mode === "live" && !adoptUnconfigured
-        ? await this.fetchStoredMatchesByProviderIds(events.map((event) => event.id))
-        : await this.fetchStoredMatches();
+    const events = requestedEvent
+      ? [requestedEvent]
+      : requestedEventId
+        ? []
+        : mode === "live"
+          ? allEvents.filter((event) => isWithinLiveMonitoringWindow(event, Date.now()))
+          : allEvents;
+    // Solo se leen partidos de jornadas visibles. Así el cron puede enlazar
+    // automáticamente encuentros nuevos por equipos/horario sin requerir un
+    // índice global de Firestore ni recorrer el historial oculto.
+    const matches = await this.fetchStoredMatches();
     const requestedEventStatus = requestedEvent
       ? providerStatus(requestedEvent).estado
       : undefined;
@@ -319,10 +338,7 @@ export class LiveSyncService {
         continue;
       }
       result.matched += 1;
-      if (
-        stored.syncMode === "manual" ||
-        (!stored.syncMode && !adoptUnconfigured)
-      ) {
+      if (stored.syncMode === "manual") {
         result.skippedManual += 1;
         continue;
       }
@@ -404,7 +420,7 @@ export class LiveSyncService {
     return result;
   }
 
-  private async fetchEvents(mode: LiveSyncMode): Promise<SofaScoreEvent[]> {
+  private async fetchEvents(mode: LiveSyncMode): Promise<FootballEvent[]> {
     if (mode === "fixtures" || mode === "reconcile") {
       return this.provider.fetchCurrentSeasonEvents();
     }
@@ -418,13 +434,16 @@ export class LiveSyncService {
       this.provider.fetchScheduledEvents(now),
       this.provider.fetchScheduledEvents(tomorrow),
     ]);
-    const unique = new Map<number, SofaScoreEvent>();
+    const unique = new Map<number, FootballEvent>();
     groups.flat().forEach((event) => unique.set(event.id, event));
     return [...unique.values()];
   }
 
   private async fetchStoredMatches(): Promise<StoredMatch[]> {
-    const jornadas = await adminDb.collection(FIRESTORE_COLLECTIONS.JORNADAS).get();
+    const jornadas = await adminDb
+      .collection(FIRESTORE_COLLECTIONS.JORNADAS)
+      .where("mostrar", "==", true)
+      .get();
     const matchGroups = await Promise.all(
       jornadas.docs.map(async (jornadaDoc) => {
         const jornadaData = jornadaDoc.data();
@@ -439,35 +458,6 @@ export class LiveSyncService {
       }),
     );
     return matchGroups.flat();
-  }
-
-  private async fetchStoredMatchesByProviderIds(eventIds: number[]): Promise<StoredMatch[]> {
-    if (eventIds.length === 0) return [];
-
-    const uniqueIds = [...new Set(eventIds.map(String))];
-    const chunks = Array.from(
-      { length: Math.ceil(uniqueIds.length / 30) },
-      (_, index) => uniqueIds.slice(index * 30, (index + 1) * 30),
-    );
-    const snapshots = await Promise.all(
-      chunks.map((ids) =>
-        adminDb
-          .collectionGroup(FIRESTORE_COLLECTIONS.MATCHES)
-          .where("providerEventId", "in", ids)
-          .get(),
-      ),
-    );
-    const documents = snapshots.flatMap((snapshot) => snapshot.docs);
-
-    if (documents.length === 0 && eventIds.length === 1) {
-      const legacySnapshot = await adminDb
-        .collectionGroup(FIRESTORE_COLLECTIONS.MATCHES)
-        .where("providerEventId", "==", eventIds[0])
-        .get();
-      return legacySnapshot.docs.map((matchDoc) => this.toStoredMatch(matchDoc));
-    }
-
-    return documents.map((matchDoc) => this.toStoredMatch(matchDoc));
   }
 
   private toStoredMatch(
@@ -500,7 +490,7 @@ export class LiveSyncService {
     };
   }
 
-  private findMatch(event: SofaScoreEvent, matches: StoredMatch[]): StoredMatch | undefined {
+  private findMatch(event: FootballEvent, matches: StoredMatch[]): StoredMatch | undefined {
     const byProviderId = matches.find(
       (match) =>
         String(match.providerEventId || "") === String(event.id) &&
@@ -527,7 +517,7 @@ export class LiveSyncService {
 
   private buildChange(
     stored: StoredMatch,
-    event: SofaScoreEvent,
+    event: FootballEvent,
     goalDetails?: StoredGoalDetail[],
     redCardDetails?: StoredRedCardDetail[],
   ): MatchChange | null {
@@ -544,7 +534,7 @@ export class LiveSyncService {
       golesDetalle: goalDetails ?? stored.golesDetalle,
       tarjetasRojasDetalle: redCardDetails ?? stored.tarjetasRojasDetalle,
       providerEventId: String(event.id),
-      provider: event.provider || "sofascore",
+      provider: "espn",
       syncMode: stored.syncMode || "auto",
     };
     const fields: string[] = [];
@@ -597,7 +587,7 @@ export class LiveSyncService {
         ...(after.estado === "envivo" && change.before.estado !== "envivo"
           ? { horaInicio: Timestamp.fromDate(new Date()) }
           : {}),
-        provider: event.provider || "sofascore",
+        provider: "espn",
         providerEventId: String(event.id),
         providerStatus: event.status.type || event.status.description || "unknown",
         providerHomeTeamId: String(event.homeTeam.id),
@@ -738,7 +728,7 @@ export class LiveSyncService {
       getTeamTopic(change.after.equipoLocalId || ""),
       getTeamTopic(change.after.equipoVisitanteId || ""),
     ].filter((topic): topic is string => Boolean(topic));
-    const providerName = change.event.provider || "sofascore";
+    const providerName = "espn";
 
     if (allowVisible && change.before.estado !== "envivo" && change.after.estado === "envivo") {
       for (const topic of topics) {
@@ -750,7 +740,7 @@ export class LiveSyncService {
     const oldTotal = change.before.golesEquipoLocal + change.before.golesEquipoVisitante;
     const newTotal = change.after.golesEquipoLocal + change.after.golesEquipoVisitante;
     if (allowVisible && newTotal > oldTotal) {
-      let incidents: SofaScoreIncident[] = [];
+      let incidents: FootballIncident[] = [];
       try {
         incidents = (await this.provider.fetchIncidents(change.event)).filter(
           (incident) =>

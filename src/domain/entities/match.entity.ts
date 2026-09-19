@@ -63,7 +63,7 @@ export interface Match {
   horaInicioSegundaParte?: Date;
 
   /** Fuente y claves externas usadas por la sincronización automática */
-  provider?: "sofascore" | "espn";
+  provider?: "espn";
   providerEventId?: string;
   providerStatus?: string;
   providerHomeTeamId?: string;
