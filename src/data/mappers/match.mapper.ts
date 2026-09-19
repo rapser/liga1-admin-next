@@ -52,6 +52,7 @@ export class MatchMapper {
       providerHomeTeamId: dto.providerHomeTeamId,
       providerAwayTeamId: dto.providerAwayTeamId,
       lastProviderSyncAt: dto.lastProviderSyncAt?.toDate(),
+      resumenYoutubeUrl: dto.resumenYoutubeUrl,
       syncMode: dto.syncMode,
     };
   }
@@ -89,6 +90,7 @@ export class MatchMapper {
       lastProviderSyncAt: match.lastProviderSyncAt
         ? Timestamp.fromDate(match.lastProviderSyncAt)
         : undefined,
+      resumenYoutubeUrl: match.resumenYoutubeUrl,
       syncMode: match.syncMode,
     };
   }

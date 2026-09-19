@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Match } from "@/domain/entities/match.entity";
 import { JornadaRepository } from "@/data/repositories/jornada.repository";
@@ -37,6 +38,7 @@ import {
   AlertCircle,
   Bot,
   Hand,
+  Youtube,
 } from "lucide-react";
 import { format, isToday, isTomorrow, isYesterday } from "date-fns";
 import { es } from "date-fns/locale";
@@ -316,6 +318,10 @@ function MatchCard({
   onMatchChange,
 }: MatchCardProps) {
   const [changingSyncMode, setChangingSyncMode] = useState(false);
+  const [resumenYoutubeUrl, setResumenYoutubeUrl] = useState(
+    match.resumenYoutubeUrl ?? "",
+  );
+  const [savingResumen, setSavingResumen] = useState(false);
   // Extraer códigos de equipos del ID del partido si no están presentes
   const teams = getTeamsFromMatchId(match.id);
   const equipoLocalId = match.equipoLocalId || teams.local;
@@ -325,6 +331,48 @@ function MatchCard({
   // fue elegido explícitamente y persistido en Firestore.
   const syncMode = match.syncMode || "auto";
   const canManageManualSync = match.estado === "pendiente";
+
+  useEffect(() => {
+    setResumenYoutubeUrl(match.resumenYoutubeUrl ?? "");
+  }, [match.resumenYoutubeUrl]);
+
+  const saveResumenYoutube = async () => {
+    const normalizedUrl = resumenYoutubeUrl.trim();
+    if (normalizedUrl) {
+      try {
+        const host = new URL(normalizedUrl).hostname.toLowerCase();
+        const isYoutubeHost =
+          host === "youtu.be" ||
+          host === "youtube.com" ||
+          host.endsWith(".youtube.com");
+        if (!isYoutubeHost) {
+          throw new Error("El enlace debe pertenecer a YouTube");
+        }
+      } catch (error) {
+        toast.error("Ingresa un enlace válido de YouTube", {
+          description: error instanceof Error ? error.message : undefined,
+        });
+        return;
+      }
+    }
+
+    setSavingResumen(true);
+    try {
+      await matchRepository.updateMatch(jornadaId, match.id, {
+        resumenYoutubeUrl: normalizedUrl,
+      });
+      onMatchChange(match.id, { resumenYoutubeUrl: normalizedUrl });
+      toast.success(
+        normalizedUrl ? "Resumen oficial guardado" : "Enlace de resumen eliminado",
+      );
+    } catch (error) {
+      toast.error("No se pudo guardar el resumen", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSavingResumen(false);
+    }
+  };
 
   const toggleSyncMode = async () => {
     const nextMode = syncMode === "auto" ? "manual" : "auto";
@@ -512,6 +560,35 @@ function MatchCard({
               El marcador, estado y horario los controla el proveedor en vivo.
             </p>
           )}
+        </div>
+      )}
+
+      {match.estado === "finalizado" && (
+        <div className="space-y-2 pt-3 border-t border-muted">
+          <div className="flex items-center gap-2 text-sm font-medium text-accent-foreground">
+            <Youtube className="h-4 w-4 text-red-600" />
+            Resumen oficial de YouTube
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="url"
+              value={resumenYoutubeUrl}
+              onChange={(event) => setResumenYoutubeUrl(event.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              aria-label="Enlace al resumen oficial de YouTube"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={savingResumen}
+              onClick={saveResumenYoutube}
+            >
+              {savingResumen ? "Guardando..." : "Guardar"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Pega únicamente el enlace publicado por el canal oficial.
+          </p>
         </div>
       )}
     </div>

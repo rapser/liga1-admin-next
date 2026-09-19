@@ -70,6 +70,9 @@ export interface Match {
   providerAwayTeamId?: string;
   lastProviderSyncAt?: Date;
 
+  /** Enlace al resumen oficial publicado en YouTube. */
+  resumenYoutubeUrl?: string;
+
   /** "manual" impide que el sincronizador modifique este partido */
   syncMode?: "auto" | "manual";
 }
