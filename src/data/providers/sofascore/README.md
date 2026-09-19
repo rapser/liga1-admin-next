@@ -25,8 +25,9 @@ antibot. Mantener ESPN o configurar una URL autorizada en `SOFASCORE_BASE_URL`.
    `syncMode: "manual"`.
 6. El scheduler externo ya está automatizado en
    `.github/workflows/live-sync.yml` (mismos secrets que
-   `weather-refresh.yml`): `mode=live` cada 5 minutos, `mode=fixtures` cada 6
-   horas y `mode=reconcile` una vez de madrugada. No requiere pasos manuales
+   `weather-refresh.yml`): `mode=live` cada 5 minutos, desde cinco minutos
+   antes de cada inicio hasta el cierre; `mode=fixtures` cada 6 horas y
+   `mode=reconcile` una vez de madrugada. No requiere pasos manuales
    adicionales una vez mergeado a `main`.
 
 Para proteger un partido y operarlo desde el admin, guardar

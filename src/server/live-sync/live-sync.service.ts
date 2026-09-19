@@ -135,6 +135,19 @@ function providerStatus(event: SofaScoreEvent): {
   return { estado: "pendiente", suspendido: false, enDescanso: false };
 }
 
+const LIVE_START_LEAD_MS = 5 * 60 * 1000;
+const LIVE_TERMINAL_GRACE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Evita consultar todo el fixture cada cinco minutos. Un partido entra al
+ * monitor cinco minutos antes de iniciar y sale, como máximo, seis horas
+ * después de su hora programada. El cron de fixtures corrige reprogramaciones.
+ */
+function isWithinLiveMonitoringWindow(event: SofaScoreEvent, now: number): boolean {
+  const kickoff = event.startTimestamp * 1000;
+  return now >= kickoff - LIVE_START_LEAD_MS && now <= kickoff + LIVE_TERMINAL_GRACE_MS;
+}
+
 function getScore(event: SofaScoreEvent, side: "home" | "away", fallback: number): number {
   const score = side === "home" ? event.homeScore : event.awayScore;
   return score?.current ?? score?.display ?? fallback;
@@ -281,11 +294,17 @@ export class LiveSyncService {
     const requestedEvent = requestedEventId
       ? allEvents.find((event) => event.id === requestedEventId)
       : undefined;
-    const events = requestedEvent ? [requestedEvent] : requestedEventId ? [] : allEvents;
-    const matches =
-      mode === "live" && !adoptUnconfigured
-        ? await this.fetchStoredMatchesByProviderIds(events.map((event) => event.id))
-        : await this.fetchStoredMatches();
+    const events = requestedEvent
+      ? [requestedEvent]
+      : requestedEventId
+        ? []
+        : mode === "live"
+          ? allEvents.filter((event) => isWithinLiveMonitoringWindow(event, Date.now()))
+          : allEvents;
+    // Solo se leen partidos de jornadas visibles. Así el cron puede enlazar
+    // automáticamente encuentros nuevos por equipos/horario sin requerir un
+    // índice global de Firestore ni recorrer el historial oculto.
+    const matches = await this.fetchStoredMatches();
     const requestedEventStatus = requestedEvent
       ? providerStatus(requestedEvent).estado
       : undefined;
@@ -420,14 +439,6 @@ export class LiveSyncService {
     return [...unique.values()];
   }
 
-  private async fetchVisibleJornadaIds(): Promise<Set<string>> {
-    const snapshot = await adminDb
-      .collection(FIRESTORE_COLLECTIONS.JORNADAS)
-      .where("mostrar", "==", true)
-      .get();
-    return new Set(snapshot.docs.map((doc) => doc.id));
-  }
-
   private async fetchStoredMatches(): Promise<StoredMatch[]> {
     const jornadas = await adminDb
       .collection(FIRESTORE_COLLECTIONS.JORNADAS)
@@ -447,40 +458,6 @@ export class LiveSyncService {
       }),
     );
     return matchGroups.flat();
-  }
-
-  private async fetchStoredMatchesByProviderIds(eventIds: number[]): Promise<StoredMatch[]> {
-    if (eventIds.length === 0) return [];
-
-    const visibleJornadaIds = await this.fetchVisibleJornadaIds();
-    if (visibleJornadaIds.size === 0) return [];
-    const isVisible = (doc: QueryDocumentSnapshot) =>
-      visibleJornadaIds.has(doc.ref.parent.parent?.id || "");
-
-    const uniqueIds = [...new Set(eventIds.map(String))];
-    const chunks = Array.from(
-      { length: Math.ceil(uniqueIds.length / 30) },
-      (_, index) => uniqueIds.slice(index * 30, (index + 1) * 30),
-    );
-    const snapshots = await Promise.all(
-      chunks.map((ids) =>
-        adminDb
-          .collectionGroup(FIRESTORE_COLLECTIONS.MATCHES)
-          .where("providerEventId", "in", ids)
-          .get(),
-      ),
-    );
-    const documents = snapshots.flatMap((snapshot) => snapshot.docs).filter(isVisible);
-
-    if (documents.length === 0 && eventIds.length === 1) {
-      const legacySnapshot = await adminDb
-        .collectionGroup(FIRESTORE_COLLECTIONS.MATCHES)
-        .where("providerEventId", "==", eventIds[0])
-        .get();
-      return legacySnapshot.docs.filter(isVisible).map((matchDoc) => this.toStoredMatch(matchDoc));
-    }
-
-    return documents.map((matchDoc) => this.toStoredMatch(matchDoc));
   }
 
   private toStoredMatch(
