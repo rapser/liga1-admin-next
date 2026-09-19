@@ -5,17 +5,22 @@ normaliza sus datos antes de guardarlos. No se usa scraping ni otro proveedor.
 
 ## Operación automática
 
-- GitHub Actions ejecuta `mode=live` cada cinco minutos. Solo monitorea
-  jornadas con `mostrar: true` desde cinco minutos antes del inicio hasta el
-  cierre del partido.
-- `mode=fixtures` se ejecuta cada seis horas para reflejar reprogramaciones,
-  suspensiones y cancelaciones.
-- `mode=reconcile` se ejecuta una vez al día como verificación de respaldo.
+cron-job.org llama a `/api/live-sync` directamente sobre el dominio de
+producción (`https://www.ligaoneper.uno`):
 
-El workflow requiere los secrets `CRON_SECRET` y
-`VERCEL_AUTOMATION_BYPASS_SECRET`, además de la variable `ADMIN_BASE_URL` en
-GitHub Actions. El segundo permite que el job llegue al endpoint sin desactivar
-la protección de Vercel.
+- `mode=live` cada minuto. Solo monitorea jornadas con `mostrar: true` desde
+  cinco minutos antes del inicio hasta el cierre del partido.
+- `mode=fixtures` cada seis horas para reflejar reprogramaciones, suspensiones
+  y cancelaciones.
+- `mode=reconcile` una vez al día como verificación de respaldo.
+
+Cada job envía el header `Authorization: Bearer <CRON_SECRET>`. No se usa
+`VERCEL_AUTOMATION_BYPASS_SECRET` porque el proyecto no tiene activado Vercel
+Deployment Protection; el propio endpoint ya valida `CRON_SECRET` en código.
+
+Antes se usaba un workflow de GitHub Actions (`schedule` cada 5 min), pero sus
+disparos podían atrasarse más de una hora sin aviso (GitHub no da SLA a los
+triggers `schedule`). Se reemplazó por cron-job.org, que sí es puntual.
 
 Para intervenir manualmente un partido, guardar `syncMode: "manual"` en su
 documento. Al volver a `syncMode: "auto"` —o al retirar el campo— ESPN vuelve a
