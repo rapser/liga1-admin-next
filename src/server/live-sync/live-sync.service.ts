@@ -140,10 +140,15 @@ const LIVE_TERMINAL_GRACE_MS = 6 * 60 * 60 * 1000;
 
 /**
  * Evita consultar todo el fixture cada cinco minutos. Un partido entra al
- * monitor cinco minutos antes de iniciar y sale, como máximo, seis horas
- * después de su hora programada. El cron de fixtures corrige reprogramaciones.
+ * monitor cinco minutos antes de iniciar y sale inmediatamente cuando el
+ * proveedor lo declara finalizado o anulado. El límite de seis horas protege
+ * de eventos que el proveedor deja indebidamente abiertos. El cron de fixtures
+ * corrige reprogramaciones.
  */
 function isWithinLiveMonitoringWindow(event: FootballEvent, now: number): boolean {
+  const estado = providerStatus(event).estado;
+  if (estado === "finalizado" || estado === "anulado") return false;
+
   const kickoff = event.startTimestamp * 1000;
   return now >= kickoff - LIVE_START_LEAD_MS && now <= kickoff + LIVE_TERMINAL_GRACE_MS;
 }
@@ -304,7 +309,7 @@ export class LiveSyncService {
     // Solo se leen partidos de jornadas visibles. Así el cron puede enlazar
     // automáticamente encuentros nuevos por equipos/horario sin requerir un
     // índice global de Firestore ni recorrer el historial oculto.
-    const matches = await this.fetchStoredMatches();
+    const matches = await this.fetchStoredMatches(mode === "live");
     const requestedEventStatus = requestedEvent
       ? providerStatus(requestedEvent).estado
       : undefined;
@@ -439,7 +444,7 @@ export class LiveSyncService {
     return [...unique.values()];
   }
 
-  private async fetchStoredMatches(): Promise<StoredMatch[]> {
+  private async fetchStoredMatches(onlyUnresolved = false): Promise<StoredMatch[]> {
     const jornadas = await adminDb
       .collection(FIRESTORE_COLLECTIONS.JORNADAS)
       .where("mostrar", "==", true)
@@ -451,9 +456,15 @@ export class LiveSyncService {
           jornadaData.torneo === "clausura" || jornadaDoc.id.includes("clausura")
             ? "clausura"
             : "apertura";
-        const snapshot = await jornadaDoc.ref
-          .collection(FIRESTORE_COLLECTIONS.MATCHES)
-          .get();
+        const matchesRef = jornadaDoc.ref.collection(FIRESTORE_COLLECTIONS.MATCHES);
+        // El cron de live corre cada cinco minutos: no debe volver a leer los
+        // resultados cerrados. Fixtures/reconcile sí conservan la vista completa
+        // para corregir calendarios y reconstruir tablas cuando sea necesario.
+        const snapshot = onlyUnresolved
+          ? await matchesRef
+              .where("estado", "in", ["pendiente", "envivo", "suspendido"])
+              .get()
+          : await matchesRef.get();
         return snapshot.docs.map((matchDoc) => this.toStoredMatch(matchDoc, torneo));
       }),
     );
