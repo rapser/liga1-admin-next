@@ -14,7 +14,11 @@ import {
   TEAM_NAMES,
   type TorneoType,
 } from "@/core/config/firestore-constants";
-import { GENERAL_TOPIC, getTeamTopic } from "@/core/config/fcm-topics";
+import {
+  GENERAL_TOPIC,
+  LIVE_MATCH_TOPIC,
+  getTeamTopic,
+} from "@/core/config/fcm-topics";
 import { LiveFootballProvider } from "@/data/providers/live-football.provider";
 import type {
   FootballEvent,
@@ -759,6 +763,7 @@ export class LiveSyncService {
     const homeName = TEAM_NAMES[change.after.equipoLocalId || ""] || "Local";
     const awayName = TEAM_NAMES[change.after.equipoVisitanteId || ""] || "Visitante";
     const topics = [
+      LIVE_MATCH_TOPIC,
       getTeamTopic(change.after.equipoLocalId || ""),
       getTeamTopic(change.after.equipoVisitanteId || ""),
     ].filter((topic): topic is string => Boolean(topic));

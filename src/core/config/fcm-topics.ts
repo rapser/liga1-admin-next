@@ -30,10 +30,11 @@ export const TEAM_TOPICS: Record<TeamCode, string> = {
   moq: "team_moq", // Deportivo Moquegua
 };
 
-/**
- * Topic general para notificaciones de toda la liga
- */
+/** Topic técnico para actualizaciones silenciosas de la app. */
 export const GENERAL_TOPIC = "liga1_all";
+
+/** Topic opcional para alertas visibles de todos los partidos de Liga 1. */
+export const LIVE_MATCH_TOPIC = "liga1_live";
 
 /**
  * Obtiene el topic de FCM para un equipo dado su código
