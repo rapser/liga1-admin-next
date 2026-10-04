@@ -41,6 +41,7 @@ import {
   Hand,
   Youtube,
   CalendarCheck,
+  Radio,
 } from "lucide-react";
 import { format, isToday, isTomorrow, isYesterday } from "date-fns";
 import { es } from "date-fns/locale";
@@ -779,6 +780,18 @@ function MatchCard({
               El marcador, estado y horario los controla el proveedor en vivo.
             </p>
           )}
+        </div>
+      )}
+
+      {match.estado === "envivo" && (
+        <div className="space-y-2 pt-3 border-t border-muted">
+          <div className="flex items-center justify-center gap-2 text-sm font-medium text-accent-foreground">
+            <Radio className="h-4 w-4 text-emerald-600" />
+            {match.enDescanso ? "Entretiempo" : `Minuto ${match.minutoActual || "--"}`}
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            El marcador y el minuto se actualizan automáticamente.
+          </p>
         </div>
       )}
 
