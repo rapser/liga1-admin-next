@@ -61,6 +61,8 @@ export interface MatchDTO {
   lastProviderSyncAt?: Timestamp;
   resumenYoutubeUrl?: string;
   syncMode?: "auto" | "manual";
+  /** El admin fijó la fecha/hora a mano: el live-sync no la sobrescribe */
+  fechaManual?: boolean;
 }
 
 /**

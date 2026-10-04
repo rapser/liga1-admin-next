@@ -1,0 +1,18 @@
+// Reglas para las plantillas de los equipos (equipos/{code}/players/{playerId}).
+//
+// Pega este bloque dentro de `match /databases/{database}/documents { ... }` en la
+// consola de Firebase, junto a las reglas de `firestore.poll.rules`.
+// Las reglas de Firestore no son recursivas: la regla de `equipos/{id}` no cubre
+// la subcolección, por eso `players` lleva la suya.
+//
+// El import desde el servidor usa Admin SDK y se salta las reglas.
+
+match /equipos/{teamId} {
+  allow read: if true;
+  allow write: if isAdmin();
+
+  match /players/{playerId} {
+    allow read: if true;
+    allow write: if isAdmin();
+  }
+}

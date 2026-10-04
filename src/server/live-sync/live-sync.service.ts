@@ -56,6 +56,7 @@ interface StoredMatch {
   providerEventId?: string | number;
   provider?: "espn";
   syncMode?: "auto" | "manual";
+  fechaManual?: boolean;
 }
 
 interface StoredGoalDetail {
@@ -458,12 +459,19 @@ export class LiveSyncService {
   }
 
   private async fetchStoredMatches(onlyUnresolved = false): Promise<StoredMatch[]> {
-    const jornadas = await adminDb
-      .collection(FIRESTORE_COLLECTIONS.JORNADAS)
-      .where("mostrar", "==", true)
-      .get();
+    // Una jornada se sincroniza si el admin la activó (`mostrar`) o si ya tiene
+    // horarios confirmados: es la que la app muestra, así que debe mantenerse
+    // al día aunque nadie marque `mostrar`.
+    const jornadasRef = adminDb.collection(FIRESTORE_COLLECTIONS.JORNADAS);
+    const [visible, confirmed] = await Promise.all([
+      jornadasRef.where("mostrar", "==", true).get(),
+      jornadasRef.where("horariosConfirmados", "==", true).get(),
+    ]);
+    const jornadaDocs = new Map(
+      [...visible.docs, ...confirmed.docs].map((jornadaDoc) => [jornadaDoc.id, jornadaDoc]),
+    );
     const matchGroups = await Promise.all(
-      jornadas.docs.map(async (jornadaDoc) => {
+      [...jornadaDocs.values()].map(async (jornadaDoc) => {
         const jornadaData = jornadaDoc.data();
         const torneo: TorneoType =
           jornadaData.torneo === "clausura" || jornadaDoc.id.includes("clausura")
@@ -511,6 +519,7 @@ export class LiveSyncService {
       providerEventId: data.providerEventId,
       provider: data.provider,
       syncMode: data.syncMode,
+      fechaManual: data.fechaManual === true,
     };
   }
 
@@ -546,7 +555,10 @@ export class LiveSyncService {
     redCardDetails?: StoredRedCardDetail[],
   ): MatchChange | null {
     const state = providerStatus(event);
-    const nextDate = new Date(event.startTimestamp * 1000);
+    // Si el admin fijó la hora a mano, ESPN no la revierte.
+    const nextDate = stored.fechaManual
+      ? stored.fecha
+      : new Date(event.startTimestamp * 1000);
     const after: StoredMatch = {
       ...stored,
       fecha: nextDate,
