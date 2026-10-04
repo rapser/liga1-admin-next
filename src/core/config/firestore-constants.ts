@@ -16,6 +16,8 @@ export const FIRESTORE_COLLECTIONS = {
   POLL_SHARDS: "shards", // Subcolección de polls/{id}: contadores distribuidos
   POLL_VOTES: "pollVotes", // pollVotes/{pollId}/votes/{uid} — 1 voto por usuario
   LIVE_SYNC_EVENTS: "liveSyncEvents", // ledger idempotente de pushes automáticos
+  TEAMS: "equipos", // equipos/{code}: datos maestros del club (la app iOS lo declara como Collection.teams)
+  PLAYERS: "players", // Subcolección de equipos/{code}: plantilla del equipo
 } as const;
 
 /** Número de shards del contador distribuido de cada encuesta. */
