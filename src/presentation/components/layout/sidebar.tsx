@@ -13,6 +13,7 @@ import {
   Trophy,
   CalendarDays,
   Newspaper,
+  Users,
   Settings,
   ChevronLeft,
   LayoutDashboard,
@@ -44,6 +45,11 @@ const navItems: NavItem[] = [
     label: 'Jornadas',
     href: '/dashboard/jornadas',
     icon: CalendarDays,
+  },
+  {
+    label: 'Equipos',
+    href: '/dashboard/equipos',
+    icon: Users,
   },
   {
     label: 'Noticias',
