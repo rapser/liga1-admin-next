@@ -3,11 +3,11 @@ import { db } from '@/core/config/firebase';
 import { JornadaRepository } from '@/data/repositories/jornada.repository';
 import { MatchRepository } from '@/data/repositories/match.repository';
 import { FIRESTORE_COLLECTIONS } from '@/core/config/firestore-constants';
+import { CLAUSURA_PLACEHOLDER_DATE } from './schedule-validation';
 
-// Fecha placeholder para todos los partidos del Clausura.
-// El admin actualizará cada partido manualmente a medida que
-// la programación oficial se vaya anunciando.
-const CLAUSURA_PLACEHOLDER_DATE = new Date('2026-07-17T11:00:00');
+// Todos los partidos del Clausura nacen con CLAUSURA_PLACEHOLDER_DATE.
+// El admin actualiza cada partido a medida que se anuncia la programación
+// oficial y recién entonces confirma los horarios de la jornada.
 
 // Límite seguro por debajo del máximo de Firestore (500 ops/batch)
 const BATCH_LIMIT = 400;
@@ -69,10 +69,12 @@ export class ClausuraGeneratorService {
 
       // Escribir jornada con los mismos campos que apertura: fechaInicio y mostrar
       // torneo, numero y esActiva los infiere el mapper desde el ID del documento
+      // horariosConfirmados queda en false hasta que la jornada tenga hora oficial
       const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, clausuraId);
       batch.set(jornadaRef, {
         fechaInicio: fechaTimestamp,
         mostrar: false,
+        horariosConfirmados: false,
       });
       opCount++;
       jornadasCreated++;

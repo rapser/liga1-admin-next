@@ -29,6 +29,7 @@ export class JornadaMapper {
       fechaInicio: dto.fechaInicio?.toDate() || new Date(),
       fechaFin: dto.fechaFin?.toDate(),
       esActiva: dto.esActiva ?? false,
+      horariosConfirmados: dto.horariosConfirmados ?? false,
     };
   }
 
@@ -45,6 +46,7 @@ export class JornadaMapper {
         ? Timestamp.fromDate(jornada.fechaFin)
         : undefined,
       esActiva: jornada.esActiva,
+      horariosConfirmados: jornada.horariosConfirmados,
     };
   }
 

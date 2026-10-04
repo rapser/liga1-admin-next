@@ -23,6 +23,12 @@ export interface JornadaDTO {
 
   /** Indica si es la jornada activa */
   esActiva?: boolean;
+
+  /**
+   * La jornada ya tiene fecha y hora oficial en todos sus partidos.
+   * La app solo la muestra cuando es true.
+   */
+  horariosConfirmados?: boolean;
 }
 
 /**

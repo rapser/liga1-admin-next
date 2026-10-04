@@ -26,6 +26,9 @@ export interface Jornada {
 
   /** Indica si es la jornada activa actual */
   esActiva?: boolean;
+
+  /** Todos los partidos tienen fecha y hora oficial (la app solo muestra jornadas confirmadas) */
+  horariosConfirmados: boolean;
 }
 
 /**
@@ -42,6 +45,7 @@ export const createJornada = (
   mostrar,
   fechaInicio,
   esActiva: false,
+  horariosConfirmados: false,
 });
 
 /**
