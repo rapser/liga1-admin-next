@@ -9,6 +9,8 @@
     "lint": "eslint",
     "monitor:live": "node scripts/monitor-live-event.mjs",
     "repair:clausura": "node scripts/rebuild-clausura-standings.mjs",
+    "fixtures:wikipedia": "node --no-warnings scripts/import-fixtures-from-wikipedia.mjs",
+    "backfill:horarios": "node --no-warnings scripts/backfill-horarios-confirmados.mjs",
     "verify-env": "node scripts/verify-env.mjs"
   },
   "dependencies": {
