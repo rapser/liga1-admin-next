@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
 import { PageHeader } from "@/presentation/components/shared";
 import {
@@ -25,6 +25,7 @@ import { JornadaRepository } from "@/data/repositories/jornada.repository";
 import { MatchRepository } from "@/data/repositories/match.repository";
 import { TeamRepository } from "@/data/repositories/team.repository";
 import { MatchStateService } from "@/domain/services/match-state.service";
+import { isPlaceholderFecha } from "@/domain/services/schedule-validation";
 import { PushNotificationService } from "@/domain/services/push-notification.service";
 import {
   MatchLiveController,
@@ -39,6 +40,7 @@ import {
   Bot,
   Hand,
   Youtube,
+  CalendarCheck,
 } from "lucide-react";
 import { format, isToday, isTomorrow, isYesterday } from "date-fns";
 import { es } from "date-fns/locale";
@@ -102,23 +104,56 @@ const getTeamsFromMatchId = (
   };
 };
 
+/**
+ * Los partidos se guardan con hora de Lima (UTC-5), sin horario de verano.
+ * El input datetime-local no tiene zona, así que se convierte explícitamente
+ * para que el resultado no dependa de la zona del navegador.
+ */
+const toLimaInputValue = (date: Date): string =>
+  new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(" ", "T");
+
+const fromLimaInputValue = (value: string): Date =>
+  new Date(`${value}:00-05:00`);
+
 export default function JornadasPage() {
   const { loading: authLoading } = useRequireAuth();
+  const queryClient = useQueryClient();
+  const [updatingJornada, setUpdatingJornada] = useState(false);
   const { data: jornadasData = [], isLoading: loading } = useQuery({
     queryKey: ["jornadas", "list"],
     queryFn: async () => {
-      const data = await jornadaRepository.fetchVisibleJornadas();
+      // Todas las jornadas: una jornada sin activar ni confirmar también
+      // tiene que poder editarse para cargarle los horarios.
+      const data = await jornadaRepository.fetchJornadas();
       // Extraer el número del ID ("apertura_16" → 16) para ordenar de forma confiable
       // independientemente de si el campo `numero` está poblado en Firestore.
       const parseNum = (id: string) =>
         parseInt(id.split('_').pop() ?? '0', 10) || 0;
-      return [...data].sort((a, b) => parseNum(b.id) - parseNum(a.id));
+      const torneoRank = (id: string) => (id.startsWith("clausura") ? 1 : 0);
+      return [...data].sort(
+        (a, b) =>
+          torneoRank(b.id) - torneoRank(a.id) || parseNum(b.id) - parseNum(a.id),
+      );
     },
     enabled: !authLoading,
   });
   const jornadas = jornadasData;
   const [selectedJornadaOverride, setSelectedJornadaOverride] = useState<string | null>(null);
-  const selectedJornada = selectedJornadaOverride ?? jornadas[0]?.id ?? null;
+  const selectedJornada =
+    selectedJornadaOverride ??
+    jornadas.find((jornada) => jornada.mostrar)?.id ??
+    jornadas[0]?.id ??
+    null;
   const [matches, setMatches] = useState<Match[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
 
@@ -151,6 +186,49 @@ export default function JornadasPage() {
   }
 
   const selectedJornadaData = jornadas.find((j) => j.id === selectedJornada);
+
+  const refreshJornadas = () =>
+    queryClient.invalidateQueries({ queryKey: ["jornadas", "list"] });
+
+  const runJornadaUpdate = async (
+    action: () => Promise<void>,
+    failureMessage: string,
+  ) => {
+    setUpdatingJornada(true);
+    try {
+      await action();
+      await refreshJornadas();
+    } catch (error) {
+      toast.error(failureMessage, {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setUpdatingJornada(false);
+    }
+  };
+
+  const toggleHorariosConfirmados = (jornadaId: string, confirmed: boolean) =>
+    runJornadaUpdate(async () => {
+      if (!confirmed) {
+        await jornadaRepository.unconfirmSchedule(jornadaId);
+        toast.success("Horarios sin confirmar: la app oculta esta jornada");
+        return;
+      }
+      const result = await jornadaRepository.confirmSchedule(jornadaId);
+      if (result.ok) {
+        toast.success("Horarios confirmados: la app ya muestra esta jornada");
+      } else {
+        toast.error("No se pueden confirmar los horarios", {
+          description: result.reason,
+        });
+      }
+    }, "No se pudo actualizar los horarios de la jornada");
+
+  const toggleMostrar = (jornadaId: string, visible: boolean) =>
+    runJornadaUpdate(
+      () => jornadaRepository.toggleJornadaVisibility(jornadaId, visible),
+      "No se pudo cambiar el estado de la jornada",
+    );
 
   return (
     <>
@@ -200,6 +278,7 @@ export default function JornadasPage() {
                         }`}
                       >
                         {getTorneoFromJornadaId(jornada.id)}
+                        {jornada.horariosConfirmados ? "" : " · Sin horarios"}
                       </p>
                     </div>
                     <CalendarDays className="h-5 w-5" />
@@ -226,7 +305,7 @@ export default function JornadasPage() {
                         {getTorneoFromJornadaId(selectedJornadaData.id)}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center justify-end gap-3">
                       <WeatherRefreshButton />
                       <Badge
                         variant={
@@ -240,9 +319,72 @@ export default function JornadasPage() {
                       >
                         {selectedJornadaData.mostrar ? "Activa" : "Inactiva"}
                       </Badge>
+                      <Badge
+                        variant={
+                          selectedJornadaData.horariosConfirmados
+                            ? "default"
+                            : "secondary"
+                        }
+                        className={
+                          selectedJornadaData.horariosConfirmados
+                            ? "bg-gradient-success border-0"
+                            : ""
+                        }
+                      >
+                        <CalendarCheck className="h-3 w-3 mr-1" />
+                        {selectedJornadaData.horariosConfirmados
+                          ? "Horarios confirmados"
+                          : "Sin horarios oficiales"}
+                      </Badge>
                     </div>
                   </div>
                 </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={updatingJornada}
+                      variant={
+                        selectedJornadaData.horariosConfirmados
+                          ? "outline"
+                          : "default"
+                      }
+                      onClick={() =>
+                        toggleHorariosConfirmados(
+                          selectedJornadaData.id,
+                          !selectedJornadaData.horariosConfirmados,
+                        )
+                      }
+                    >
+                      {selectedJornadaData.horariosConfirmados
+                        ? "Quitar confirmación"
+                        : "Confirmar horarios"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={updatingJornada}
+                      onClick={() =>
+                        toggleMostrar(
+                          selectedJornadaData.id,
+                          !selectedJornadaData.mostrar,
+                        )
+                      }
+                    >
+                      {selectedJornadaData.mostrar
+                        ? "Desactivar sincronización"
+                        : "Activar sincronización"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    La app solo muestra la jornada cuando sus horarios están
+                    confirmados (los 9 partidos con hora oficial) y faltan 7
+                    días o menos. &quot;Activa&quot; solo controla la
+                    sincronización en vivo.
+                  </p>
+                </CardContent>
               </Card>
 
               {/* Lista de Partidos */}
@@ -322,6 +464,8 @@ function MatchCard({
     match.resumenYoutubeUrl ?? "",
   );
   const [savingResumen, setSavingResumen] = useState(false);
+  const [fechaInput, setFechaInput] = useState(toLimaInputValue(match.fecha));
+  const [savingFecha, setSavingFecha] = useState(false);
   // Extraer códigos de equipos del ID del partido si no están presentes
   const teams = getTeamsFromMatchId(match.id);
   const equipoLocalId = match.equipoLocalId || teams.local;
@@ -335,6 +479,39 @@ function MatchCard({
   useEffect(() => {
     setResumenYoutubeUrl(match.resumenYoutubeUrl ?? "");
   }, [match.resumenYoutubeUrl]);
+
+  useEffect(() => {
+    setFechaInput(toLimaInputValue(match.fecha));
+  }, [match.fecha]);
+
+  const saveFecha = async (fechaManual: boolean) => {
+    const nextFecha = fechaInput ? fromLimaInputValue(fechaInput) : null;
+    if (!nextFecha || Number.isNaN(nextFecha.getTime())) {
+      toast.error("Ingresa una fecha y hora válidas");
+      return;
+    }
+
+    setSavingFecha(true);
+    try {
+      // fechaManual evita que el proveedor en vivo revierta la hora fijada.
+      await matchRepository.updateMatch(jornadaId, match.id, {
+        fecha: nextFecha,
+        fechaManual,
+      });
+      onMatchChange(match.id, { fecha: nextFecha, fechaManual });
+      toast.success(
+        fechaManual
+          ? "Horario guardado (el proveedor no lo sobrescribe)"
+          : "Horario guardado; el proveedor lo mantendrá al día",
+      );
+    } catch (error) {
+      toast.error("No se pudo guardar el horario", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSavingFecha(false);
+    }
+  };
 
   const saveResumenYoutube = async () => {
     const normalizedUrl = resumenYoutubeUrl.trim();
@@ -445,7 +622,12 @@ function MatchCard({
       {/* Información del Partido */}
       <div className="space-y-2">
         {/* Estado Badge (arriba a la derecha) */}
-        <div className="flex justify-end">{getStatusBadge()}</div>
+        <div className="flex justify-end gap-2">
+          {match.estado === "pendiente" && isPlaceholderFecha(match.fecha) && (
+            <Badge variant="outline">Hora por definir</Badge>
+          )}
+          {getStatusBadge()}
+        </div>
 
         {/* Equipos y marcador (centrado en segunda línea) */}
         <div className="flex items-center justify-center">
@@ -523,6 +705,43 @@ function MatchCard({
           </div>
         </div>
       </div>
+
+      {match.estado === "pendiente" && (
+        <div className="space-y-2 pt-2 border-t border-muted">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              type="datetime-local"
+              value={fechaInput}
+              onChange={(event) => setFechaInput(event.target.value)}
+              aria-label="Fecha y hora del partido (hora de Lima)"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={savingFecha}
+              onClick={() => saveFecha(true)}
+            >
+              {savingFecha ? "Guardando..." : "Fijar horario"}
+            </Button>
+            {match.fechaManual && (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={savingFecha}
+                onClick={() => saveFecha(false)}
+              >
+                Volver al proveedor
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Hora de Lima.{" "}
+            {match.fechaManual
+              ? "Fijada a mano: el proveedor en vivo no la cambia."
+              : "Si el proveedor publica otra hora, la reemplaza."}
+          </p>
+        </div>
+      )}
 
       {canManageManualSync && (
         <div className="space-y-3 pt-2 border-t border-muted">
