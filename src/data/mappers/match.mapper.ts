@@ -54,6 +54,7 @@ export class MatchMapper {
       lastProviderSyncAt: dto.lastProviderSyncAt?.toDate(),
       resumenYoutubeUrl: dto.resumenYoutubeUrl,
       syncMode: dto.syncMode,
+      fechaManual: dto.fechaManual,
     };
   }
 
@@ -92,6 +93,7 @@ export class MatchMapper {
         : undefined,
       resumenYoutubeUrl: match.resumenYoutubeUrl,
       syncMode: match.syncMode,
+      fechaManual: match.fechaManual,
     };
   }
 

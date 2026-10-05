@@ -15,6 +15,7 @@ import {
   onSnapshot,
   query,
   where,
+  Timestamp,
   Unsubscribe,
   writeBatch,
 } from 'firebase/firestore';
@@ -22,7 +23,13 @@ import { db } from '@/core/config/firebase';
 import { FIRESTORE_COLLECTIONS, TorneoType } from '@/core/config/firestore-constants';
 import { IJornadaRepository } from '@/domain/repositories/jornada.repository.interface';
 import { Jornada } from '@/domain/entities/jornada.entity';
+import {
+  MATCHES_PER_JORNADA,
+  ScheduleValidation,
+  validateJornadaSchedule,
+} from '@/domain/services/schedule-validation';
 import { JornadaDTO } from '../dtos/jornada.dto';
+import { MatchDTO } from '../dtos/match.dto';
 import { JornadaMapper } from '../mappers/jornada.mapper';
 
 export class JornadaRepository implements IJornadaRepository {
@@ -149,6 +156,46 @@ export class JornadaRepository implements IJornadaRepository {
   ): Promise<void> {
     const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, jornadaId);
     await updateDoc(jornadaRef, { mostrar: visible });
+  }
+
+  /**
+   * Confirma los horarios de una jornada: la app solo muestra jornadas
+   * confirmadas. Exige los 9 partidos y que ninguno conserve la fecha
+   * placeholder; guarda el rango real (`fechaInicio`/`fechaFin`).
+   * Devuelve el motivo si no se puede confirmar.
+   */
+  async confirmSchedule(jornadaId: string): Promise<ScheduleValidation> {
+    const matchesRef = collection(
+      db,
+      FIRESTORE_COLLECTIONS.JORNADAS,
+      jornadaId,
+      FIRESTORE_COLLECTIONS.MATCHES
+    );
+    const snapshot = await getDocs(matchesRef);
+    const fechas = snapshot.docs.flatMap((matchDoc) => {
+      const fecha = (matchDoc.data() as Partial<MatchDTO>).fecha;
+      return fecha ? [fecha.toDate()] : [];
+    });
+
+    const validation = validateJornadaSchedule(fechas, MATCHES_PER_JORNADA, {
+      rejectUniformTimes: true,
+    });
+    if (!validation.ok) return validation;
+
+    await updateDoc(doc(db, FIRESTORE_COLLECTIONS.JORNADAS, jornadaId), {
+      horariosConfirmados: true,
+      fechaInicio: Timestamp.fromDate(validation.fechaInicio),
+      fechaFin: Timestamp.fromDate(validation.fechaFin),
+    });
+    return validation;
+  }
+
+  /**
+   * Quita la confirmación: la app deja de mostrar la jornada.
+   */
+  async unconfirmSchedule(jornadaId: string): Promise<void> {
+    const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, jornadaId);
+    await updateDoc(jornadaRef, { horariosConfirmados: false });
   }
 
   /**

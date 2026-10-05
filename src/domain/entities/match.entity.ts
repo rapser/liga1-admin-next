@@ -75,6 +75,8 @@ export interface Match {
 
   /** "manual" impide que el sincronizador modifique este partido */
   syncMode?: "auto" | "manual";
+  /** El admin fijó la fecha/hora a mano: el live-sync no la sobrescribe */
+  fechaManual?: boolean;
 }
 
 /**

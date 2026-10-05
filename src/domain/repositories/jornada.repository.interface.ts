@@ -5,6 +5,7 @@
 
 import { Jornada } from '../entities/jornada.entity';
 import { TorneoType } from '@/core/config/firestore-constants';
+import { ScheduleValidation } from '../services/schedule-validation';
 
 export interface IJornadaRepository {
   /**
@@ -45,6 +46,16 @@ export interface IJornadaRepository {
    * Alterna la visibilidad de una jornada (campo "mostrar")
    */
   toggleJornadaVisibility(jornadaId: string, visible: boolean): Promise<void>;
+
+  /**
+   * Confirma los horarios de la jornada (todos los partidos con hora oficial)
+   */
+  confirmSchedule(jornadaId: string): Promise<ScheduleValidation>;
+
+  /**
+   * Quita la confirmación de horarios de la jornada
+   */
+  unconfirmSchedule(jornadaId: string): Promise<void>;
 
   /**
    * Elimina una jornada
