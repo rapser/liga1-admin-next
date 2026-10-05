@@ -4,7 +4,7 @@
  *   GET  /api/weather/refresh   -> lo invoca Vercel Cron (envía `Authorization: Bearer $CRON_SECRET`)
  *   POST /api/weather/refresh   -> disparo manual desde el panel (sesión de admin) o con el mismo Bearer
  *
- * Recorre las jornadas visibles (`mostrar: true`), toma los partidos pendientes o
+ * Recorre las jornadas con horarios confirmados (`horariosConfirmados: true`), toma los partidos pendientes o
  * en vivo cuyo inicio (`fecha`) cae dentro del horizonte del forecast, resuelve la
  * sede por el equipo local (colección `stadiums`, sembrada desde la app iOS) y
  * escribe el sub-objeto `clima` en cada `jornadas/{id}/matches/{matchId}`.
@@ -98,7 +98,7 @@ const PAST_TOLERANCE_MS = 4 * 60 * 60 * 1000;
 async function collectMatches(): Promise<PendingMatch[]> {
   const jornadasSnap = await adminDb
     .collection(FIRESTORE_COLLECTIONS.JORNADAS)
-    .where("mostrar", "==", true)
+    .where("horariosConfirmados", "==", true)
     .get();
 
   const now = Date.now();

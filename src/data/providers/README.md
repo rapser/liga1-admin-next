@@ -8,7 +8,7 @@ normaliza sus datos antes de guardarlos. No se usa scraping ni otro proveedor.
 cron-job.org llama a `/api/live-sync` directamente sobre el dominio de
 producción (`https://www.ligaoneper.uno`):
 
-- `mode=live` cada minuto. Solo monitorea jornadas con `mostrar: true` desde
+- `mode=live` cada minuto. Solo monitorea jornadas con `horariosConfirmados: true` desde
   cinco minutos antes del inicio hasta el cierre del partido.
 - `mode=fixtures` cada seis horas para reflejar reprogramaciones, suspensiones
   y cancelaciones.

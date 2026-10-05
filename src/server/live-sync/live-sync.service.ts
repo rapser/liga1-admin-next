@@ -459,19 +459,13 @@ export class LiveSyncService {
   }
 
   private async fetchStoredMatches(onlyUnresolved = false): Promise<StoredMatch[]> {
-    // Una jornada se sincroniza si el admin la activó (`mostrar`) o si ya tiene
-    // horarios confirmados: es la que la app muestra, así que debe mantenerse
-    // al día aunque nadie marque `mostrar`.
-    const jornadasRef = adminDb.collection(FIRESTORE_COLLECTIONS.JORNADAS);
-    const [visible, confirmed] = await Promise.all([
-      jornadasRef.where("mostrar", "==", true).get(),
-      jornadasRef.where("horariosConfirmados", "==", true).get(),
-    ]);
-    const jornadaDocs = new Map(
-      [...visible.docs, ...confirmed.docs].map((jornadaDoc) => [jornadaDoc.id, jornadaDoc]),
-    );
+    // Solo se sincronizan las jornadas con horarios confirmados: son las que muestra la app.
+    const jornadas = await adminDb
+      .collection(FIRESTORE_COLLECTIONS.JORNADAS)
+      .where("horariosConfirmados", "==", true)
+      .get();
     const matchGroups = await Promise.all(
-      [...jornadaDocs.values()].map(async (jornadaDoc) => {
+      jornadas.docs.map(async (jornadaDoc) => {
         const jornadaData = jornadaDoc.data();
         const torneo: TorneoType =
           jornadaData.torneo === "clausura" || jornadaDoc.id.includes("clausura")
