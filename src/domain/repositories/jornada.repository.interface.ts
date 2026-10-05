@@ -19,9 +19,9 @@ export interface IJornadaRepository {
   fetchJornadaById(jornadaId: string): Promise<Jornada | null>;
 
   /**
-   * Obtiene las jornadas visibles (mostrar = true)
+   * Obtiene las jornadas con horarios confirmados (las que muestra la app)
    */
-  fetchVisibleJornadas(): Promise<Jornada[]>;
+  fetchConfirmedJornadas(): Promise<Jornada[]>;
 
   /**
    * Observa cambios en tiempo real de todas las jornadas
@@ -41,11 +41,6 @@ export interface IJornadaRepository {
    * Actualiza una jornada existente
    */
   updateJornada(jornadaId: string, updates: Partial<Jornada>): Promise<void>;
-
-  /**
-   * Alterna la visibilidad de una jornada (campo "mostrar")
-   */
-  toggleJornadaVisibility(jornadaId: string, visible: boolean): Promise<void>;
 
   /**
    * Confirma los horarios de la jornada (todos los partidos con hora oficial)

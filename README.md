@@ -46,11 +46,12 @@ Las rutas principales están bajo `/dashboard`. La siguiente sección resume la 
 | Autenticación | `/login` | Valida usuarios autorizados con Firebase Authentication, crea la sesión del panel y controla el acceso a las rutas privadas. |
 | Dashboard | `/dashboard` | Presenta un resumen operativo con información relevante de jornadas, partidos y usuarios. |
 | Partidos | `/dashboard/partidos` | Organiza encuentros en vivo, próximos, finalizados o suspendidos y permite gestionar su estado, marcador y tiempos de juego. |
-| Jornadas | `/dashboard/jornadas` | Permite consultar las fechas del Apertura y Clausura, administrar su visibilidad y acceder a los partidos de cada jornada. |
+| Jornadas | `/dashboard/jornadas` | Permite consultar las fechas del Apertura y Clausura, editar la hora de cada partido, confirmar los horarios oficiales de la jornada (la app solo muestra jornadas confirmadas) y acceder a sus partidos. |
+| Equipos | `/dashboard/equipos` | Muestra la plantilla de cada equipo, importa los planteles desde ESPN, busca fotos en Wikidata y permite fijar la foto de un jugador a mano. |
 | Tabla de posiciones | `/dashboard/posiciones` | Muestra en tiempo real las clasificaciones independientes del Apertura y Clausura, además de la tabla Acumulada. |
 | Noticias | `/dashboard/noticias` | Permite crear, editar y administrar las noticias que consume la aplicación. |
 | Configuración | `/dashboard/configuracion` | Reúne ajustes de cuenta, usuarios y operaciones administrativas, incluida la preparación del Torneo Clausura. |
-| Servicios de servidor | `/api/*` | Contiene endpoints internos para sesiones, administración de usuarios, estadísticas y notificaciones push. |
+| Servicios de servidor | `/api/*` | Contiene endpoints internos para sesiones, administración de usuarios, estadísticas, notificaciones push, plantillas y fotos de jugadores. |
 
 Todos los módulos privados comparten el layout del dashboard y la protección de sesión definida en `src/proxy.ts`.
 
@@ -398,7 +399,10 @@ liga1-admin-next/
 ├── scripts/
 │   ├── run-next.mjs                   # Ejecución controlada de Next.js
 │   ├── verify-env.mjs                 # Verificación de variables
-│   └── rebuild-clausura-standings.mjs # Recuperación de posiciones
+│   ├── rebuild-clausura-standings.mjs # Recuperación de posiciones
+│   ├── import-fixtures-from-wikipedia.mjs # Fechas y horas oficiales del Clausura
+│   ├── backfill-horarios-confirmados.mjs  # Marca jornadas con horarios ya cargados
+│   └── lib/                           # Conexión a Firestore compartida por los scripts
 ├── src/
 │   ├── app/                           # Next.js App Router
 │   │   ├── (auth)/
@@ -407,6 +411,7 @@ liga1-admin-next/
 │   │   │   └── dashboard/
 │   │   │       ├── partidos/          # Gestión de partidos
 │   │   │       ├── jornadas/          # Gestión de jornadas
+│   │   │       ├── equipos/           # Plantillas y fotos de jugadores
 │   │   │       ├── posiciones/        # Tablas de posiciones
 │   │   │       ├── noticias/          # Gestión de noticias
 │   │   │       └── configuracion/     # Cuenta y administración
@@ -414,6 +419,7 @@ liga1-admin-next/
 │   │       ├── auth/                 # Sesión y logout
 │   │       ├── admin/                # Operaciones administrativas
 │   │       ├── push-notifications/   # Envío de notificaciones
+│   │       ├── squads/               # Importación de plantillas y fotos
 │   │       └── stats/                # Estadísticas del sistema
 │   ├── components/
 │   │   └── ui/                        # Componentes visuales base
@@ -428,6 +434,11 @@ liga1-admin-next/
 │   │   ├── repositories/              # Contratos de persistencia
 │   │   └── services/                  # Casos de uso y orquestación
 │   ├── lib/                        # Utilidades generales de la app
+│   ├── server/                        # Lógica solo de servidor
+│   │   ├── auth/                      # Autorización de rutas API (Bearer o sesión de admin)
+│   │   ├── fixtures/                  # Parser de la programación en Wikipedia
+│   │   ├── live-sync/                 # Sincronización de partidos en vivo
+│   │   └── squads/                    # Importación de plantillas y fotos
 │   ├── presentation/
 │   │   ├── components/
 │   │   │   ├── features/              # Componentes por funcionalidad
@@ -436,6 +447,8 @@ liga1-admin-next/
 │   │   ├── hooks/                     # Hooks de presentación
 │   │   └── providers/                 # Auth, tema y React Query
 │   └── proxy.ts                   # Protección de /dashboard
+├── firestore.poll.rules               # Reglas de las encuestas (se pegan en la consola)
+├── firestore.squads.rules             # Reglas de las plantillas (se pegan en la consola)
 ├── .env.example                       # Plantilla de variables
 ├── next.config.ts                     # Configuración de Next.js
 ├── tsconfig.json                      # Configuración TypeScript
@@ -457,6 +470,8 @@ Firestore es la fuente de datos de la aplicación. Los DTOs de `src/data/dtos` r
 firestore
 ├── jornadas/{jornadaId}
 │   └── matches/{matchId}
+├── equipos/{teamId}
+│   └── players/{playerId}
 ├── apertura/{teamId}
 ├── clausura/{teamId}
 ├── acumulado/{teamId}
@@ -468,6 +483,7 @@ firestore
 |---|---|
 | `jornadas` | Calendario del Apertura y Clausura |
 | `jornadas/{id}/matches` | Partidos y sus estados/marcadores |
+| `equipos/{id}/players` | Plantilla de cada equipo (nombre, dorsal, posición, foto) |
 | `apertura` | Posiciones del Torneo Apertura |
 | `clausura` | Posiciones del Torneo Clausura |
 | `acumulado` | Suma de Apertura y Clausura |
@@ -481,13 +497,13 @@ Ruta de ejemplo: `jornadas/clausura_01`.
 | Campo | Tipo | Requerido | Descripción |
 |---|---|---:|---|
 | `fechaInicio` | `Timestamp` | Sí | Fecha y hora de inicio de la jornada |
-| `mostrar` | `boolean` | Sí | Determina si se muestra en la aplicación |
-| `fechaFin` | `Timestamp` | No | Fecha y hora de cierre |
+| `horariosConfirmados` | `boolean` | No | Los 9 partidos ya tienen fecha y hora oficial. La app solo muestra jornadas con `true` y dentro de 7 días de su inicio |
+| `fechaFin` | `Timestamp` | No | Último partido de la jornada; junto con `fechaInicio` delimita cuándo la muestra la app |
 | `esActiva` | `boolean` | No | Marca la jornada activa |
 | `torneo` | `"apertura" \| "clausura"` | No | Puede inferirse desde el ID |
 | `numero` | `number` | No | Puede inferirse desde el ID |
 
-Los documentos existentes pueden almacenar solamente `fechaInicio` y `mostrar`. `JornadaMapper` obtiene el torneo y número desde IDs como `apertura_01` o `clausura_15`.
+`fechaInicio` y `fechaFin` se calculan al confirmar los horarios (primer y último partido). Los documentos existentes pueden almacenar solamente `fechaInicio`; sin `horariosConfirmados` la jornada se considera sin confirmar. El campo `mostrar` ya no se lee. `JornadaMapper` obtiene el torneo y número desde IDs como `apertura_01` o `clausura_15`.
 
 ### Documento de partido
 
@@ -510,8 +526,29 @@ Ruta de ejemplo: `jornadas/clausura_01/matches/ali_uni`.
 | `horaInicioSegundaParte` | `Timestamp` opcional | Inicio efectivo del segundo tiempo |
 | `tiempoAgregadoPrimeraParte` | `number` opcional | Adición del primer tiempo |
 | `tiempoAgregado` | `number` opcional | Adición del segundo tiempo |
+| `fechaManual` | `boolean` opcional | La hora se fijó a mano desde el panel: el proveedor en vivo no la sobrescribe |
 
 El ID habitual combina los equipos (`ali_uni`). Si los campos de equipo no existen, `MatchMapper` los extrae de ese ID.
+
+### Documento de jugador
+
+Ruta de ejemplo: `equipos/ali/players/espn_47543`. Lo escribe la importación de plantillas; la app iOS solo lo lee.
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `name` / `shortName` | `string` | Nombre completo y abreviado |
+| `number` | `number \| null` | Dorsal |
+| `position` | `"GK" \| "DF" \| "MF" \| "FW"` | Línea en la que juega |
+| `age` / `dateOfBirth` | `number` / `string` | Edad y fecha de nacimiento (`yyyy-MM-dd`) |
+| `nationality` | `string \| null` | Nacionalidad según ESPN |
+| `espnId` | `string` | Id del jugador en ESPN; el documento se llama `espn_{id}` |
+| `active` | `boolean` | `false` si ya no está en el plantel; la app solo muestra los activos |
+| `photoURL` | `string` opcional | URL `https` de la foto |
+| `photoSource` | `"manual" \| "espn" \| "wikidata"` opcional | Origen de la foto; `manual` nunca se sobrescribe |
+| `photoCredit` | `string` opcional | Atribución de la foto (p. ej. "Wikimedia Commons") |
+| `wikidataId` | `string` opcional | Entidad de Wikidata de la que salió la foto |
+
+El documento `equipos/{code}` guarda además `espnTeamId` y `name`.
 
 ### Documento de posiciones
 
@@ -673,6 +710,10 @@ La clave privada debe conservar los saltos de línea escapados como `\n` cuando 
 | `npm run verify-env` | Comprueba las variables requeridas |
 | `npm run repair:clausura` | Compara la tabla con los partidos finalizados sin escribir |
 | `npm run repair:clausura -- --apply` | Reconstruye Clausura y Acumulado en Firestore |
+| `npm run fixtures:wikipedia -- --jornada 14,15` | Vista previa de fechas y horas del Clausura según Wikipedia |
+| `npm run fixtures:wikipedia -- --jornada 14,15 --apply` | Escribe esas fechas y confirma las jornadas completas |
+| `npm run backfill:horarios` | Vista previa de las jornadas que se marcarían como confirmadas |
+| `npm run backfill:horarios -- --apply` | Marca esas jornadas (opcional `--max-clausura N`) |
 
 El comando con `--apply` es una herramienta operativa de recuperación. No forma parte del flujo normal de cada partido y debe ejecutarse sin encuentros en vivo, después de revisar la vista previa.
 
@@ -829,7 +870,7 @@ El workflow necesita, en Settings → Secrets and variables → Actions:
 - Secret `CRON_SECRET`: el mismo valor configurado en las variables de entorno de Vercel.
 - Variable `ADMIN_BASE_URL`: la URL de producción del panel, sin barra final.
 
-También se puede refrescar a mano desde el botón "Actualizar clima" de la pantalla de jornadas, o desde la pestaña Actions con *Run workflow*.
+El refresco solo considera jornadas con horarios confirmados (`horariosConfirmados: true`). También se puede refrescar a mano desde el botón "Actualizar clima" de la pantalla de jornadas, o desde la pestaña Actions con *Run workflow*.
 
 Esta configuración se realiza una sola vez. Para los despliegues siguientes se utiliza el flujo de Pull Requests descrito a continuación.
 
@@ -904,6 +945,27 @@ npm run repair:clausura -- --apply
 ```
 
 El script usa como fuente de verdad los partidos finalizados de jornadas `clausura_*`, recalcula todas las estadísticas y actualiza también el Acumulado.
+
+### Horarios oficiales del Clausura
+
+La app iOS solo muestra una jornada cuando tiene `horariosConfirmados: true`. Cuando Wikipedia publica la programación de una jornada ([Torneo Clausura 2026](https://es.wikipedia.org/wiki/Torneo_Clausura_2026_(Per%C3%BA))):
+
+```bash
+npm run fixtures:wikipedia -- --jornada 16        # vista previa: fecha actual -> fecha nueva por partido
+npm run fixtures:wikipedia -- --jornada 16 --apply
+```
+
+El script cambia solo `fecha` de los partidos pendientes y confirma la jornada si los 9 partidos quedan con fecha y hora válidas; ante cualquier problema (equipo sin mapear, partido faltante, hora aún no publicada) no modifica esa jornada. Las horas de Wikipedia son de Lima (UTC-5). Si el proveedor en vivo (ESPN) publica otra hora para un partido, la reemplaza, salvo que la hora se haya fijado a mano desde el panel (`fechaManual`).
+
+Una jornada también puede confirmarse a mano desde `/dashboard/jornadas`, después de editar la hora de sus partidos.
+
+### Plantillas de equipos
+
+Desde `/dashboard/equipos`, o con `POST /api/squads/import` y `POST /api/squads/photos` (cabecera `Authorization: Bearer $CRON_SECRET`, `?dryRun=true` para solo calcular):
+
+- La importación trae el plantel de los 18 equipos desde ESPN y escribe `equipos/{code}/players`. Es idempotente y no pisa fotos manuales.
+- La búsqueda de fotos usa Wikidata y solo asigna una foto cuando la fecha de nacimiento coincide. La cobertura es baja (en la prueba, 30 de 516 jugadores), por lo que la mayoría de las fotos se cargan a mano pegando su URL `https` en el panel.
+- Las reglas de `firestore.squads.rules` deben pegarse en la consola de Firebase: las reglas reales no viven en el repositorio.
 
 ## Seguridad
 

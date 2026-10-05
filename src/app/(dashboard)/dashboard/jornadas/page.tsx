@@ -150,11 +150,21 @@ export default function JornadasPage() {
   });
   const jornadas = jornadasData;
   const [selectedJornadaOverride, setSelectedJornadaOverride] = useState<string | null>(null);
-  const selectedJornada =
-    selectedJornadaOverride ??
-    jornadas.find((jornada) => jornada.mostrar)?.id ??
+  // Por defecto: la primera jornada confirmada que todavía no terminó (la que se juega
+  // ahora o la próxima); si todas terminaron, la última confirmada.
+  const [now] = useState(() => Date.now());
+  const defaultJornadaId =
+    jornadas
+      .filter(
+        (jornada) =>
+          jornada.horariosConfirmados &&
+          (jornada.fechaFin ?? jornada.fechaInicio).getTime() >= now,
+      )
+      .sort((a, b) => a.fechaInicio.getTime() - b.fechaInicio.getTime())[0]?.id ??
+    jornadas.find((jornada) => jornada.horariosConfirmados)?.id ??
     jornadas[0]?.id ??
     null;
+  const selectedJornada = selectedJornadaOverride ?? defaultJornadaId;
   const [matches, setMatches] = useState<Match[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
 
@@ -224,12 +234,6 @@ export default function JornadasPage() {
         });
       }
     }, "No se pudo actualizar los horarios de la jornada");
-
-  const toggleMostrar = (jornadaId: string, visible: boolean) =>
-    runJornadaUpdate(
-      () => jornadaRepository.toggleJornadaVisibility(jornadaId, visible),
-      "No se pudo cambiar el estado de la jornada",
-    );
 
   return (
     <>
@@ -310,18 +314,6 @@ export default function JornadasPage() {
                       <WeatherRefreshButton />
                       <Badge
                         variant={
-                          selectedJornadaData.mostrar ? "default" : "secondary"
-                        }
-                        className={
-                          selectedJornadaData.mostrar
-                            ? "bg-gradient-success border-0"
-                            : ""
-                        }
-                      >
-                        {selectedJornadaData.mostrar ? "Activa" : "Inactiva"}
-                      </Badge>
-                      <Badge
-                        variant={
                           selectedJornadaData.horariosConfirmados
                             ? "default"
                             : "secondary"
@@ -362,28 +354,12 @@ export default function JornadasPage() {
                         ? "Quitar confirmación"
                         : "Confirmar horarios"}
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={updatingJornada}
-                      onClick={() =>
-                        toggleMostrar(
-                          selectedJornadaData.id,
-                          !selectedJornadaData.mostrar,
-                        )
-                      }
-                    >
-                      {selectedJornadaData.mostrar
-                        ? "Desactivar sincronización"
-                        : "Activar sincronización"}
-                    </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     La app solo muestra la jornada cuando sus horarios están
                     confirmados (los 9 partidos con hora oficial) y faltan 7
-                    días o menos. &quot;Activa&quot; solo controla la
-                    sincronización en vivo.
+                    días o menos. El resultado en vivo y el clima también se
+                    actualizan solo para jornadas confirmadas.
                   </p>
                 </CardContent>
               </Card>

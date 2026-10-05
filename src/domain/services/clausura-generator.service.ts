@@ -67,13 +67,11 @@ export class ClausuraGeneratorService {
       const numStr = jornada.id.split('_')[1] ?? '01';
       const clausuraId = `clausura_${numStr}`;
 
-      // Escribir jornada con los mismos campos que apertura: fechaInicio y mostrar
       // torneo, numero y esActiva los infiere el mapper desde el ID del documento
       // horariosConfirmados queda en false hasta que la jornada tenga hora oficial
       const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, clausuraId);
       batch.set(jornadaRef, {
         fechaInicio: fechaTimestamp,
-        mostrar: false,
         horariosConfirmados: false,
       });
       opCount++;
