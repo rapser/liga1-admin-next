@@ -25,7 +25,6 @@ export class JornadaMapper {
       id,
       torneo,
       numero: dto.numero || 1,
-      mostrar: dto.mostrar ?? true,
       fechaInicio: dto.fechaInicio?.toDate() || new Date(),
       fechaFin: dto.fechaFin?.toDate(),
       esActiva: dto.esActiva ?? false,
@@ -40,7 +39,6 @@ export class JornadaMapper {
     return {
       torneo: jornada.torneo,
       numero: jornada.numero,
-      mostrar: jornada.mostrar,
       fechaInicio: Timestamp.fromDate(jornada.fechaInicio), // Date → Timestamp
       fechaFin: jornada.fechaFin
         ? Timestamp.fromDate(jornada.fechaFin)

@@ -50,7 +50,7 @@ const parseJornadaNum = (id: string) =>
   parseInt(id.split('_').pop() ?? '0', 10) || 0;
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const allJornadas = await jornadaRepository.fetchVisibleJornadas();
+  const allJornadas = await jornadaRepository.fetchConfirmedJornadas();
   const allMatches: UpcomingMatch[] = [];
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

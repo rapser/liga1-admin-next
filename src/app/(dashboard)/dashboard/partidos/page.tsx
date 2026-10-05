@@ -45,7 +45,7 @@ const getTeamsFromMatchId = (
 };
 
 async function fetchPartidosInitial() {
-  const visibleJornadas = await jornadaRepository.fetchVisibleJornadas();
+  const visibleJornadas = await jornadaRepository.fetchConfirmedJornadas();
 
   // Solo cargar jornadas visibles para En Vivo / Próximos / Suspendidos
   const matchesByJornada = await Promise.all(

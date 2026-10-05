@@ -15,9 +15,6 @@ export interface Jornada {
   /** Número de la jornada (1-38) */
   numero: number;
 
-  /** Indica si la jornada debe mostrarse en la app */
-  mostrar: boolean;
-
   /** Fecha de inicio de la jornada */
   fechaInicio: Date;
 
@@ -37,12 +34,10 @@ export interface Jornada {
 export const createJornada = (
   torneo: TorneoType,
   numero: number,
-  fechaInicio: Date,
-  mostrar: boolean = true
+  fechaInicio: Date
 ): Omit<Jornada, 'id'> => ({
   torneo,
   numero,
-  mostrar,
   fechaInicio,
   esActiva: false,
   horariosConfirmados: false,

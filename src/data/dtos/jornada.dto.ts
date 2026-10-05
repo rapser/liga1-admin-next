@@ -12,9 +12,6 @@ export interface JornadaDTO {
   /** Número de jornada */
   numero: number;
 
-  /** Indica si debe mostrarse */
-  mostrar: boolean;
-
   /** Fecha de inicio como Timestamp */
   fechaInicio: Timestamp;
 
