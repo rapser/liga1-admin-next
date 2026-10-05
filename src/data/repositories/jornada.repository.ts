@@ -71,11 +71,11 @@ export class JornadaRepository implements IJornadaRepository {
   }
 
   /**
-   * Obtiene las jornadas visibles (mostrar = true)
+   * Obtiene las jornadas con horarios confirmados (las que muestra la app)
    */
-  async fetchVisibleJornadas(): Promise<Jornada[]> {
+  async fetchConfirmedJornadas(): Promise<Jornada[]> {
     const jornadasRef = collection(db, FIRESTORE_COLLECTIONS.JORNADAS);
-    const q = query(jornadasRef, where('mostrar', '==', true));
+    const q = query(jornadasRef, where('horariosConfirmados', '==', true));
 
     const snapshot = await getDocs(q);
 
@@ -145,17 +145,6 @@ export class JornadaRepository implements IJornadaRepository {
     delete updateData.id;
 
     await updateDoc(jornadaRef, updateData);
-  }
-
-  /**
-   * Alterna la visibilidad de una jornada
-   */
-  async toggleJornadaVisibility(
-    jornadaId: string,
-    visible: boolean
-  ): Promise<void> {
-    const jornadaRef = doc(db, FIRESTORE_COLLECTIONS.JORNADAS, jornadaId);
-    await updateDoc(jornadaRef, { mostrar: visible });
   }
 
   /**
