@@ -106,6 +106,8 @@ export interface LiveSyncResult {
   requestedEventId?: number;
   requestedEventStatus?: LocalStatus;
   stopMonitoring?: boolean;
+  /** El proveedor falló en modo live; se reintenta en el siguiente tick. */
+  providerError?: string;
 }
 
 function asDate(value: unknown): Date {
@@ -309,7 +311,30 @@ export class LiveSyncService {
     adoptUnconfigured = false,
     requestedEventId?: number,
   ): Promise<LiveSyncResult> {
-    const allEvents = await this.fetchEvents(mode);
+    let allEvents: FootballEvent[];
+    try {
+      allEvents = await this.fetchEvents(mode);
+    } catch (error) {
+      // El cron de live corre cada minuto y el siguiente tick reintenta. Si el
+      // endpoint respondiera 5xx por cada caída de ESPN, cron-job.org
+      // desactivaría el job tras varios fallos seguidos y dejaría de sincronizar.
+      if (mode !== "live") throw error;
+      console.warn("Proveedor no disponible en live sync", error);
+      return {
+        mode,
+        dryRun,
+        providerEvents: 0,
+        matched: 0,
+        changed: 0,
+        skippedManual: 0,
+        unmatched: [],
+        notifications: 0,
+        standingsRebuilt: false,
+        adoptUnconfigured,
+        requestedEventId,
+        providerError: error instanceof Error ? error.message : String(error),
+      };
+    }
     const requestedEvent = requestedEventId
       ? allEvents.find((event) => event.id === requestedEventId)
       : undefined;
@@ -323,7 +348,12 @@ export class LiveSyncService {
     // Solo se leen partidos de jornadas visibles. Así el cron puede enlazar
     // automáticamente encuentros nuevos por equipos/horario sin requerir un
     // índice global de Firestore ni recorrer el historial oculto.
-    const matches = await this.fetchStoredMatches(mode === "live");
+    // Sin eventos en la ventana no hay nada que sincronizar: se evita leer
+    // Firestore en cada tick de un cron que corre cada minuto.
+    const matches =
+      mode === "live" && events.length === 0
+        ? []
+        : await this.fetchStoredMatches(mode === "live");
     const requestedEventStatus = requestedEvent
       ? providerStatus(requestedEvent).estado
       : undefined;
@@ -447,14 +477,28 @@ export class LiveSyncService {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 86_400_000);
     const tomorrow = new Date(now.getTime() + 86_400_000);
-    const groups = await Promise.all([
+    const settled = await Promise.allSettled([
       this.provider.fetchLiveEvents(),
       this.provider.fetchScheduledEvents(yesterday),
       this.provider.fetchScheduledEvents(now),
       this.provider.fetchScheduledEvents(tomorrow),
     ]);
+    // Un fallo parcial no debe frenar la sincronización: el siguiente tick
+    // reintenta. Solo falla si el proveedor no respondió en ninguna consulta.
+    const failures = settled.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    const [firstFailure] = failures;
+    if (firstFailure && failures.length === settled.length) throw firstFailure.reason;
+    failures.forEach((failure) =>
+      console.warn("Consulta parcial al proveedor falló", failure.reason),
+    );
     const unique = new Map<number, FootballEvent>();
-    groups.flat().forEach((event) => unique.set(event.id, event));
+    settled.forEach((result) => {
+      if (result.status === "fulfilled") {
+        result.value.forEach((event) => unique.set(event.id, event));
+      }
+    });
     return [...unique.values()];
   }
 
