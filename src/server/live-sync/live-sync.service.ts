@@ -157,7 +157,7 @@ const LIVE_TERMINAL_GRACE_MS = 6 * 60 * 60 * 1000;
  * Evita consultar todo el fixture cada minuto. Un partido entra al monitor
  * cinco minutos antes de iniciar y sale del radar solo cuando nuestro propio
  * registro en Firestore queda en "finalizado"/"anulado" (fetchStoredMatches
- * con onlyUnresolved ya lo excluye entonces). No se filtra aquí por el estado
+ * en modo live ya lo excluye entonces). No se filtra aquí por el estado
  * que reporta el proveedor: si lo hiciéramos, el evento se excluiría en el
  * mismo tick en que el proveedor lo marca finalizado, y esa transición nunca
  * llegaría a escribirse en Firestore (el partido quedaría "envivo" para
@@ -167,6 +167,21 @@ const LIVE_TERMINAL_GRACE_MS = 6 * 60 * 60 * 1000;
 function isWithinLiveMonitoringWindow(event: FootballEvent, now: number): boolean {
   const kickoff = event.startTimestamp * 1000;
   return now >= kickoff - LIVE_START_LEAD_MS && now <= kickoff + LIVE_TERMINAL_GRACE_MS;
+}
+
+// Margen entre la hora de ESPN y la guardada en Firestore (reprogramaciones menores).
+const LIVE_READ_PADDING_MS = 3 * 60 * 60 * 1000;
+// Jornadas más recientes ya iniciadas que se consultan en cada tick de live.
+const LIVE_JORNADAS_LOOKBACK = 2;
+const LIVE_UNRESOLVED_STATES = ["pendiente", "envivo", "suspendido"];
+
+/** Rango de fechas de partidos guardados que pueden corresponder a los eventos en vivo. */
+function liveReadRange(events: FootballEvent[]): { from: Date; to: Date } {
+  const kickoffs = events.map((event) => event.startTimestamp * 1000);
+  return {
+    from: new Date(Math.min(...kickoffs) - LIVE_READ_PADDING_MS),
+    to: new Date(Math.max(...kickoffs) + LIVE_READ_PADDING_MS),
+  };
 }
 
 function getScore(event: FootballEvent, side: "home" | "away", fallback: number): number {
@@ -353,7 +368,9 @@ export class LiveSyncService {
     const matches =
       mode === "live" && events.length === 0
         ? []
-        : await this.fetchStoredMatches(mode === "live");
+        : await this.fetchStoredMatches(
+            mode === "live" ? liveReadRange(events) : undefined,
+          );
     const requestedEventStatus = requestedEvent
       ? providerStatus(requestedEvent).estado
       : undefined;
@@ -502,29 +519,56 @@ export class LiveSyncService {
     return [...unique.values()];
   }
 
-  private async fetchStoredMatches(onlyUnresolved = false): Promise<StoredMatch[]> {
+  /**
+   * Sin `liveRange` lee todas las jornadas confirmadas con todos sus partidos
+   * (fixtures/reconcile). Con `liveRange` lee solo lo necesario para sincronizar
+   * los eventos en vivo: las jornadas más recientes que ya empezaron y, dentro
+   * de ellas, los partidos cuya fecha cae en el rango. Se hace así porque el
+   * cron de live corre cada minuto y cada lectura cuenta contra la cuota.
+   */
+  private async fetchStoredMatches(liveRange?: {
+    from: Date;
+    to: Date;
+  }): Promise<StoredMatch[]> {
+    const jornadasRef = adminDb.collection(FIRESTORE_COLLECTIONS.JORNADAS);
     // Solo se sincronizan las jornadas con horarios confirmados: son las que muestra la app.
-    const jornadas = await adminDb
-      .collection(FIRESTORE_COLLECTIONS.JORNADAS)
-      .where("horariosConfirmados", "==", true)
-      .get();
+    // Con rango live se usa un índice de un solo campo (fechaInicio), sin
+    // índice compuesto; horariosConfirmados se filtra en memoria.
+    const jornadas = liveRange
+      ? await jornadasRef
+          .where("fechaInicio", "<=", Timestamp.fromDate(liveRange.to))
+          .orderBy("fechaInicio", "desc")
+          .limit(LIVE_JORNADAS_LOOKBACK)
+          .get()
+      : await jornadasRef.where("horariosConfirmados", "==", true).get();
+    const jornadaDocs = jornadas.docs.filter(
+      (jornadaDoc) => jornadaDoc.data().horariosConfirmados === true,
+    );
     const matchGroups = await Promise.all(
-      jornadas.docs.map(async (jornadaDoc) => {
+      jornadaDocs.map(async (jornadaDoc) => {
         const jornadaData = jornadaDoc.data();
         const torneo: TorneoType =
           jornadaData.torneo === "clausura" || jornadaDoc.id.includes("clausura")
             ? "clausura"
             : "apertura";
         const matchesRef = jornadaDoc.ref.collection(FIRESTORE_COLLECTIONS.MATCHES);
-        // El cron de live corre cada cinco minutos: no debe volver a leer los
-        // resultados cerrados. Fixtures/reconcile sí conservan la vista completa
-        // para corregir calendarios y reconstruir tablas cuando sea necesario.
-        const snapshot = onlyUnresolved
-          ? await matchesRef
-              .where("estado", "in", ["pendiente", "envivo", "suspendido"])
-              .get()
-          : await matchesRef.get();
-        return snapshot.docs.map((matchDoc) => this.toStoredMatch(matchDoc, torneo));
+        if (!liveRange) {
+          const snapshot = await matchesRef.get();
+          return snapshot.docs.map((matchDoc) => this.toStoredMatch(matchDoc, torneo));
+        }
+        // Los resultados cerrados no se vuelven a leer en el cron de live: se
+        // consulta por rango de fecha (índice de un solo campo) y se descartan
+        // los ya resueltos en memoria. Fixtures/reconcile conservan la vista
+        // completa para corregir calendarios y reconstruir tablas.
+        const snapshot = await matchesRef
+          .where("fecha", ">=", Timestamp.fromDate(liveRange.from))
+          .where("fecha", "<=", Timestamp.fromDate(liveRange.to))
+          .get();
+        return snapshot.docs
+          .filter((matchDoc) =>
+            LIVE_UNRESOLVED_STATES.includes(String(matchDoc.data().estado || "pendiente")),
+          )
+          .map((matchDoc) => this.toStoredMatch(matchDoc, torneo));
       }),
     );
     return matchGroups.flat();
