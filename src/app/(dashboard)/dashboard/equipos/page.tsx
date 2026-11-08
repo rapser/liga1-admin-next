@@ -1,7 +1,8 @@
 /**
  * Página de Equipos
- * Plantilla de cada equipo (equipos/{code}/players, cargada desde Transfermarkt):
- * búsqueda de fotos en Wikidata y edición manual de la foto de cada jugador.
+ * Plantilla de cada equipo (equipos/{code}/players), sincronizada con Transfermarkt
+ * pegando la tabla de la plantilla; búsqueda de fotos en Wikidata y edición manual
+ * de la foto de cada jugador.
  * También gestiona las sanciones de puntos (equipos/{code}.sanctions), que solo
  * restan en la tabla acumulada.
  */
@@ -31,6 +32,7 @@ import {
   totalSanctionPoints,
 } from "@/domain/entities/point-sanction.entity";
 import { PageHeader } from "@/presentation/components/shared";
+import { TransfermarktSyncDialog } from "@/presentation/components/features/squads/transfermarkt-sync-dialog";
 import {
   Card,
   CardContent,
@@ -110,6 +112,8 @@ export default function EquiposPage() {
     enabled: !authLoading,
   });
 
+  const activeCount = players.filter((player) => player.active !== false).length;
+
   const searchPhotos = async () => {
     setSearchingPhotos(true);
     try {
@@ -182,10 +186,19 @@ export default function EquiposPage() {
                   {TEAM_NAMES[teamCode]}
                 </CardTitle>
                 <CardDescription>
-                  {players.length} {players.length === 1 ? "jugador" : "jugadores"}
+                  {activeCount} {activeCount === 1 ? "jugador activo" : "jugadores activos"}
+                  {players.length > activeCount && ` · ${players.length - activeCount} de baja`}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
+                <TransfermarktSyncDialog
+                  key={teamCode}
+                  teamCode={teamCode}
+                  teamName={TEAM_NAMES[teamCode] ?? teamCode}
+                  onSynced={() =>
+                    queryClient.invalidateQueries({ queryKey: ["players", teamCode] })
+                  }
+                />
                 <Button
                   type="button"
                   size="sm"
@@ -212,7 +225,7 @@ export default function EquiposPage() {
               <div className="text-center py-12">
                 <Users className="h-12 w-12 mx-auto mb-4 text-foreground opacity-50" />
                 <p className="text-foreground">
-                  Este equipo aún no tiene plantilla cargada desde Transfermarkt.
+                  Este equipo aún no tiene plantilla. Usa “Sincronizar con Transfermarkt”.
                 </p>
               </div>
             ) : (
