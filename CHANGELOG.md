@@ -6,6 +6,14 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 ## [Unreleased]
 
+### Removed
+
+- Importación de plantillas desde ESPN (`POST /api/squads/import`, `squad-import.service.ts` y el botón "Importar plantillas (ESPN)"). Las plantillas vienen de Transfermarkt, que es más fiable; ESPN se sigue usando solo para los marcadores en vivo.
+
+### Added
+
+- `npm run players:normalize`: pasa las plantillas cargadas con el esquema antiguo (`fullName`, `status: "active"`, `DEF`/`MID`/`FWD`) al esquema que leen la app y el admin (`name`, `active`, `DF`/`MF`/`FW`). Conserva los campos antiguos.
+
 ## [0.2.0] - 2026-10-04
 
 > ⚠️ **Antes de desplegar**: la app iOS solo muestra jornadas con `horariosConfirmados: true`. Hay que confirmar las jornadas ya cargadas (`npm run backfill:horarios -- --apply`) y pegar `firestore.squads.rules` en la consola de Firebase para habilitar la lectura pública de las plantillas.

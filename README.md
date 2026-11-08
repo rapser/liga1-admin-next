@@ -47,7 +47,7 @@ Las rutas principales están bajo `/dashboard`. La siguiente sección resume la 
 | Dashboard | `/dashboard` | Presenta un resumen operativo con información relevante de jornadas, partidos y usuarios. |
 | Partidos | `/dashboard/partidos` | Organiza encuentros en vivo, próximos, finalizados o suspendidos y permite gestionar su estado, marcador y tiempos de juego. |
 | Jornadas | `/dashboard/jornadas` | Permite consultar las fechas del Apertura y Clausura, editar la hora de cada partido, confirmar los horarios oficiales de la jornada (la app solo muestra jornadas confirmadas) y acceder a sus partidos. |
-| Equipos | `/dashboard/equipos` | Muestra la plantilla de cada equipo, importa los planteles desde ESPN, busca fotos en Wikidata y permite fijar la foto de un jugador a mano. |
+| Equipos | `/dashboard/equipos` | Muestra la plantilla de cada equipo (cargada desde Transfermarkt), gestiona las sanciones de puntos, busca fotos en Wikidata y permite fijar la foto de un jugador a mano. |
 | Tabla de posiciones | `/dashboard/posiciones` | Muestra en tiempo real las clasificaciones independientes del Apertura y Clausura, además de la tabla Acumulada. |
 | Noticias | `/dashboard/noticias` | Permite crear, editar y administrar las noticias que consume la aplicación. |
 | Configuración | `/dashboard/configuracion` | Reúne ajustes de cuenta, usuarios y operaciones administrativas, incluida la preparación del Torneo Clausura. |
@@ -532,7 +532,7 @@ El ID habitual combina los equipos (`ali_uni`). Si los campos de equipo no exist
 
 ### Documento de jugador
 
-Ruta de ejemplo: `equipos/ali/players/espn_47543`. Lo escribe la importación de plantillas; la app iOS solo lo lee.
+Ruta de ejemplo: `equipos/hua/players/angel-zamudio`. Las plantillas vienen de Transfermarkt; la app iOS solo las lee. Las cargas con el esquema antiguo (`fullName`, `status`, `DEF`/`MID`/`FWD`) se pasan a este esquema con `npm run players:normalize`.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
@@ -540,8 +540,7 @@ Ruta de ejemplo: `equipos/ali/players/espn_47543`. Lo escribe la importación de
 | `number` | `number \| null` | Dorsal |
 | `position` | `"GK" \| "DF" \| "MF" \| "FW"` | Línea en la que juega |
 | `age` / `dateOfBirth` | `number` / `string` | Edad y fecha de nacimiento (`yyyy-MM-dd`) |
-| `nationality` | `string \| null` | Nacionalidad según ESPN |
-| `espnId` | `string` | Id del jugador en ESPN; el documento se llama `espn_{id}` |
+| `nationality` | `string \| null` | Código de 3 letras (FIFA o ISO), ej. `PER`; la app muestra la bandera |
 | `active` | `boolean` | `false` si ya no está en el plantel; la app solo muestra los activos |
 | `photoURL` | `string` opcional | URL `https` de la foto |
 | `photoSource` | `"manual" \| "espn" \| "wikidata"` opcional | Origen de la foto; `manual` nunca se sobrescribe |
@@ -961,9 +960,10 @@ Una jornada también puede confirmarse a mano desde `/dashboard/jornadas`, despu
 
 ### Plantillas de equipos
 
-Desde `/dashboard/equipos`, o con `POST /api/squads/import` y `POST /api/squads/photos` (cabecera `Authorization: Bearer $CRON_SECRET`, `?dryRun=true` para solo calcular):
+Las plantillas de `equipos/{code}/players` vienen de Transfermarkt (ids tipo `angel-zamudio`). Si se cargan con el esquema antiguo, `npm run players:normalize` (vista previa; `-- --apply` para escribir) les agrega `name`, `active` y la posición `DF`/`MF`/`FW` que leen la app y el panel.
 
-- La importación trae el plantel de los 18 equipos desde ESPN y escribe `equipos/{code}/players`. Es idempotente y no pisa fotos manuales.
+Fotos, desde `/dashboard/equipos` o con `POST /api/squads/photos` (cabecera `Authorization: Bearer $CRON_SECRET`, `?dryRun=true` para solo calcular):
+
 - La búsqueda de fotos usa Wikidata y solo asigna una foto cuando la fecha de nacimiento coincide. La cobertura es baja (en la prueba, 30 de 516 jugadores), por lo que la mayoría de las fotos se cargan a mano pegando su URL `https` en el panel.
 - Las reglas de `firestore.squads.rules` deben pegarse en la consola de Firebase: las reglas reales no viven en el repositorio.
 
