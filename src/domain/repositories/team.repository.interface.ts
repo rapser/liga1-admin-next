@@ -3,6 +3,7 @@
  * Define el contrato para operaciones de equipos y tabla de posiciones
  */
 
+import { PointSanction } from '@/domain/entities/point-sanction.entity';
 import { Team } from '../entities/team.entity';
 import { TorneoType } from '@/core/config/firestore-constants';
 
@@ -76,4 +77,14 @@ export interface ITeamRepository {
    * Obtiene todos los equipos (información básica sin estadísticas)
    */
   fetchAllTeams(): Promise<Team[]>;
+
+  /**
+   * Sanciones de puntos del equipo (equipos/{code}.sanctions). Solo afectan el acumulado.
+   */
+  fetchPointSanctions(teamId: string): Promise<PointSanction[]>;
+
+  /**
+   * Reemplaza las sanciones del equipo y recalcula su acumulado.
+   */
+  savePointSanctions(teamId: string, sanctions: PointSanction[]): Promise<void>;
 }

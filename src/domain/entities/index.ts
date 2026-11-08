@@ -7,3 +7,4 @@ export * from './team.entity';
 export * from './jornada.entity';
 export * from './news.entity';
 export * from './poll.entity';
+export * from './point-sanction.entity';

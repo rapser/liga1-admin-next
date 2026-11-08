@@ -87,6 +87,18 @@ const extractTeamIds = (matchDoc) => {
   };
 };
 
+// Sanciones de puntos (equipos/{code}.sanctions): negativas, solo para el acumulado.
+const teamsSnapshot = await db.collection('equipos').get();
+const sanctionTotalByTeam = new Map(
+  teamsSnapshot.docs.map((document) => [
+    document.id,
+    (Array.isArray(document.data().sanctions) ? document.data().sanctions : [])
+      .map((sanction) => Number(sanction?.points))
+      .filter((points) => Number.isInteger(points) && points < 0)
+      .reduce((total, points) => total + points, 0),
+  ]),
+);
+
 const aperturaSnapshot = await db.collection('apertura').get();
 if (aperturaSnapshot.empty) {
   throw new Error('La colección apertura está vacía; no se puede obtener la lista de equipos.');
@@ -239,11 +251,11 @@ for (const [teamId, clausuraStats] of rebuiltByTeam) {
   batch.set(db.collection('clausura').doc(teamId), clausuraStats, {
     merge: true,
   });
-  batch.set(
-    db.collection('acumulado').doc(teamId),
-    addStats(aperturaStats, clausuraStats),
-    { merge: true },
-  );
+  const acumuladoStats = addStats(aperturaStats, clausuraStats);
+  acumuladoStats.points += sanctionTotalByTeam.get(teamId) ?? 0;
+  batch.set(db.collection('acumulado').doc(teamId), acumuladoStats, {
+    merge: true,
+  });
 }
 
 await batch.commit();
