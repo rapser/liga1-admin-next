@@ -18,6 +18,11 @@ import { db } from '@/core/config/firebase';
 import { FIRESTORE_COLLECTIONS, TorneoType } from '@/core/config/firestore-constants';
 import { ITeamRepository } from '@/domain/repositories/team.repository.interface';
 import { Team } from '@/domain/entities/team.entity';
+import {
+  PointSanction,
+  parsePointSanctions,
+  totalSanctionPoints,
+} from '@/domain/entities/point-sanction.entity';
 import { TeamDTO } from '../dtos/team.dto';
 import { TeamMapper } from '../mappers/team.mapper';
 
@@ -252,7 +257,10 @@ export class TeamRepository implements ITeamRepository {
    */
   async initClausuraFromApertura(): Promise<void> {
     const aperturaRef = collection(db, FIRESTORE_COLLECTIONS.APERTURA);
-    const aperturaSnapshot = await getDocs(aperturaRef);
+    const [aperturaSnapshot, sanctionTotals] = await Promise.all([
+      getDocs(aperturaRef),
+      this.fetchSanctionTotals(),
+    ]);
 
     const batch = writeBatch(db);
     const zeroStats = {
@@ -282,7 +290,7 @@ export class TeamRepository implements ITeamRepository {
         goalsScored: aperturaData.goalsScored ?? 0,
         goalsAgainst: aperturaData.goalsAgainst ?? 0,
         goalDifference: aperturaData.goalDifference ?? 0,
-        points: aperturaData.points ?? 0,
+        points: (aperturaData.points ?? 0) + (sanctionTotals.get(aperturaDoc.id) ?? 0),
       }, { merge: true });
     });
 
@@ -290,17 +298,54 @@ export class TeamRepository implements ITeamRepository {
   }
 
   /**
-   * Recalcula el acumulado para los equipos indicados sumando apertura + clausura.
+   * Sanciones de puntos de un equipo (`equipos/{code}.sanctions`).
+   */
+  async fetchPointSanctions(teamId: string): Promise<PointSanction[]> {
+    const teamDoc = await getDoc(doc(db, FIRESTORE_COLLECTIONS.TEAMS, teamId));
+    return parsePointSanctions(teamDoc.data()?.sanctions);
+  }
+
+  /**
+   * Reemplaza las sanciones del equipo y recalcula su acumulado.
+   */
+  async savePointSanctions(teamId: string, sanctions: PointSanction[]): Promise<void> {
+    const normalized = parsePointSanctions(sanctions);
+    if (normalized.length !== sanctions.length) {
+      throw new Error('Cada sanción debe tener puntos enteros negativos.');
+    }
+    await setDoc(
+      doc(db, FIRESTORE_COLLECTIONS.TEAMS, teamId),
+      { sanctions: normalized },
+      { merge: true },
+    );
+    await this.recalculateAcumulado([teamId]);
+  }
+
+  /** Total de puntos de sanción (negativo) por equipo. */
+  private async fetchSanctionTotals(): Promise<Map<string, number>> {
+    const snapshot = await getDocs(collection(db, FIRESTORE_COLLECTIONS.TEAMS));
+    return new Map(
+      snapshot.docs.map((teamDoc) => [
+        teamDoc.id,
+        totalSanctionPoints(parsePointSanctions(teamDoc.data().sanctions)),
+      ]),
+    );
+  }
+
+  /**
+   * Recalcula el acumulado para los equipos indicados: apertura + clausura + sanciones.
    * Llamado automáticamente después de cada actualización de estadísticas.
+   * Las sanciones (negativas) solo se aplican aquí, nunca en apertura/clausura.
    */
   private async recalculateAcumulado(teamIds: string[]): Promise<void> {
     const batch = writeBatch(db);
 
     await Promise.all(
       teamIds.map(async (teamId) => {
-        const [aperturaDoc, clausuraDoc] = await Promise.all([
+        const [aperturaDoc, clausuraDoc, sanctions] = await Promise.all([
           getDoc(doc(db, FIRESTORE_COLLECTIONS.APERTURA, teamId)),
           getDoc(doc(db, FIRESTORE_COLLECTIONS.CLAUSURA, teamId)),
+          this.fetchPointSanctions(teamId),
         ]);
 
         const a = aperturaDoc.exists() ? aperturaDoc.data() : {};
@@ -317,7 +362,7 @@ export class TeamRepository implements ITeamRepository {
           goalsScored: sum('goalsScored'),
           goalsAgainst: sum('goalsAgainst'),
           goalDifference: sum('goalDifference'),
-          points: sum('points'),
+          points: sum('points') + totalSanctionPoints(sanctions),
         }, { merge: true });
       })
     );
