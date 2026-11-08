@@ -1,7 +1,11 @@
 export type PlayerPosition = "GK" | "DF" | "MF" | "FW";
 
-/** De dónde viene la foto: `manual` (admin) nunca la pisa la búsqueda en Wikidata. */
-export type PhotoSource = "manual" | "wikidata";
+/**
+ * De dónde viene la foto. `manual` y `transfermarkt` (pegadas en el panel) nunca las
+ * pisa la búsqueda en Wikidata. La URL de Transfermarkt lleva un sufijo variable
+ * (`/portrait/big/372304-1770566145.png`) que solo aparece en el perfil del jugador.
+ */
+export type PhotoSource = "manual" | "wikidata" | "transfermarkt";
 
 /**
  * Documento `equipos/{code}/players/{playerId}`. Las plantillas vienen de

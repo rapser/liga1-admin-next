@@ -44,7 +44,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type Position = "GK" | "DF" | "MF" | "FW";
-type PhotoSource = "manual" | "wikidata";
+type PhotoSource = "manual" | "wikidata" | "transfermarkt";
 
 interface Player {
   id: string;
@@ -66,7 +66,11 @@ const POSITION_LABELS: Record<Position, string> = {
 const SOURCE_LABELS: Record<PhotoSource, string> = {
   manual: "Manual",
   wikidata: "Wikimedia",
+  transfermarkt: "Transfermarkt",
 };
+
+/** Fotos de Transfermarkt: se guardan con su crédito, que la app muestra al pie de la plantilla. */
+const TRANSFERMARKT_IMAGE_HOST = /(^|\.)transfermarkt\.technology$/;
 
 const teamRepository = new TeamRepository();
 
@@ -386,10 +390,12 @@ function PlayerRow({ teamCode, player, onSaved }: PlayerRowProps) {
 
   const save = async () => {
     const normalized = photoURL.trim();
+    let isTransfermarkt = false;
     if (normalized) {
       try {
-        const { protocol } = new URL(normalized);
+        const { protocol, hostname } = new URL(normalized);
         if (protocol !== "https:") throw new Error("Debe ser https");
+        isTransfermarkt = TRANSFERMARKT_IMAGE_HOST.test(hostname);
       } catch {
         toast.error("Ingresa un enlace https válido");
         return;
@@ -405,11 +411,13 @@ function PlayerRow({ teamCode, player, onSaved }: PlayerRowProps) {
         FIRESTORE_COLLECTIONS.PLAYERS,
         player.id,
       );
-      // Una foto puesta a mano (photoSource: "manual") no la pisa ninguna importación.
+      // Una foto puesta a mano (manual o Transfermarkt) no la pisa la búsqueda en Wikidata.
       await updateDoc(
         playerRef,
         normalized
-          ? { photoURL: normalized, photoSource: "manual", photoCredit: deleteField() }
+          ? isTransfermarkt
+            ? { photoURL: normalized, photoSource: "transfermarkt", photoCredit: "Transfermarkt" }
+            : { photoURL: normalized, photoSource: "manual", photoCredit: deleteField() }
           : {
               photoURL: deleteField(),
               photoSource: deleteField(),
@@ -458,7 +466,7 @@ function PlayerRow({ teamCode, player, onSaved }: PlayerRowProps) {
           type="url"
           value={photoURL}
           onChange={(event) => setPhotoURL(event.target.value)}
-          placeholder="https://… (URL de la foto)"
+          placeholder="https://img.a.transfermarkt.technology/portrait/big/… (URL de la foto)"
           aria-label={`URL de la foto de ${player.name}`}
         />
         <Button
