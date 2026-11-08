@@ -1,7 +1,8 @@
 /**
  * Página de Equipos
- * Plantilla de cada equipo (equipos/{code}/players): importación desde ESPN,
- * búsqueda de fotos en Wikidata y edición manual de la foto de cada jugador.
+ * Plantilla de cada equipo (equipos/{code}/players), sincronizada con Transfermarkt
+ * pegando la tabla de la plantilla; búsqueda de fotos en Wikidata y edición manual
+ * de la foto de cada jugador.
  * También gestiona las sanciones de puntos (equipos/{code}.sanctions), que solo
  * restan en la tabla acumulada.
  */
@@ -18,7 +19,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { toast } from "sonner";
-import { Download, Gavel, ImageIcon, Loader2, Plus, Trash2, Users } from "lucide-react";
+import { Gavel, ImageIcon, Loader2, Plus, Trash2, Users } from "lucide-react";
 import { db } from "@/core/config/firebase";
 import {
   FIRESTORE_COLLECTIONS,
@@ -31,6 +32,7 @@ import {
   totalSanctionPoints,
 } from "@/domain/entities/point-sanction.entity";
 import { PageHeader } from "@/presentation/components/shared";
+import { TransfermarktSyncDialog } from "@/presentation/components/features/squads/transfermarkt-sync-dialog";
 import {
   Card,
   CardContent,
@@ -44,7 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type Position = "GK" | "DF" | "MF" | "FW";
-type PhotoSource = "manual" | "espn" | "wikidata";
+type PhotoSource = "manual" | "wikidata" | "transfermarkt";
 
 interface Player {
   id: string;
@@ -65,9 +67,12 @@ const POSITION_LABELS: Record<Position, string> = {
 };
 const SOURCE_LABELS: Record<PhotoSource, string> = {
   manual: "Manual",
-  espn: "ESPN",
   wikidata: "Wikimedia",
+  transfermarkt: "Transfermarkt",
 };
+
+/** Fotos de Transfermarkt: se guardan con su crédito, que la app muestra al pie de la plantilla. */
+const TRANSFERMARKT_IMAGE_HOST = /(^|\.)transfermarkt\.technology$/;
 
 const teamRepository = new TeamRepository();
 
@@ -99,9 +104,7 @@ export default function EquiposPage() {
   const { loading: authLoading } = useRequireAuth();
   const queryClient = useQueryClient();
   const [teamCode, setTeamCode] = useState(teamEntries[0]?.[0] ?? "ali");
-  const [runningTask, setRunningTask] = useState<"import" | "photos" | null>(
-    null,
-  );
+  const [searchingPhotos, setSearchingPhotos] = useState(false);
 
   const { data: players = [], isLoading } = useQuery({
     queryKey: ["players", teamCode],
@@ -109,35 +112,30 @@ export default function EquiposPage() {
     enabled: !authLoading,
   });
 
-  const runTask = async (task: "import" | "photos") => {
-    setRunningTask(task);
+  const activeCount = players.filter((player) => player.active !== false).length;
+
+  const searchPhotos = async () => {
+    setSearchingPhotos(true);
     try {
-      const response = await fetch(
-        task === "import" ? "/api/squads/import" : "/api/squads/photos",
-        { method: "POST", credentials: "include" },
-      );
+      const response = await fetch("/api/squads/photos", {
+        method: "POST",
+        credentials: "include",
+      });
       const data = await response.json();
       if (!response.ok || data.ok !== true) {
         throw new Error(data.error ?? `HTTP ${response.status}`);
       }
 
-      toast.success(
-        task === "import" ? "Plantillas importadas" : "Búsqueda de fotos lista",
-        {
-          description:
-            task === "import"
-              ? `${data.players} jugadores en ${data.teams} equipos` +
-                (data.deactivated ? ` · ${data.deactivated} dados de baja` : "")
-              : `${data.matched} fotos nuevas de ${data.wikidataPlayers} en Wikidata`,
-        },
-      );
+      toast.success("Búsqueda de fotos lista", {
+        description: `${data.matched} fotos nuevas de ${data.wikidataPlayers} en Wikidata`,
+      });
       await queryClient.invalidateQueries({ queryKey: ["players"] });
     } catch (error) {
       toast.error("No se pudo completar la operación", {
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {
-      setRunningTask(null);
+      setSearchingPhotos(false);
     }
   };
 
@@ -188,32 +186,27 @@ export default function EquiposPage() {
                   {TEAM_NAMES[teamCode]}
                 </CardTitle>
                 <CardDescription>
-                  {players.length} {players.length === 1 ? "jugador" : "jugadores"}
+                  {activeCount} {activeCount === 1 ? "jugador activo" : "jugadores activos"}
+                  {players.length > activeCount && ` · ${players.length - activeCount} de baja`}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
+                <TransfermarktSyncDialog
+                  key={teamCode}
+                  teamCode={teamCode}
+                  teamName={TEAM_NAMES[teamCode] ?? teamCode}
+                  onSynced={() =>
+                    queryClient.invalidateQueries({ queryKey: ["players", teamCode] })
+                  }
+                />
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={runningTask !== null}
-                  onClick={() => runTask("import")}
+                  disabled={searchingPhotos}
+                  onClick={searchPhotos}
                 >
-                  {runningTask === "import" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  Importar plantillas (ESPN)
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={runningTask !== null}
-                  onClick={() => runTask("photos")}
-                >
-                  {runningTask === "photos" ? (
+                  {searchingPhotos ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <ImageIcon className="h-4 w-4" />
@@ -232,8 +225,7 @@ export default function EquiposPage() {
               <div className="text-center py-12">
                 <Users className="h-12 w-12 mx-auto mb-4 text-foreground opacity-50" />
                 <p className="text-foreground">
-                  Este equipo aún no tiene plantilla. Usa &quot;Importar
-                  plantillas&quot;.
+                  Este equipo aún no tiene plantilla. Usa “Sincronizar con Transfermarkt”.
                 </p>
               </div>
             ) : (
@@ -411,10 +403,12 @@ function PlayerRow({ teamCode, player, onSaved }: PlayerRowProps) {
 
   const save = async () => {
     const normalized = photoURL.trim();
+    let isTransfermarkt = false;
     if (normalized) {
       try {
-        const { protocol } = new URL(normalized);
+        const { protocol, hostname } = new URL(normalized);
         if (protocol !== "https:") throw new Error("Debe ser https");
+        isTransfermarkt = TRANSFERMARKT_IMAGE_HOST.test(hostname);
       } catch {
         toast.error("Ingresa un enlace https válido");
         return;
@@ -430,11 +424,13 @@ function PlayerRow({ teamCode, player, onSaved }: PlayerRowProps) {
         FIRESTORE_COLLECTIONS.PLAYERS,
         player.id,
       );
-      // Una foto puesta a mano (photoSource: "manual") no la pisa ninguna importación.
+      // Una foto puesta a mano (manual o Transfermarkt) no la pisa la búsqueda en Wikidata.
       await updateDoc(
         playerRef,
         normalized
-          ? { photoURL: normalized, photoSource: "manual", photoCredit: deleteField() }
+          ? isTransfermarkt
+            ? { photoURL: normalized, photoSource: "transfermarkt", photoCredit: "Transfermarkt" }
+            : { photoURL: normalized, photoSource: "manual", photoCredit: deleteField() }
           : {
               photoURL: deleteField(),
               photoSource: deleteField(),
@@ -483,7 +479,7 @@ function PlayerRow({ teamCode, player, onSaved }: PlayerRowProps) {
           type="url"
           value={photoURL}
           onChange={(event) => setPhotoURL(event.target.value)}
-          placeholder="https://… (URL de la foto)"
+          placeholder="https://img.a.transfermarkt.technology/portrait/big/… (URL de la foto)"
           aria-label={`URL de la foto de ${player.name}`}
         />
         <Button
