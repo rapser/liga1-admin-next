@@ -2,6 +2,8 @@
  * Página de Equipos
  * Plantilla de cada equipo (equipos/{code}/players): importación desde ESPN,
  * búsqueda de fotos en Wikidata y edición manual de la foto de cada jugador.
+ * También gestiona las sanciones de puntos (equipos/{code}.sanctions), que solo
+ * restan en la tabla acumulada.
  */
 
 "use client";
@@ -16,13 +18,18 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { toast } from "sonner";
-import { Download, ImageIcon, Loader2, Users } from "lucide-react";
+import { Download, Gavel, ImageIcon, Loader2, Plus, Trash2, Users } from "lucide-react";
 import { db } from "@/core/config/firebase";
 import {
   FIRESTORE_COLLECTIONS,
   TEAM_NAMES,
 } from "@/core/config/firestore-constants";
 import { useRequireAuth } from "@/presentation/hooks/use-require-auth";
+import { TeamRepository } from "@/data/repositories/team.repository";
+import {
+  PointSanction,
+  totalSanctionPoints,
+} from "@/domain/entities/point-sanction.entity";
 import { PageHeader } from "@/presentation/components/shared";
 import {
   Card,
@@ -61,6 +68,8 @@ const SOURCE_LABELS: Record<PhotoSource, string> = {
   espn: "ESPN",
   wikidata: "Wikimedia",
 };
+
+const teamRepository = new TeamRepository();
 
 const teamEntries = Object.entries(TEAM_NAMES).sort((a, b) =>
   a[1].localeCompare(b[1]),
@@ -168,7 +177,10 @@ export default function EquiposPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-soft border-0 lg:col-span-3">
+        <div className="lg:col-span-3 space-y-6">
+        <SanctionsCard key={teamCode} teamCode={teamCode} />
+
+        <Card className="shadow-soft border-0">
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -242,8 +254,148 @@ export default function EquiposPage() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </>
+  );
+}
+
+interface SanctionDraft {
+  points: string;
+  resolution: string;
+}
+
+const toDraft = (sanction: PointSanction): SanctionDraft => ({
+  points: String(sanction.points),
+  resolution: sanction.resolution,
+});
+
+/**
+ * Sanciones de puntos del equipo. Los puntos se guardan negativos y se suman
+ * solo a la tabla acumulada; la app muestra la resolución en la leyenda.
+ */
+function SanctionsCard({ teamCode }: { teamCode: string }) {
+  const queryClient = useQueryClient();
+  const [drafts, setDrafts] = useState<SanctionDraft[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const { data: saved = [], isLoading } = useQuery({
+    queryKey: ["sanctions", teamCode],
+    queryFn: () => teamRepository.fetchPointSanctions(teamCode),
+  });
+
+  const rows = drafts ?? saved.map(toDraft);
+  const dirty = drafts !== null;
+  const updateRow = (index: number, patch: Partial<SanctionDraft>) =>
+    setDrafts(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+  const save = async () => {
+    const sanctions: PointSanction[] = [];
+    for (const row of rows) {
+      const value = Number(row.points);
+      if (!Number.isInteger(value) || value === 0) {
+        toast.error("Cada sanción necesita puntos enteros distintos de cero");
+        return;
+      }
+      if (!row.resolution.trim()) {
+        toast.error("Indica la resolución de cada sanción");
+        return;
+      }
+      // Siempre negativos, aunque se escriba "10".
+      sanctions.push({ points: -Math.abs(value), resolution: row.resolution.trim() });
+    }
+
+    setSaving(true);
+    try {
+      await teamRepository.savePointSanctions(teamCode, sanctions);
+      toast.success("Sanciones guardadas", {
+        description: "La tabla acumulada se recalculó.",
+      });
+      setDrafts(null);
+      await queryClient.invalidateQueries({ queryKey: ["sanctions", teamCode] });
+    } catch (error) {
+      toast.error("No se pudieron guardar las sanciones", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const total = totalSanctionPoints(saved);
+
+  return (
+    <Card className="shadow-soft border-0">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-accent-foreground text-lg flex items-center gap-2">
+              <Gavel className="h-5 w-5" />
+              Sanciones de puntos
+              {total < 0 && <Badge variant="destructive">{total} pts</Badge>}
+            </CardTitle>
+            <CardDescription>
+              Solo restan en la tabla acumulada. La resolución aparece en la leyenda de la app.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setDrafts([...rows, { points: "", resolution: "" }])}
+          >
+            <Plus className="h-4 w-4" />
+            Agregar sanción
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <p className="text-sm text-foreground">Cargando sanciones...</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-foreground">Este equipo no tiene sanciones.</p>
+        ) : (
+          rows.map((row, index) => (
+            <div key={index} className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                className="sm:w-28"
+                inputMode="numeric"
+                value={row.points}
+                onChange={(event) => updateRow(index, { points: event.target.value })}
+                placeholder="-3"
+                aria-label="Puntos descontados"
+              />
+              <Input
+                className="flex-1"
+                value={row.resolution}
+                onChange={(event) => updateRow(index, { resolution: event.target.value })}
+                placeholder="Resolución N.° 080-CL-LFPP-2026"
+                aria-label="Resolución"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Eliminar sanción"
+                onClick={() => setDrafts(rows.filter((_, i) => i !== index))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))
+        )}
+        {dirty && (
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" disabled={saving} onClick={() => setDrafts(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" disabled={saving} onClick={save}>
+              {saving ? "Guardando..." : "Guardar sanciones"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
