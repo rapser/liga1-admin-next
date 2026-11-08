@@ -12,6 +12,7 @@
     "fixtures:wikipedia": "node --no-warnings scripts/import-fixtures-from-wikipedia.mjs",
     "backfill:horarios": "node --no-warnings scripts/backfill-horarios-confirmados.mjs",
     "sanctions:seed": "node --no-warnings scripts/seed-point-sanctions.mjs",
+    "players:normalize": "node --no-warnings scripts/normalize-legacy-players.mjs",
     "verify-env": "node scripts/verify-env.mjs"
   },
   "dependencies": {
