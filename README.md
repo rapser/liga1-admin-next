@@ -47,7 +47,7 @@ Las rutas principales están bajo `/dashboard`. La siguiente sección resume la 
 | Dashboard | `/dashboard` | Presenta un resumen operativo con información relevante de jornadas, partidos y usuarios. |
 | Partidos | `/dashboard/partidos` | Organiza encuentros en vivo, próximos, finalizados o suspendidos y permite gestionar su estado, marcador y tiempos de juego. |
 | Jornadas | `/dashboard/jornadas` | Permite consultar las fechas del Apertura y Clausura, editar la hora de cada partido, confirmar los horarios oficiales de la jornada (la app solo muestra jornadas confirmadas) y acceder a sus partidos. |
-| Equipos | `/dashboard/equipos` | Muestra la plantilla de cada equipo (cargada desde Transfermarkt), gestiona las sanciones de puntos, busca fotos en Wikidata y permite fijar la foto de un jugador a mano. |
+| Equipos | `/dashboard/equipos` | Muestra la plantilla de cada equipo, la sincroniza con Transfermarkt pegando la tabla de la plantilla, gestiona las sanciones de puntos, busca fotos en Wikidata y permite fijar la foto de un jugador a mano. |
 | Tabla de posiciones | `/dashboard/posiciones` | Muestra en tiempo real las clasificaciones independientes del Apertura y Clausura, además de la tabla Acumulada. |
 | Noticias | `/dashboard/noticias` | Permite crear, editar y administrar las noticias que consume la aplicación. |
 | Configuración | `/dashboard/configuracion` | Reúne ajustes de cuenta, usuarios y operaciones administrativas, incluida la preparación del Torneo Clausura. |
@@ -419,7 +419,7 @@ liga1-admin-next/
 │   │       ├── auth/                 # Sesión y logout
 │   │       ├── admin/                # Operaciones administrativas
 │   │       ├── push-notifications/   # Envío de notificaciones
-│   │       ├── squads/               # Importación de plantillas y fotos
+│   │       ├── squads/               # Sincronización con Transfermarkt y fotos
 │   │       └── stats/                # Estadísticas del sistema
 │   ├── components/
 │   │   └── ui/                        # Componentes visuales base
@@ -438,7 +438,7 @@ liga1-admin-next/
 │   │   ├── auth/                      # Autorización de rutas API (Bearer o sesión de admin)
 │   │   ├── fixtures/                  # Parser de la programación en Wikipedia
 │   │   ├── live-sync/                 # Sincronización de partidos en vivo
-│   │   └── squads/                    # Importación de plantillas y fotos
+│   │   └── squads/                    # Sincronización con Transfermarkt y fotos
 │   ├── presentation/
 │   │   ├── components/
 │   │   │   ├── features/              # Componentes por funcionalidad
@@ -532,7 +532,7 @@ El ID habitual combina los equipos (`ali_uni`). Si los campos de equipo no exist
 
 ### Documento de jugador
 
-Ruta de ejemplo: `equipos/hua/players/angel-zamudio`. Las plantillas vienen de Transfermarkt; la app iOS solo las lee. Las cargas con el esquema antiguo (`fullName`, `status`, `DEF`/`MID`/`FWD`) se pasan a este esquema con `npm run players:normalize`.
+Ruta de ejemplo: `equipos/hua/players/angel-zamudio`. Las plantillas se sincronizan con Transfermarkt desde el panel (ver [Plantillas de equipos](#plantillas-de-equipos)); la app iOS solo las lee. Las cargas con el esquema antiguo (`fullName`, `status`, `DEF`/`MID`/`FWD`) se pasan a este esquema con `npm run players:normalize`.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
@@ -960,7 +960,30 @@ Una jornada también puede confirmarse a mano desde `/dashboard/jornadas`, despu
 
 ### Plantillas de equipos
 
-Las plantillas de `equipos/{code}/players` vienen de Transfermarkt (ids tipo `angel-zamudio`). Si se cargan con el esquema antiguo, `npm run players:normalize` (vista previa; `-- --apply` para escribir) les agrega `name`, `active` y la posición `DF`/`MF`/`FW` que leen la app y el panel.
+Las plantillas de `equipos/{code}/players` deben ser iguales a las de Transfermarkt (ids tipo `angel-zamudio`): la app solo muestra a los jugadores con `active: true`.
+
+**Sincronizar con Transfermarkt** (cada mercado de pases, equipo por equipo):
+
+1. En transfermarkt.pe, abrir la página **Plantilla** del club.
+2. Seleccionar la tabla con el mouse, desde el dorsal del primer jugador hasta el último dato del último jugador, y copiarla (Cmd+C). Sirve con la edad o con la fecha de nacimiento.
+3. En `/dashboard/equipos`, elegir el equipo, pulsar **Sincronizar con Transfermarkt**, pegar la tabla y pulsar **Ver cambios**.
+4. Revisar las altas, bajas y cambios, y pulsar **Confirmar y guardar**.
+
+Reglas:
+
+- **Quien está en Transfermarkt** queda activo, con el nombre, dorsal, posición, edad y nacionalidad que figuran ahí. Si tiene doble nacionalidad, se guarda la primera que lista Transfermarkt.
+- **Quien no está** pasa a `active: false`. No se borra, para que su foto se conserve si vuelve.
+- **Quien falta** se crea sin foto.
+- Las fotos nunca se tocan.
+- **Emparejamiento por nombre:** un jugador de la base se reconoce aunque esté con nombre completo ("Jesús Castillo Peña" → "Jesús Castillo"). Los emparejados por dorsal y apellido ("Juan Requena" → "Juan Manuel Requena") o por apellido casi igual ("Bettochi" → "Bettocchi") se muestran en **Revisa que sean el mismo jugador**.
+- **Tabla de otro equipo:** si casi nadie coincide con la plantilla actual, el panel avisa que probablemente se pegó la tabla equivocada.
+- **País o posición desconocidos:** el panel no guarda nada. Para agregarlos, editar `COUNTRIES` o `POSITIONS` en `src/server/squads/transfermarkt-squad-parser.ts`. Los códigos deben existir en `CountryFlag.swift` de la app iOS, o ser ISO alpha-2.
+- **Cambios entre revisar y confirmar:** al confirmar se recalcula el plan; si la plantilla cambió desde la vista previa, no se guarda (HTTP 409).
+- El equipo guarda `squadSyncedAt` con la fecha de la última sincronización.
+
+También por API: `POST /api/squads/transfermarkt-sync` con `{ teamCode, table }` para la vista previa (devuelve `plan` y `planId`) y `{ teamCode, table, confirmPlanId }` para guardar. Autoriza con `Authorization: Bearer $CRON_SECRET` o con la sesión de un admin.
+
+Las cargas con el esquema antiguo (`fullName`, `status`, `DEF`/`MID`/`FWD`) se pasan al esquema actual con `npm run players:normalize` (vista previa; `-- --apply` para escribir).
 
 Fotos, desde `/dashboard/equipos` o con `POST /api/squads/photos` (cabecera `Authorization: Bearer $CRON_SECRET`, `?dryRun=true` para solo calcular):
 
